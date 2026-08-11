@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Entorno
+.env
+
+# Uploads de usuario (logos, fotos, QR, vales) — se conservan los directorios via .gitkeep
+backend/app/static/uploads/*
+!backend/app/static/uploads/.gitkeep
+!backend/app/static/uploads/tools/
+backend/app/static/uploads/tools/*
+!backend/app/static/uploads/tools/.gitkeep
+!backend/app/static/uploads/qr/
+backend/app/static/uploads/qr/*
+!backend/app/static/uploads/qr/.gitkeep
+!backend/app/static/uploads/vouchers/
+backend/app/static/uploads/vouchers/*
+!backend/app/static/uploads/vouchers/.gitkeep
+
+# Instalador / build
+dist/
+build/
+*.spec
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/

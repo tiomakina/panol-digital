@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% block title %}Personalización de Marca{% endblock %}
+{% block page_title %}Personalización de Marca{% endblock %}
+
+{% block content %}
+<div x-data="brandEditor()" style="max-width: 1000px;">
+
+  <!-- Header con preview en vivo -->
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:1.5rem;margin-bottom:1.5rem;">
+    
+    <!-- Panel de edición -->
+    <div>
+
+      <!-- Sección: Logo -->
+      <div class="card" style="margin-bottom:1rem;">
+        <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          Logo de la empresa
+        </h2>
+        
+        <!-- Zona de drag & drop para logo -->
+        <div 
+          style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s;"
+          :style="dragOver ? 'border-color: var(--brand-primary); background: var(--brand-light, #ede9fe);' : ''"
+          @dragover.prevent="dragOver = true"
+          @dragleave="dragOver = false"
+          @drop.prevent="handleLogoDrop($event)"
+          @click="$refs.logoInput.click()"
+        >
+          <template x-if="!logoPreview">
+            <div>
+              <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin: 0 auto 1rem; color: #94a3b8;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <p style="color: #64748b; margin-bottom: 0.5rem; font-weight: 500;">Arrastra tu logo aquí o haz clic para seleccionar</p>
+              <p style="color: #94a3b8; font-size: 0.8rem;">PNG, SVG, JPG o WebP · Máximo 2MB · Recomendado: fondo transparente</p>
+            </div>
+          </template>
+          <template x-if="logoPreview">
+            <div style="display:flex;align-items:center;justify-content:center;gap:1rem;">
+              <img :src="logoPreview" style="max-height: 80px; max-width: 200px; object-fit: contain;" alt="Logo preview">
+              <button @click.stop="clearLogo()" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.4rem 0.75rem;cursor:pointer;font-size:0.8rem;">
+                Quitar
+              </button>
+            </div>
+          </template>
+          <input type="file" x-ref="logoInput" accept="image/*" style="display:none" @change="handleLogoFile($event)">
+        </div>
+
+        <!-- Checkbox: extraer paleta del logo -->
+        <label style="display:flex;align-items:center;gap:0.5rem;margin-top:1rem;cursor:pointer;font-size:0.875rem;">
+          <input type="checkbox" x-model="extractPalette" style="accent-color: var(--brand-primary);">
+          Extraer colores automáticamente del logo al subir
+        </label>
+
+        <template x-if="extractedColors.length > 0">
+          <div style="margin-top:0.75rem;">
+            <p style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;">Colores detectados en tu logo:</p>
+            <div style="display:flex;gap:0.5rem;">
+              <template x-for="color in extractedColors" :key="color">
+                <button 
+                  @click="applyExtractedColor(color)"
+                  :style="`background: ${color}; width: 36px; height: 36px; border-radius: 6px; border: 2px solid #e2e8f0; cursor: pointer;`"
+                  :title="`Aplicar ${color} como color principal`"
+                ></button>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <button @click="uploadLogo()" class="btn-primary" style="margin-top:1rem;" :disabled="!logoFile || uploading">
+          <template x-if="!uploading">
+            <span>Subir logo</span>
+          </template>
+          <template x-if="uploading">
+            <span>Subiendo...</span>
+          </template>
+        </button>
+      </div>
+
+      <!-- Sección: Nombre de empresa -->
+      <div class="card" style="margin-bottom:1rem;">
+        <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;">Información de la empresa</h2>
+        <label style="display:block;font-size:0.875rem;color:#64748b;margin-bottom:0.5rem;">Nombre de la empresa</label>
+        <input 
+          type="text" 
+          x-model="brand.company_name" 
+          @input="updatePreview()"
+          placeholder="Mi Empresa S.A."
+          style="width:100%;padding:0.625rem 0.875rem;border:1px solid #e2e8f0;border-radius:8px;font-size:0.875rem;"
+        >
+      </div>
+
+      <!-- Sección: Colores -->
+      <div class="card" style="margin-bottom:1rem;">
+        <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+          Paleta de colores
+        </h2>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          
+          <!-- Color primario -->
+          <div>
+            <label style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;display:block;">Color principal</label>
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <div class="color-swatch">
+                <input type="color" x-model="brand.primary_color" @input="updatePreview(); autoGeneratePalette()">
+              </div>
+              <input type="text" x-model="brand.primary_color" @change="updatePreview()" style="flex:1;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-family:monospace;font-size:0.85rem;">
+            </div>
+            <p style="font-size:0.7rem;color:#94a3b8;margin-top:0.25rem;">Botones, nav activo, acentos</p>
+          </div>
+
+          <!-- Color secundario -->
+          <div>
+            <label style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;display:block;">Color secundario</label>
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <div class="color-swatch">
+                <input type="color" x-model="brand.secondary_color" @input="updatePreview()">
+              </div>
+              <input type="text" x-model="brand.secondary_color" @change="updatePreview()" style="flex:1;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-family:monospace;font-size:0.85rem;">
+            </div>
+            <p style="font-size:0.7rem;color:#94a3b8;margin-top:0.25rem;">Gráficos, tags, badges</p>
+          </div>
+
+          <!-- Color de acento -->
+          <div>
+            <label style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;display:block;">Color de acento</label>
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <div class="color-swatch">
+                <input type="color" x-model="brand.accent_color" @input="updatePreview()">
+              </div>
+              <input type="text" x-model="brand.accent_color" @change="updatePreview()" style="flex:1;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-family:monospace;font-size:0.85rem;">
+            </div>
+            <p style="font-size:0.7rem;color:#94a3b8;margin-top:0.25rem;">Alertas, warnings, destacados</p>
+          </div>
+
+          <!-- Color del sidebar -->
+          <div>
+            <label style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;display:block;">Fondo del menú lateral</label>
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <div class="color-swatch">
+                <input type="color" x-model="brand.sidebar_bg" @input="updatePreview()">
+              </div>
+              <input type="text" x-model="brand.sidebar_bg" @change="updatePreview()" style="flex:1;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-family:monospace;font-size:0.85rem;">
+            </div>
+            <p style="font-size:0.7rem;color:#94a3b8;margin-top:0.25rem;">Sidebar, navegación</p>
+          </div>
+        </div>
+
+        <!-- Paletas predefinidas -->
+        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #f1f5f9;">
+          <p style="font-size:0.8rem;color:#64748b;margin-bottom:0.75rem;">Paletas predefinidas:</p>
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+            <template x-for="preset in colorPresets" :key="preset.name">
+              <button 
+                @click="applyPreset(preset)"
+                style="display:flex;align-items:center;gap:0.4rem;padding:0.35rem 0.75rem;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.75rem;background:#fff;transition:all 0.15s;"
+                :title="preset.name"
+              >
+                <span :style="`width:14px;height:14px;border-radius:3px;background:${preset.primary}`"></span>
+                <span :style="`width:14px;height:14px;border-radius:3px;background:${preset.secondary}`"></span>
+                <span :style="`width:14px;height:14px;border-radius:3px;background:${preset.accent}`"></span>
+                <span x-text="preset.name"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección: Tipografía y forma -->
+      <div class="card" style="margin-bottom:1rem;">
+        <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;">Tipografía y estilo</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;display:block;">Fuente de títulos</label>
+            <select x-model="brand.font_heading" @change="updatePreview()" style="width:100%;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.875rem;">
+              <option>Inter</option>
+              <option>Poppins</option>
+              <option>Roboto</option>
+              <option>Nunito</option>
+              <option>DM Sans</option>
+              <option>Outfit</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;display:block;">Fuente del cuerpo</label>
+            <select x-model="brand.font_body" @change="updatePreview()" style="width:100%;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.875rem;">
+              <option>Inter</option>
+              <option>Poppins</option>
+              <option>Roboto</option>
+              <option>Open Sans</option>
+              <option>Nunito Sans</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;display:block;">Radio de bordes</label>
+            <select x-model="brand.border_radius" @change="updatePreview()" style="width:100%;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.875rem;">
+              <option value="4px">Cuadrado (4px)</option>
+              <option value="8px">Normal (8px)</option>
+              <option value="12px">Redondeado (12px)</option>
+              <option value="16px">Muy redondeado (16px)</option>
+              <option value="9999px">Píldora (∞)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div style="display:flex;gap:0.75rem;">
+        <button @click="saveColors()" class="btn-primary" :disabled="saving">
+          <template x-if="!saving"><span>Guardar cambios</span></template>
+          <template x-if="saving"><span>Guardando...</span></template>
+        </button>
+        <button @click="resetBrand()" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.5rem 1.25rem;cursor:pointer;font-size:0.875rem;">
+          Restaurar predeterminados
+        </button>
+      </div>
+
+      <!-- Mensaje de confirmación -->
+      <div x-show="saveMessage" x-transition style="margin-top:1rem;padding:0.75rem 1rem;background:#dcfce7;color:#166534;border-radius:8px;font-size:0.875rem;">
+        ✓ <span x-text="saveMessage"></span>
+      </div>
+    </div>
+
+    <!-- Preview en vivo -->
+    <div>
+      <div style="position:sticky;top:80px;">
+        <h3 style="font-size:0.875rem;font-weight:600;color:#64748b;margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">Vista previa en vivo</h3>
+        <div :style="`border-radius: ${brand.border_radius}; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.08);`">
+          
+          <!-- Mini sidebar preview -->
+          <div :style="`background: ${brand.sidebar_bg}; padding: 1rem;`">
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+              <div :style="`width:28px;height:28px;border-radius:6px;background:${brand.primary_color};display:flex;align-items:center;justify-content:center;`">
+                <svg width="14" height="14" fill="white" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              </div>
+              <span :style="`font-size:0.8rem;font-weight:600;color:#fff;font-family:${brand.font_heading}`" x-text="brand.company_name || 'Mi Empresa'"></span>
+            </div>
+            <template x-for="item in ['Dashboard', 'Herramientas', 'Préstamos']" :key="item">
+              <div 
+                :style="`display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border-radius:${brand.border_radius};margin-bottom:2px;font-size:0.75rem;
+                ${item === 'Dashboard' ? 'background:' + brand.primary_color + ';color:#fff;' : 'color:rgba(255,255,255,0.5);'}`"
+                x-text="item"
+              ></div>
+            </template>
+          </div>
+
+          <!-- Mini content preview -->
+          <div style="background:#f8fafc;padding:1rem;">
+            <div :style="`background:${brand.primary_color};color:white;border-radius:${brand.border_radius};padding:0.5rem 1rem;font-size:0.75rem;font-weight:500;display:inline-block;margin-bottom:0.75rem;font-family:${brand.font_body}`">
+              + Nueva herramienta
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+              <div :style="`background:white;border:1px solid #e2e8f0;border-radius:${brand.border_radius};padding:0.75rem;border-top:3px solid ${brand.primary_color}`">
+                <div style="font-size:1.2rem;font-weight:700;color:#1e293b;" x-text="'247'"></div>
+                <div style="font-size:0.65rem;color:#94a3b8;">Herramientas</div>
+              </div>
+              <div :style="`background:white;border:1px solid #e2e8f0;border-radius:${brand.border_radius};padding:0.75rem;border-top:3px solid ${brand.accent_color}`">
+                <div style="font-size:1.2rem;font-weight:700;color:#1e293b;" x-text="'18'"></div>
+                <div style="font-size:0.65rem;color:#94a3b8;">En préstamo</div>
+              </div>
+            </div>
+            <div :style="`margin-top:0.5rem;background:white;border:1px solid #e2e8f0;border-radius:${brand.border_radius};padding:0.5rem 0.75rem;display:flex;align-items:center;justify-content:space-between;`">
+              <span style="font-size:0.7rem;color:#1e293b;">Taladro DeWalt DC796</span>
+              <span :style="`background:${brand.secondary_color}22;color:${brand.secondary_color};font-size:0.6rem;padding:2px 6px;border-radius:9999px;font-weight:500;`">Disponible</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Muestra de colores -->
+        <div style="margin-top:1rem;display:flex;gap:0.25rem;">
+          <div :style="`flex:1;height:20px;background:${brand.primary_color};border-radius:4px 0 0 4px;`" :title="brand.primary_color"></div>
+          <div :style="`flex:1;height:20px;background:${brand.secondary_color};`" :title="brand.secondary_color"></div>
+          <div :style="`flex:1;height:20px;background:${brand.accent_color};`" :title="brand.accent_color"></div>
+          <div :style="`flex:1;height:20px;background:${brand.sidebar_bg};border-radius:0 4px 4px 0;`" :title="brand.sidebar_bg"></div>
+        </div>
+        <div style="display:flex;gap:0.25rem;margin-top:2px;">
+          <div style="flex:1;text-align:center;font-size:0.6rem;color:#94a3b8;">Principal</div>
+          <div style="flex:1;text-align:center;font-size:0.6rem;color:#94a3b8;">Secundario</div>
+          <div style="flex:1;text-align:center;font-size:0.6rem;color:#94a3b8;">Acento</div>
+          <div style="flex:1;text-align:center;font-size:0.6rem;color:#94a3b8;">Sidebar</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function brandEditor() {
+  return {
+    brand: {
+      company_name: "{{ brand.company_name | default('Mi Empresa') }}",
+      primary_color: "{{ brand.primary_color | default('#4f46e5') }}",
+      secondary_color: "{{ brand.secondary_color | default('#06b6d4') }}",
+      accent_color: "{{ brand.accent_color | default('#f59e0b') }}",
+      sidebar_bg: "{{ brand.sidebar_bg | default('#0f172a') }}",
+      font_heading: "{{ brand.font_heading | default('Inter') }}",
+      font_body: "{{ brand.font_body | default('Inter') }}",
+      border_radius: "{{ brand.border_radius | default('8px') }}",
+    },
+    logoFile: null,
+    logoPreview: "{{ brand.logo_url if brand and brand.logo_url else '' }}",
+    extractPalette: true,
+    extractedColors: [],
+    dragOver: false,
+    uploading: false,
+    saving: false,
+    saveMessage: "",
+    
+    colorPresets: [
+      { name: "Índigo", primary: "#4f46e5", secondary: "#06b6d4", accent: "#f59e0b", sidebar: "#1e1b4b" },
+      { name: "Esmeralda", primary: "#059669", secondary: "#0891b2", accent: "#d97706", sidebar: "#064e3b" },
+      { name: "Rojo", primary: "#dc2626", secondary: "#7c3aed", accent: "#ea580c", sidebar: "#1c0a09" },
+      { name: "Azul marino", primary: "#1d4ed8", secondary: "#0f766e", accent: "#ca8a04", sidebar: "#0c1a3a" },
+      { name: "Púrpura", primary: "#7c3aed", secondary: "#db2777", accent: "#16a34a", sidebar: "#2e1065" },
+      { name: "Naranja", primary: "#ea580c", secondary: "#0369a1", accent: "#16a34a", sidebar: "#431407" },
+      { name: "Gris acero", primary: "#475569", secondary: "#0891b2", accent: "#f59e0b", sidebar: "#0f172a" },
+      { name: "Rosa", primary: "#db2777", secondary: "#7c3aed", accent: "#f59e0b", sidebar: "#500724" },
+    ],
+
+    updatePreview() {
+      // Actualizar CSS variables en tiempo real
+      const root = document.documentElement;
+      root.style.setProperty('--brand-primary', this.brand.primary_color);
+      root.style.setProperty('--brand-secondary', this.brand.secondary_color);
+      root.style.setProperty('--brand-accent', this.brand.accent_color);
+      root.style.setProperty('--brand-sidebar-bg', this.brand.sidebar_bg);
+      root.style.setProperty('--brand-radius', this.brand.border_radius);
+    },
+
+    autoGeneratePalette() {
+      // Calcular variantes del color primario automáticamente
+      const hex = this.brand.primary_color.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      
+      // Versión oscura para sidebar
+      const darkR = Math.round(r * 0.35);
+      const darkG = Math.round(g * 0.35);
+      const darkB = Math.round(b * 0.35);
+      this.brand.sidebar_bg = `#${darkR.toString(16).padStart(2,'0')}${darkG.toString(16).padStart(2,'0')}${darkB.toString(16).padStart(2,'0')}`;
+      
+      this.updatePreview();
+    },
+
+    applyPreset(preset) {
+      this.brand.primary_color = preset.primary;
+      this.brand.secondary_color = preset.secondary;
+      this.brand.accent_color = preset.accent;
+      this.brand.sidebar_bg = preset.sidebar;
+      this.updatePreview();
+    },
+
+    applyExtractedColor(color) {
+      this.brand.primary_color = color;
+      this.autoGeneratePalette();
+    },
+
+    handleLogoDrop(event) {
+      this.dragOver = false;
+      const file = event.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        this.processLogoFile(file);
+      }
+    },
+
+    handleLogoFile(event) {
+      const file = event.target.files[0];
+      if (file) this.processLogoFile(file);
+    },
+
+    processLogoFile(file) {
+      this.logoFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => { this.logoPreview = e.target.result; };
+      reader.readAsDataURL(file);
+    },
+
+    clearLogo() {
+      this.logoFile = null;
+      this.logoPreview = "";
+      this.$refs.logoInput.value = "";
+    },
+
+    async uploadLogo() {
+      if (!this.logoFile) return;
+      this.uploading = true;
+      const formData = new FormData();
+      formData.append('file', this.logoFile);
+      formData.append('extract_palette', this.extractPalette);
+      
+      try {
+        const res = await fetch('/api/v1/brand/logo', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.logo_url) {
+          this.logoPreview = data.logo_url;
+          if (data.extracted_colors?.length > 0) {
+            this.extractedColors = data.extracted_colors;
+          }
+          this.showMessage("Logo subido correctamente");
+        }
+      } catch (err) {
+        this.showMessage("Error al subir el logo");
+      }
+      this.uploading = false;
+    },
+
+    async saveColors() {
+      this.saving = true;
+      try {
+        const res = await fetch('/api/v1/brand/colors', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.brand)
+        });
+        const data = await res.json();
+        if (data.success) {
+          this.showMessage("Cambios guardados. La paleta se aplicará en toda la aplicación.");
+        }
+      } catch (err) {
+        this.showMessage("Error al guardar");
+      }
+      this.saving = false;
+    },
+
+    async resetBrand() {
+      if (!confirm("¿Restaurar la configuración a los valores predeterminados?")) return;
+      const res = await fetch('/api/v1/brand/reset', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) location.reload();
+    },
+
+    showMessage(msg) {
+      this.saveMessage = msg;
+      setTimeout(() => { this.saveMessage = ""; }, 4000);
+    }
+  }
+}
+</script>
+{% endblock %}
