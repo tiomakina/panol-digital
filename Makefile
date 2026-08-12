@@ -1,4 +1,4 @@
-.PHONY: dev test migrate migrate-create seed up down logs shell build-installer backup restore
+.PHONY: dev test migrate migrate-create seed seed-sample up down logs shell build-installer backup restore
 
 # Desarrollo local
 dev:
@@ -18,6 +18,10 @@ migrate-create:
 # Datos de prueba
 seed:
 	cd backend && python scripts/seed_data.py
+
+# Datos de ejemplo (herramientas, préstamos, cajas) — requiere haber corrido "seed" antes
+seed-sample:
+	cd backend && python scripts/seed_sample_data.py
 
 # Docker
 up:

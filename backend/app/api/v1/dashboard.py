@@ -27,9 +27,17 @@ async def get_kpis(db: AsyncSession = Depends(get_db), user: User = Depends(get_
         await db.execute(select(func.count(Loan.id)).where(Loan.status.in_([LoanStatus.activo, LoanStatus.vencido])))
     ).scalar_one()
 
+    # "Vencido" incluye tanto los que Celery ya procesó (status=vencido) como
+    # los que siguen en "activo" pero ya pasaron su fecha (aún no pasó la
+    # corrida horaria de mark_overdue_loans) — si solo mirábamos "activo",
+    # un préstamo dejaba de contar como vencido apenas Celery lo marcaba,
+    # que es exactamente lo contrario de lo que debería mostrar el KPI.
     overdue_loans = (
         await db.execute(
-            select(func.count(Loan.id)).where(Loan.status == LoanStatus.activo, Loan.due_date < date.today())
+            select(func.count(Loan.id)).where(
+                (Loan.status == LoanStatus.vencido)
+                | ((Loan.status == LoanStatus.activo) & (Loan.due_date < date.today()))
+            )
         )
     ).scalar_one()
 
