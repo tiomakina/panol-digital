@@ -108,6 +108,26 @@ body {
   position: sticky; top: 0; z-index: 30;
 }
 
+/* Indicadores económicos (dólar, UF, euro, UTM) — ocultos en mobile por espacio */
+.indicators-strip {
+  display: none;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.72rem;
+  color: #475569;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  white-space: nowrap;
+}
+.indicators-strip strong { color: #1e293b; font-weight: 700; margin-right: 0.15rem; }
+@media (min-width: 900px) {
+  .indicators-strip { display: flex; }
+}
+[data-theme="dark"] .indicators-strip { background: #0f172a; border-color: #334155; color: #cbd5e1; }
+[data-theme="dark"] .indicators-strip strong { color: #f1f5f9; }
+
 /* Contenido principal */
 .main-content {
   margin-left: 260px;
@@ -269,12 +289,18 @@ a.kpi-card:hover {
       <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 6a2 2 0 012-2h12a2 2 0 012 2M4 6v12a2 2 0 002 2h12a2 2 0 002-2V6M9 6v14m0-14a2 2 0 00-2-2H4m5 2a2 2 0 012-2h2a2 2 0 012 2m0 0v14"/></svg>
       Tablas maestras
     </a>
+
+    <a href="/backup" x-show="hasRole(currentUser, 'jefe')" class="nav-link {% if '/backup' in request.url.path %}active{% endif %}" style="margin-top: 2px;">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8m-8 5h8m-8 5h5M4 4h16v16H4V4z"/></svg>
+      Respaldo
+    </a>
   </nav>
 
   <!-- User info en el fondo -->
   <div style="padding: 1rem; border-top: 1px solid rgba(255,255,255,0.08);">
     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.6rem;">
-      <div style="width:36px;height:36px;border-radius:50%;background:var(--brand-primary);display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600;color:var(--brand-text-on-primary);flex-shrink:0;" x-text="userInitials()">·</div>
+      <img x-show="currentUser && currentUser.avatar_url" :src="currentUser && currentUser.avatar_url" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+      <div x-show="!currentUser || !currentUser.avatar_url" style="width:36px;height:36px;border-radius:50%;background:var(--brand-primary);display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600;color:var(--brand-text-on-primary);flex-shrink:0;" x-text="userInitials()">·</div>
       <div style="min-width:0;">
         <div style="font-size:0.8rem;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="currentUser ? currentUser.full_name : '···'"></div>
         <div style="font-size:0.7rem;color:rgba(255,255,255,0.4);" x-text="userRoleLabel()"></div>
@@ -298,6 +324,21 @@ a.kpi-card:hover {
       <h1 style="font-size:1rem;font-weight:600;color:#1e293b;">{% block page_title %}Dashboard{% endblock %}</h1>
     </div>
     <div style="display:flex;align-items:center;gap:0.75rem;">
+      <!-- Indicadores económicos de Chile (dólar, UF, euro, UTM) -->
+      <div class="indicators-strip" x-show="economicIndicators && economicIndicators.cached_at" x-cloak>
+        <template x-if="economicIndicators && economicIndicators.dolar">
+          <span title="Dólar observado"><strong>USD</strong><span x-text="formatIndicator(economicIndicators.dolar.valor)"></span></span>
+        </template>
+        <template x-if="economicIndicators && economicIndicators.uf">
+          <span title="Unidad de Fomento"><strong>UF</strong><span x-text="formatIndicator(economicIndicators.uf.valor)"></span></span>
+        </template>
+        <template x-if="economicIndicators && economicIndicators.euro">
+          <span title="Euro"><strong>EUR</strong><span x-text="formatIndicator(economicIndicators.euro.valor)"></span></span>
+        </template>
+        <template x-if="economicIndicators && economicIndicators.utm">
+          <span title="Unidad Tributaria Mensual"><strong>UTM</strong><span x-text="formatIndicator(economicIndicators.utm.valor)"></span></span>
+        </template>
+      </div>
       <!-- Toggle dark mode -->
       <button @click="toggleTheme()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem;cursor:pointer;">
         <template x-if="theme === 'light'">
@@ -347,6 +388,7 @@ function appState() {
     currentUser: null,
     showNotifications: false,
     overdueLoans: [],
+    economicIndicators: null,
 
     toggleTheme() {
       this.theme = this.theme === 'light' ? 'dark' : 'light';
@@ -374,6 +416,20 @@ function appState() {
       if (res.ok) this.overdueLoans = (await res.json()).loans;
     },
 
+    async loadEconomicIndicators() {
+      try {
+        const res = await authFetch('/api/v1/indicators/economic');
+        if (res.ok) this.economicIndicators = await res.json();
+      } catch (e) {
+        // Sin salida a internet o API caída — el header simplemente no
+        // muestra la franja de indicadores, no rompe el resto de la página.
+      }
+    },
+
+    formatIndicator(valor) {
+      return '$' + new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(valor);
+    },
+
     async logout() {
       const refreshToken = localStorage.getItem('panol-refresh-token');
       try {
@@ -393,6 +449,12 @@ function appState() {
       document.documentElement.setAttribute('data-theme', this.theme);
       this.currentUser = await getCurrentUser();
       await this.loadNotifications();
+      this.loadEconomicIndicators(); // no bloqueante — la franja aparece sola cuando llega
+      // Para que el avatar del sidebar se actualice al toque cuando el
+      // usuario cambia su propia foto desde Usuarios, sin recargar la página.
+      window.addEventListener('panol-avatar-updated', (e) => {
+        if (this.currentUser) this.currentUser.avatar_url = e.detail;
+      });
     }
   }
 }

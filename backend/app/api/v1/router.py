@@ -2,8 +2,10 @@
 from fastapi import APIRouter
 from app.api.v1 import (
     auth,
+    backup,
     brand,
     dashboard,
+    indicators,
     loans,
     lookups,
     maintenance,
@@ -26,3 +28,5 @@ api_router.include_router(brand.router)
 api_router.include_router(lookups.router)
 api_router.include_router(maintenance.router)
 api_router.include_router(toolbox_audits.router)
+api_router.include_router(backup.router)
+api_router.include_router(indicators.router)

@@ -42,6 +42,10 @@ services:
       DEBUG: ${DEBUG:-false}
     volumes:
       - ./backend/app/static/uploads:/app/app/static/uploads
+      # Respaldos generados/restaurados desde la web (Administración →
+      # Respaldo) — quedan visibles en el host, no solo dentro del
+      # contenedor, igual que scripts/backup.sh.
+      - ./backups:/app/backups
     depends_on:
       db:
         condition: service_healthy

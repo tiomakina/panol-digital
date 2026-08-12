@@ -35,7 +35,17 @@
         <template x-if="loading"><tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
         <template x-for="u in users" :key="u.id">
           <tr style="border-bottom:1px solid #f1f5f9;">
-            <td style="padding:0.65rem 1rem;font-weight:600;" x-text="u.full_name"></td>
+            <td style="padding:0.65rem 1rem;font-weight:600;">
+              <div style="display:flex;align-items:center;gap:0.6rem;">
+                <template x-if="u.avatar_url">
+                  <img :src="u.avatar_url" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+                </template>
+                <template x-if="!u.avatar_url">
+                  <div style="width:30px;height:30px;border-radius:50%;background:var(--brand-light,#e0e7ff);color:var(--brand-primary,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:600;flex-shrink:0;" x-text="initials(u.full_name)"></div>
+                </template>
+                <span x-text="u.full_name"></span>
+              </div>
+            </td>
             <td style="padding:0.65rem 1rem;color:#64748b;" x-text="u.email"></td>
             <td style="padding:0.65rem 1rem;"><span class="badge badge-info" x-text="roleLabel(u.role)"></span></td>
             <td style="padding:0.65rem 1rem;">
@@ -83,6 +93,20 @@
   <div x-show="showEditModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showEditModal = false">
     <div class="card" style="max-width:420px;width:100%;">
       <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Editar usuario</h2>
+
+      <div style="display:flex;align-items:center;gap:0.9rem;margin-bottom:1rem;">
+        <template x-if="editForm.avatar_url">
+          <img :src="editForm.avatar_url" style="width:56px;height:56px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+        </template>
+        <template x-if="!editForm.avatar_url">
+          <div style="width:56px;height:56px;border-radius:50%;background:var(--brand-light,#e0e7ff);color:var(--brand-primary,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:600;flex-shrink:0;" x-text="initials(editForm.full_name)"></div>
+        </template>
+        <label style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">
+          Cambiar foto
+          <input type="file" accept="image/*" style="display:none;" @change="uploadPhoto($event.target.files[0])">
+        </label>
+      </div>
+
       <label class="field-label">Nombre completo</label>
       <input type="text" x-model="editForm.full_name" class="field-input" style="margin-bottom:0.75rem;">
       <label class="field-label">Teléfono</label>
@@ -251,8 +275,33 @@ function usersPage() {
 
     openEdit(u) {
       this.editingId = u.id;
-      this.editForm = { full_name: u.full_name, phone: u.phone || '', role: u.role };
+      this.editForm = { full_name: u.full_name, phone: u.phone || '', role: u.role, avatar_url: u.avatar_url || '' };
       this.showEditModal = true;
+    },
+
+    async uploadPhoto(file) {
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await authFetch(`/api/v1/users/${this.editingId}/photo`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo subir la foto', 'error');
+        return;
+      }
+      const updated = await res.json();
+      this.editForm.avatar_url = updated.avatar_url;
+      this.showMessage('Foto actualizada');
+      await this.loadUsers();
+      if (this.editingId === this.user.id) {
+        this.user.avatar_url = updated.avatar_url;
+        window.dispatchEvent(new CustomEvent('panol-avatar-updated', { detail: updated.avatar_url }));
+      }
+    },
+
+    initials(fullName) {
+      if (!fullName) return '·';
+      return fullName.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
     },
 
     async saveEdit() {

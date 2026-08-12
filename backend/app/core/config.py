@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 300
     CORS_ORIGINS: List[str] = ["http://localhost:8080", "http://localhost:3000"]
     UPLOAD_DIR: str = "app/static/uploads"
+    BACKUP_DIR: str = "backups"
     MAX_UPLOAD_SIZE_MB: int = 2
     ALLOWED_IMAGE_TYPES: List[str] = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"]
     SMTP_HOST: str = ""

@@ -123,3 +123,62 @@ async def test_change_own_password(client):
         "/api/v1/auth/login", data={"username": "cambiaclave@test.com", "password": "ClaveNueva1!"}
     )
     assert relogin.status_code == 200
+
+
+def _fake_png() -> bytes:
+    # Header PNG real (magic bytes) + relleno — alcanza para pasar la
+    # validación de tipo real de archivo, no hace falta un PNG válido entero.
+    return b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+
+async def test_upload_own_photo_and_jefe_can_upload_for_others(client):
+    await _create_user("meca_foto@test.com", "Clave123!", UserRole.mecanico)
+    await _create_user("jefe_foto@test.com", "Clave123!", UserRole.jefe)
+    mecanico_token = await _login(client, "meca_foto@test.com", "Clave123!")
+    jefe_token = await _login(client, "jefe_foto@test.com", "Clave123!")
+
+    meca_id = (await client.get("/api/v1/auth/me", headers=_auth(mecanico_token))).json()["id"]
+
+    own_upload = await client.post(
+        f"/api/v1/users/{meca_id}/photo",
+        files={"file": ("foto.png", _fake_png(), "image/png")},
+        headers=_auth(mecanico_token),
+    )
+    assert own_upload.status_code == 200, own_upload.text
+    assert own_upload.json()["avatar_url"].startswith("/static/uploads/avatars/")
+
+    # Un jefe puede subirle la foto a otro usuario
+    jefe_uploads_for_meca = await client.post(
+        f"/api/v1/users/{meca_id}/photo",
+        files={"file": ("foto2.png", _fake_png(), "image/png")},
+        headers=_auth(jefe_token),
+    )
+    assert jefe_uploads_for_meca.status_code == 200
+
+
+async def test_cannot_upload_photo_for_another_user_without_being_jefe(client):
+    await _create_user("meca_a@test.com", "Clave123!", UserRole.mecanico)
+    await _create_user("meca_b@test.com", "Clave123!", UserRole.mecanico)
+    token_a = await _login(client, "meca_a@test.com", "Clave123!")
+    token_b = await _login(client, "meca_b@test.com", "Clave123!")
+    meca_b_id = (await client.get("/api/v1/auth/me", headers=_auth(token_b))).json()["id"]
+
+    forbidden = await client.post(
+        f"/api/v1/users/{meca_b_id}/photo",
+        files={"file": ("foto.png", _fake_png(), "image/png")},
+        headers=_auth(token_a),
+    )
+    assert forbidden.status_code == 403
+
+
+async def test_photo_upload_rejects_non_image_file(client):
+    await _create_user("meca_bad@test.com", "Clave123!", UserRole.mecanico)
+    token = await _login(client, "meca_bad@test.com", "Clave123!")
+    user_id = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()["id"]
+
+    res = await client.post(
+        f"/api/v1/users/{user_id}/photo",
+        files={"file": ("archivo.txt", b"esto no es una imagen", "text/plain")},
+        headers=_auth(token),
+    )
+    assert res.status_code == 400

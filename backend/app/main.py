@@ -137,3 +137,8 @@ async def lookups_page(request: Request):
 @app.get("/maintenance")
 async def maintenance_page(request: Request):
     return await _render(request, "maintenance/index.html")
+
+
+@app.get("/backup")
+async def backup_page(request: Request):
+    return await _render(request, "backup/index.html")

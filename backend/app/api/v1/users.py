@@ -2,17 +2,23 @@
 API de Usuarios — alta, edición de perfil/roles y cambio de contraseña.
 Endpoint: /api/v1/users/
 """
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user, hash_password, require_role, verify_password
 from app.models.user import User
 from app.schemas.user import PasswordChange, UserCreate, UserOut, UserUpdate
 from app.services.audit_service import log_action
+from app.services.brand_service import validate_image_magic_bytes
 
 router = APIRouter(prefix="/users", tags=["Usuarios"])
+
+AVATAR_DIR = Path(settings.UPLOAD_DIR) / "avatars"
 
 
 def _client_ip(request: Request) -> str | None:
@@ -125,6 +131,51 @@ async def update_user(
             ip_address=_client_ip(request),
         )
 
+    await db.commit()
+    await db.refresh(target)
+    return target
+
+
+@router.post("/{user_id}/photo", response_model=UserOut)
+async def upload_user_photo(
+    user_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Sube o reemplaza la foto de perfil de un usuario — el propio dueño o un Jefe."""
+    target = await db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    is_self = current_user.id == target.id
+    is_jefe = current_user.role.value == "jefe"
+    if not is_self and not is_jefe:
+        raise HTTPException(status_code=403, detail="Sin permisos suficientes")
+
+    file_bytes = await file.read()
+    valid, mime_type = validate_image_magic_bytes(file_bytes)
+    if not valid or mime_type == "image/svg+xml":
+        raise HTTPException(status_code=400, detail="Archivo inválido (solo PNG, JPG o WebP)")
+    if len(file_bytes) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"El archivo supera los {settings.MAX_UPLOAD_SIZE_MB}MB permitidos")
+
+    ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
+    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    photo_path = AVATAR_DIR / f"user_{user_id}.{ext}"
+    with open(photo_path, "wb") as f:
+        f.write(file_bytes)
+
+    target.avatar_url = f"/static/uploads/avatars/user_{user_id}.{ext}"
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="user.photo_update",
+        entity_type="user",
+        entity_id=target.id,
+        ip_address=_client_ip(request),
+    )
     await db.commit()
     await db.refresh(target)
     return target

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Respaldo{% endblock %}
+{% block page_title %}Respaldo{% endblock %}
+
+{% block content %}
+<div x-data="backupPage()" x-init="init()">
+
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <p style="font-size:0.82rem;color:#64748b;margin:0 0 1rem;">
+    Un respaldo incluye toda la base de datos (herramientas, préstamos, cajas, usuarios, todo) y los archivos
+    subidos (logos, fotos, códigos QR, vales). Restaurar uno reemplaza lo que hay ahora — usalo solo ante una
+    catástrofe real.
+  </p>
+
+  <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+    <button @click="createBackup()" class="btn-primary" :disabled="creating">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      <span x-text="creating ? 'Generando...' : 'Generar respaldo ahora'"></span>
+    </button>
+    <label style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">
+      Subir un respaldo (.zip)
+      <input type="file" accept=".zip" style="display:none;" @change="uploadBackup($event.target.files[0]); $event.target.value = ''">
+    </label>
+  </div>
+
+  <div class="card" style="padding:0;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.75rem 1rem;">Fecha</th><th style="padding:0.75rem 1rem;">Nombre</th>
+          <th style="padding:0.75rem 1rem;">Base de datos</th><th style="padding:0.75rem 1rem;">Archivos subidos</th>
+          <th style="padding:0.75rem 1rem;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="loading"><tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-if="!loading && backups.length === 0"><tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Todavía no hay respaldos generados.</td></tr></template>
+        <template x-for="b in backups" :key="b.name">
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:0.65rem 1rem;font-weight:600;" x-text="formatDateTime(b.created_at)"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="b.name"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatSize(b.database_size)"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatSize(b.uploads_size)"></td>
+            <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;">
+              <button @click="downloadBackup(b)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Descargar</button>
+              <button @click="openRestore(b)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Restaurar</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal restaurar -->
+  <div x-show="showRestoreModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showRestoreModal = false">
+    <div class="card" style="max-width:440px;width:100%;" x-show="restoring">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.5rem;color:#991b1b;">⚠ Restaurar respaldo</h2>
+      <p style="font-size:0.85rem;color:#475569;margin:0 0 1rem;">
+        Esto va a <strong>reemplazar toda la base de datos y los archivos subidos actuales</strong> por lo que
+        había en el respaldo "<span x-text="restoring ? restoring.name : ''"></span>" (<span x-text="restoring ? formatDateTime(restoring.created_at) : ''"></span>).
+        No se puede deshacer. Todo lo que se haya cargado después de ese respaldo se pierde.
+      </p>
+      <label class="field-label">Ingresá tu contraseña para confirmar *</label>
+      <input type="password" x-model="restoreForm.current_password" class="field-input" style="margin-bottom:1rem;" @keydown.enter.prevent="confirmRestore()">
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showRestoreModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmRestore()" :disabled="restoringInProgress" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
+          <span x-text="restoringInProgress ? 'Restaurando...' : 'Restaurar ahora'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function backupPage() {
+  return {
+    backups: [],
+    loading: true,
+    creating: false,
+    showRestoreModal: false,
+    restoring: null,
+    restoringInProgress: false,
+    restoreForm: {},
+    message: '',
+    messageType: 'success',
+
+    async init() {
+      await this.loadBackups();
+    },
+
+    async loadBackups() {
+      this.loading = true;
+      const res = await authFetch('/api/v1/backup');
+      this.backups = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    async createBackup() {
+      this.creating = true;
+      const res = await authFetch('/api/v1/backup', { method: 'POST' });
+      this.creating = false;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo generar el respaldo', 'error');
+        return;
+      }
+      this.showMessage('Respaldo generado correctamente');
+      await this.loadBackups();
+    },
+
+    async uploadBackup(file) {
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await authFetch('/api/v1/backup/upload', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo subir el respaldo', 'error');
+        return;
+      }
+      this.showMessage('Respaldo subido — ya aparece en la lista para restaurarlo');
+      await this.loadBackups();
+    },
+
+    async downloadBackup(b) {
+      const res = await authFetch(`/api/v1/backup/${b.name}/download`);
+      if (!res.ok) { this.showMessage('No se pudo descargar', 'error'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `panol_backup_${b.name}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    openRestore(b) {
+      this.restoring = b;
+      this.restoreForm = { current_password: '' };
+      this.showRestoreModal = true;
+    },
+
+    async confirmRestore() {
+      if (!this.restoreForm.current_password) {
+        this.showMessage('Ingresá tu contraseña', 'error');
+        return;
+      }
+      this.restoringInProgress = true;
+      const res = await authFetch(`/api/v1/backup/${this.restoring.name}/restore`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.restoreForm),
+      });
+      this.restoringInProgress = false;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo restaurar', 'error');
+        return;
+      }
+      this.showRestoreModal = false;
+      this.showMessage('Sistema restaurado correctamente');
+    },
+
+    formatDateTime(value) { return value ? new Date(value).toLocaleString('es-AR') : '—'; },
+    formatSize(bytes) {
+      if (bytes == null) return '—';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 4000);
+    },
+  };
+}
+</script>
+{% endblock %}

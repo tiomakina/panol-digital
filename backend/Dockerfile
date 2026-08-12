@@ -10,8 +10,11 @@ WORKDIR /app
 # asyncpg). No se instalan libpango/libcairo/libgdk-pixbuf: esas son para
 # WeasyPrint, que no se usa — los vales PDF se generan con reportlab, que
 # es Python puro y no necesita librerías nativas de renderizado.
+# postgresql-client trae pg_dump/psql, que usa el módulo de respaldo
+# integral (app/services/backup_service.py) para generar y restaurar
+# backups directo desde la web, sin pasar por `docker compose exec`.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libpq-dev libffi-dev \
+    build-essential libpq-dev libffi-dev postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
