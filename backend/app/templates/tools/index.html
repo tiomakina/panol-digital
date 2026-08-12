@@ -21,6 +21,10 @@
       <option value="mantenimiento">Mantenimiento</option>
       <option value="baja">Baja</option>
     </select>
+    <button @click="openScanModal()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h4V2H2v6h2V4zm0 16v-4H2v6h6v-2H4zM20 4h-4V2h6v6h-2V4zm0 16v-4h2v6h-6v-2h4zM9 9h1v1H9V9zm5 0h1v1h-1V9zM9 14h1v1H9v-1zm5 0h1v1h-1v-1z"/></svg>
+      Escanear QR
+    </button>
     <button class="btn-primary" @click="openCreate()" x-show="canManage()">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Nueva herramienta
@@ -74,6 +78,22 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Modal escanear QR — con x-if (no x-show) para que la cámara solo se
+       inicialice cuando el div realmente existe en el DOM con tamaño real -->
+  <template x-if="showScanModal">
+    <div style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="closeScanModal()">
+      <div class="card" style="max-width:420px;width:100%;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+          <h2 style="font-size:1.05rem;font-weight:600;">Escanear código QR</h2>
+          <button @click="closeScanModal()" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+        </div>
+        <div id="qr-reader" x-init="startScanner()" style="width:100%;"></div>
+        <p x-show="scanError" style="color:#dc2626;font-size:0.8rem;margin-top:0.5rem;" x-text="scanError"></p>
+        <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.75rem;">Apuntá la cámara al código QR pegado en la herramienta.</p>
+      </div>
+    </div>
+  </template>
 
   <!-- Modal crear/editar -->
   <div x-show="showModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="closeModal()">
@@ -142,6 +162,8 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Solo en esta página (375KB) — escaneo de QR por cámara -->
+<script src="/static/vendor/html5-qrcode.min.js"></script>
 <script>
 function toolsPage() {
   return {
@@ -154,6 +176,9 @@ function toolsPage() {
     editing: null,
     form: {},
     photoFile: null,
+    showScanModal: false,
+    scanError: '',
+    _scanner: null,
     message: '',
     messageType: 'success',
 
@@ -194,6 +219,50 @@ function toolsPage() {
     },
 
     closeModal() { this.showModal = false; },
+
+    openScanModal() {
+      this.scanError = '';
+      this.showScanModal = true;
+    },
+
+    async closeScanModal() {
+      await this._stopScanner();
+      this.showScanModal = false;
+    },
+
+    async _stopScanner() {
+      if (this._scanner) {
+        try { await this._scanner.stop(); } catch (e) { /* ya estaba parado */ }
+        this._scanner = null;
+      }
+    },
+
+    async startScanner() {
+      await this.$nextTick(); // esperar a que el <div id="qr-reader"> tenga tamaño real
+      this._scanner = new Html5Qrcode('qr-reader');
+      try {
+        await this._scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: 220 },
+          (decodedText) => this.handleScan(decodedText),
+          () => {}, // errores de lectura de un frame individual — normales mientras enfoca, se ignoran
+        );
+      } catch (err) {
+        this.scanError = 'No se pudo acceder a la cámara: ' + (err.message || err);
+      }
+    },
+
+    async handleScan(decodedText) {
+      await this._stopScanner();
+      this.showScanModal = false;
+
+      const res = await authFetch('/api/v1/tools/scan/' + encodeURIComponent(decodedText));
+      if (!res.ok) {
+        this.showMessage('Ese código QR no corresponde a ninguna herramienta', 'error');
+        return;
+      }
+      this.openEdit(await res.json());
+    },
 
     async save() {
       if (!this.form.name) { this.showMessage('El nombre es obligatorio', 'error'); return; }
