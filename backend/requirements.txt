@@ -37,7 +37,6 @@ Pillow==10.2.0
 
 # Generación de PDFs (vales de préstamo)
 reportlab==4.1.0
-weasyprint==62.1
 
 # Generación de QR
 qrcode[pil]==7.4.2

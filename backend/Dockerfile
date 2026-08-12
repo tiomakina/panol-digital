@@ -1,11 +1,17 @@
-FROM python:3.12-slim
+# Se fija "-bookworm" en vez del tag flotante "slim": Debian upstream ya
+# rotó "slim" de bookworm a trixie, y los nombres de paquetes apt cambian
+# entre versiones — sin este pin, el build se rompe cada vez que Debian
+# avanza su release "stable" por debajo nuestro.
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-# Dependencias de sistema para Pillow, WeasyPrint (PDFs) y compilación de paquetes Python
+# Dependencias de sistema para compilar paquetes Python nativos (bcrypt,
+# asyncpg). No se instalan libpango/libcairo/libgdk-pixbuf: esas son para
+# WeasyPrint, que no se usa — los vales PDF se generan con reportlab, que
+# es Python puro y no necesita librerías nativas de renderizado.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libpq-dev \
-    libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info \
+    build-essential libpq-dev libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
