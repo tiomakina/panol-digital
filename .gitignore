@@ -12,6 +12,9 @@ backups/
 # Entorno
 .env
 
+# Snapshot local de Redis (dev) — no es parte del código
+dump.rdb
+
 # Uploads de usuario (logos, fotos, QR, vales) — se conservan los directorios via .gitkeep
 backend/app/static/uploads/*
 !backend/app/static/uploads/.gitkeep
