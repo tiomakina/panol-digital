@@ -7,6 +7,9 @@
 <title>Iniciar sesión · {{ brand.company_name if brand else "Pañol v2.0" }}</title>
 
 <meta name="theme-color" content="{{ brand.primary_color if brand else '#4f46e5' }}">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/static/img/icon-192.png">
+<link rel="apple-touch-icon" href="/static/img/icon-192.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -211,6 +214,10 @@ function loginForm() {
       }
     }
   }
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
 }
 </script>
 

@@ -7,7 +7,9 @@
 <title>{% block title %}Pañol v2.0{% endblock %} · {{ brand.company_name if brand else "Pañol" }}</title>
 
 <!-- PWA -->
-<link rel="manifest" href="/static/manifest.json">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/static/img/icon-192.png">
+<link rel="apple-touch-icon" href="/static/img/icon-192.png">
 <meta name="theme-color" content="{{ brand.primary_color if brand else '#4f46e5' }}">
 
 <!-- Fuentes -->
@@ -317,6 +319,11 @@ function appState() {
       document.documentElement.setAttribute('data-theme', this.theme);
     }
   }
+}
+
+// PWA — registra el service worker para instalación y fallback offline.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
 }
 </script>
 

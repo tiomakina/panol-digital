@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from app.core.config import settings
 from app.core.database import create_tables
 from app.core.branding import get_brand_css_vars, load_brand_config
@@ -51,6 +52,41 @@ async def _render(request: Request, template_name: str):
         template_name,
         {"request": request, "brand_css": brand_css, "brand": config, "app_name": settings.APP_NAME},
     )
+
+
+@app.get("/manifest.json")
+async def manifest():
+    """
+    Manifest de la PWA — generado en vivo con el nombre/color de marca
+    actuales, para que "instalar app" refleje la personalización de cada
+    empresa en vez de un manifest.json estático genérico.
+    """
+    config = load_brand_config()
+    name = config["company_name"]
+    return JSONResponse(
+        {
+            "name": name,
+            "short_name": name[:12],
+            "description": "Sistema de Gestión de Herramientas",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#f8fafc",
+            "theme_color": config["primary_color"],
+            "icons": [
+                {"src": "/static/img/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                {"src": "/static/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+            ],
+        },
+        media_type="application/manifest+json",
+    )
+
+
+@app.get("/sw.js")
+async def service_worker():
+    # Servido en la raíz (no bajo /static/) a propósito: el scope de un
+    # Service Worker se limita al path donde se lo sirve, y necesitamos que
+    # controle todo el sitio, no solo /static/.
+    return FileResponse("app/static/js/sw.js", media_type="application/javascript")
 
 
 @app.get("/")

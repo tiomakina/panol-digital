@@ -1,4 +1,4 @@
-"""Tareas Celery relacionadas a préstamos — marca automáticamente los vencidos."""
+"""Tareas Celery relacionadas a préstamos — marca vencidos y avisa a los responsables."""
 import asyncio
 from datetime import date
 
@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.celery_app import celery_app
 from app.core.database import AsyncSessionLocal, engine
 from app.models.loan import Loan, LoanStatus
+from app.services.notification_service import notify_overdue_loan
 
 
 async def _mark_overdue_loans() -> int:
@@ -17,6 +18,11 @@ async def _mark_overdue_loans() -> int:
         overdue = result.scalars().all()
         for loan in overdue:
             loan.status = LoanStatus.vencido
+            # loan.tool/loan.borrower ya vienen cargados (lazy="joined" en el
+            # modelo), así que esto no dispara queries extra.
+            if not loan.alert_sent:
+                await notify_overdue_loan(loan, loan.tool, loan.borrower)
+                loan.alert_sent = True
         await db.commit()
         count = len(overdue)
 
@@ -32,7 +38,8 @@ async def _mark_overdue_loans() -> int:
 @celery_app.task(name="app.tasks.loan_tasks.mark_overdue_loans")
 def mark_overdue_loans() -> int:
     """
-    Recorre los préstamos activos con fecha de devolución vencida y actualiza
-    su estado a "vencido". Se ejecuta cada hora vía Celery beat (ver celery_app.py).
+    Recorre los préstamos activos con fecha de devolución vencida, los marca
+    como "vencido" y avisa al responsable por email/WhatsApp (si esos canales
+    están configurados). Se ejecuta cada hora vía Celery beat (celery_app.py).
     """
     return asyncio.run(_mark_overdue_loans())
