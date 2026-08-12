@@ -2,6 +2,7 @@
 API de Herramientas — CRUD completo con fotos y generación/lectura de código QR.
 Endpoint: /api/v1/tools/
 """
+from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
@@ -13,6 +14,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_role
 from app.models.tool import Tool, ToolStatus
 from app.models.user import User
+from app.schemas.maintenance import DecommissionInput
 from app.schemas.tool import ToolCreate, ToolOut, ToolUpdate
 from app.services.audit_service import log_action
 from app.services.brand_service import validate_image_magic_bytes
@@ -176,3 +178,45 @@ async def delete_tool(
     )
     await db.delete(tool)
     await db.commit()
+
+
+@router.post("/{tool_id}/decommission", response_model=ToolOut)
+async def decommission_tool(
+    tool_id: int,
+    payload: DecommissionInput,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("jefe")),
+):
+    """
+    Da de baja definitivamente una herramienta (no confundir con eliminarla
+    del sistema: la baja deja el registro, solo cambia su estado). Requiere
+    un motivo y quién autoriza — ambos quedan en la auditoría.
+    """
+    tool = await db.get(Tool, tool_id)
+    if not tool:
+        raise HTTPException(status_code=404, detail="Herramienta no encontrada")
+    if tool.status == ToolStatus.prestado:
+        raise HTTPException(status_code=400, detail="No se puede dar de baja una herramienta actualmente prestada")
+
+    authorizer = await db.get(User, payload.authorized_by_id)
+    if not authorizer or not authorizer.is_active:
+        raise HTTPException(status_code=404, detail="Quien autoriza no existe o está inactivo")
+
+    tool.status = ToolStatus.baja
+    tool.decommission_reason = payload.reason
+    tool.decommission_authorized_by_id = payload.authorized_by_id
+    tool.decommission_date = date.today()
+
+    await log_action(
+        db,
+        user_id=user.id,
+        action="tool.decommission",
+        entity_type="tool",
+        entity_id=tool.id,
+        detail=f"Baja de '{tool.name}'. Motivo: {payload.reason}. Autorizó: {authorizer.full_name}.",
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+    await db.refresh(tool)
+    return _to_out(tool)

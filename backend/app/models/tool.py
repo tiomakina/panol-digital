@@ -6,6 +6,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 import enum
 
+# Import real (no solo TYPE_CHECKING) — ver la explicación en models/loan.py:
+# relationship() necesita que User ya esté registrado en el registro
+# declarativo compartido, sin depender de que otro módulo lo importe antes.
+from app.models.user import User  # noqa: F401,E402
+
 class ToolStatus(str, enum.Enum):
     disponible = "disponible"
     prestado = "prestado"
@@ -39,3 +44,13 @@ class Tool(Base):
     supplier: Mapped[str] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Baja definitiva — motivo y quién la autorizó, para que quede en la
+    # auditoría (ver app/api/v1/tools.py::decommission_tool). Separado de
+    # MaintenanceRecord porque una herramienta puede darse de baja sin haber
+    # pasado por mantenimiento (ej. pérdida total constatada directamente).
+    decommission_reason: Mapped[str] = mapped_column(Text, nullable=True)
+    decommission_authorized_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    decommission_date: Mapped[date] = mapped_column(Date, nullable=True)
+
+    decommission_authorized_by: Mapped["User | None"] = relationship(lazy="joined")

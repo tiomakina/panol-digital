@@ -213,11 +213,36 @@
       </template>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;">
-        <button x-show="editing && canDelete()" @click="deleteTool(editing)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Eliminar</button>
+        <div style="display:flex;gap:0.5rem;">
+          <button x-show="editing && canDelete()" @click="deleteTool(editing)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Eliminar</button>
+          <button x-show="editing && canManage() && (editing.status === 'disponible' || editing.status === 'en_caja')" @click="openMaintenanceQuick()" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Enviar a mantenimiento</button>
+        </div>
         <div style="display:flex;gap:0.5rem;margin-left:auto;">
           <button @click="closeModal()" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
           <button @click="save()" class="btn-primary">Guardar</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal rápido: enviar a mantenimiento (mismo endpoint que la pantalla dedicada) -->
+  <div x-show="showMaintenanceModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="showMaintenanceModal = false">
+    <div class="card" style="max-width:420px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;">Enviar a mantenimiento</h2>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="editing ? editing.name : ''"></p>
+
+      <label class="field-label">Proveedor</label>
+      <select x-model="maintenanceForm.provider" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Sin especificar</option>
+        <template x-for="p in providers" :key="p.id"><option :value="p.name" x-text="p.name"></option></template>
+      </select>
+
+      <label class="field-label">Motivo *</label>
+      <textarea x-model="maintenanceForm.reason" class="field-input" rows="3" placeholder="Ej: no enciende, ruido en el motor..."></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showMaintenanceModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmMaintenanceQuick()" class="btn-primary">Enviar</button>
       </div>
     </div>
   </div>
@@ -278,6 +303,8 @@ function toolsPage() {
     showScanModal: false,
     scanError: '',
     _scanner: null,
+    showMaintenanceModal: false,
+    maintenanceForm: {},
     message: '',
     messageType: 'success',
 
@@ -518,6 +545,32 @@ function toolsPage() {
         const err = await res.json().catch(() => ({}));
         this.showMessage(err.detail || 'No se pudo eliminar', 'error');
       }
+    },
+
+    openMaintenanceQuick() {
+      this.maintenanceForm = { provider: '', reason: '' };
+      this.showMaintenanceModal = true;
+    },
+
+    async confirmMaintenanceQuick() {
+      if (!this.maintenanceForm.reason) {
+        this.showMessage('Describí el motivo del envío', 'error');
+        return;
+      }
+      const res = await authFetch('/api/v1/maintenance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool_id: this.editing.id, ...this.maintenanceForm }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo enviar a mantenimiento', 'error');
+        return;
+      }
+      this.showMaintenanceModal = false;
+      this.showModal = false;
+      this.showMessage('Herramienta enviada a mantenimiento');
+      await this.loadTools();
     },
 
     statusLabel(status) {

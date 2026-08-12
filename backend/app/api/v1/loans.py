@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
 from app.models.loan import Loan, LoanStatus, ReturnCondition
+from app.models.maintenance import MaintenanceRecord, MaintenanceStatus
 from app.models.tool import Tool, ToolStatus
 from app.models.user import User
 from app.schemas.loan import LoanCreate, LoanOut, LoanReturnInput
@@ -137,6 +138,21 @@ async def return_loan(
             loan.status = LoanStatus.extraviado
         else:
             tool.status = ToolStatus.mantenimiento
+            # Si no creamos el registro acá, la herramienta queda en
+            # "mantenimiento" sin nada que lo explique en el módulo de
+            # Mantenimiento — el motivo de la devolución (dañado/a reparar)
+            # es justamente el motivo del envío.
+            condition_label = "dañada" if payload.return_condition == ReturnCondition.dañado else "a reparación"
+            reason = f"Devuelta {condition_label} tras el préstamo #{loan.id}."
+            if payload.notes:
+                reason += f" Observación: {payload.notes}"
+            db.add(MaintenanceRecord(
+                tool_id=tool.id,
+                reason=reason,
+                status=MaintenanceStatus.en_proceso,
+                sent_date=date.today(),
+                created_by_id=user.id,
+            ))
 
     await db.commit()
     await db.refresh(loan)

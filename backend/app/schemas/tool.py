@@ -42,6 +42,13 @@ class ToolUpdate(BaseModel):
     supplier: str | None = None
 
 
+class DecommissionAuthorizedByOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    full_name: str
+
+
 class ToolOut(ToolBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -52,3 +59,6 @@ class ToolOut(ToolBase):
     created_at: datetime
     updated_at: datetime
     current_value: Decimal | None = None
+    decommission_reason: str | None = None
+    decommission_date: date | None = None
+    decommission_authorized_by: DecommissionAuthorizedByOut | None = None

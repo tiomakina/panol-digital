@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block title %}Mantenimiento{% endblock %}
+{% block page_title %}Mantenimiento{% endblock %}
+
+{% block content %}
+<div x-data="maintenancePage()" x-init="init()">
+
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+    <select x-model="statusFilter" @change="loadRecords()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+      <option value="en_proceso">En proceso</option>
+      <option value="">Todos los estados</option>
+      <option value="resuelto">Resuelto</option>
+      <option value="sin_solucion">Sin solución</option>
+    </select>
+    <button class="btn-primary" @click="openSend()" x-show="canManage()" style="margin-left:auto;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Enviar herramienta a mantenimiento
+    </button>
+  </div>
+
+  <div class="card" style="padding:0;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.75rem 1rem;font-weight:600;">Herramienta</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Proveedor</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Motivo</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Enviado</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Estado</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Documento</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="loading"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-if="!loading && records.length === 0"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">No hay registros con ese filtro</td></tr></template>
+        <template x-for="rec in records" :key="rec.id">
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:0.65rem 1rem;font-weight:600;" x-text="rec.tool ? rec.tool.name : ('#' + rec.tool_id)"></td>
+            <td style="padding:0.65rem 1rem;color:#475569;" x-text="rec.provider || '—'"></td>
+            <td style="padding:0.65rem 1rem;color:#475569;max-width:260px;" x-text="rec.reason"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;white-space:nowrap;" x-text="formatDate(rec.sent_date)"></td>
+            <td style="padding:0.65rem 1rem;"><span class="badge" :class="statusBadgeClass(rec.status)" x-text="statusLabel(rec.status)"></span></td>
+            <td style="padding:0.65rem 1rem;">
+              <template x-if="rec.document_url">
+                <button @click="viewDocument(rec)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Ver</button>
+              </template>
+              <template x-if="!rec.document_url">
+                <span style="color:#94a3b8;">—</span>
+              </template>
+            </td>
+            <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;" x-show="canManage()">
+              <label style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;display:inline-block;">
+                Subir foto
+                <input type="file" accept="image/*" style="display:none;" @change="uploadDocument(rec, $event.target.files[0])">
+              </label>
+              <button x-show="rec.status === 'en_proceso'" @click="openResolve(rec)" class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.75rem;margin-right:0.35rem;">Resolver</button>
+              <button x-show="rec.status === 'sin_solucion' && canDecommission()" @click="openDecommission(rec)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Dar de baja</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal: enviar a mantenimiento -->
+  <div x-show="showSendModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showSendModal = false">
+    <div class="card" style="max-width:460px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Enviar herramienta a mantenimiento</h2>
+
+      <label class="field-label">Herramienta disponible *</label>
+      <select x-model="sendForm.tool_id" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Seleccionar...</option>
+        <template x-for="tool in availableTools" :key="tool.id">
+          <option :value="tool.id" x-text="tool.name + (tool.brand ? ' — ' + tool.brand : '')"></option>
+        </template>
+      </select>
+
+      <label class="field-label">Proveedor</label>
+      <select x-model="sendForm.provider" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Sin especificar</option>
+        <template x-for="p in providers" :key="p.id"><option :value="p.name" x-text="p.name"></option></template>
+      </select>
+
+      <label class="field-label">Motivo *</label>
+      <textarea x-model="sendForm.reason" class="field-input" rows="3" placeholder="Ej: no enciende, ruido en el motor..."></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showSendModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="sendToMaintenance()" class="btn-primary">Enviar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: resolver -->
+  <div x-show="showResolveModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showResolveModal = false">
+    <div class="card" style="max-width:460px;width:100%;" x-show="resolving">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;">Resolver mantenimiento</h2>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="resolving && resolving.tool ? resolving.tool.name : ''"></p>
+
+      <label class="field-label">Resultado *</label>
+      <select x-model="resolveForm.status" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="resuelto">Resuelto — vuelve a estar disponible</option>
+        <option value="sin_solucion">Sin solución — no se pudo reparar</option>
+      </select>
+
+      <label class="field-label">Notas</label>
+      <textarea x-model="resolveForm.resolution_notes" class="field-input" rows="3" placeholder="Detalle de lo que se hizo o por qué no tiene solución..."></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showResolveModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmResolve()" class="btn-primary">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: dar de baja -->
+  <div x-show="showDecommissionModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showDecommissionModal = false">
+    <div class="card" style="max-width:460px;width:100%;" x-show="decommissioning">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;color:#991b1b;">Dar de baja</h2>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="decommissioning && decommissioning.tool ? decommissioning.tool.name : ''"></p>
+
+      <label class="field-label">Motivo de la baja *</label>
+      <textarea x-model="decommissionForm.reason" class="field-input" rows="3" style="margin-bottom:0.75rem;" placeholder="Por qué se da de baja definitivamente..."></textarea>
+
+      <label class="field-label">Quién autoriza *</label>
+      <select x-model="decommissionForm.authorized_by_id" class="field-input">
+        <option value="">Seleccionar...</option>
+        <template x-for="u in users" :key="u.id">
+          <option :value="u.id" x-text="u.full_name + ' (' + u.email + ')'"></option>
+        </template>
+      </select>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showDecommissionModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmDecommission()" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Dar de baja</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: ver documento -->
+  <div x-show="showDocModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.7);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="showDocModal = false">
+    <div class="card" style="max-width:600px;width:100%;max-height:90vh;overflow-y:auto;" x-show="docRecord">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <h2 style="font-size:1.05rem;font-weight:600;">Comprobante</h2>
+        <button @click="showDocModal = false" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+      </div>
+      <img :src="docRecord && docRecord.document_url" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;">
+      <div style="margin-top:0.75rem;text-align:right;">
+        <a :href="docRecord && docRecord.document_url" download class="btn-primary" style="text-decoration:none;display:inline-block;">Descargar</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function maintenancePage() {
+  return {
+    user: null,
+    records: [],
+    tools: [],
+    providers: [],
+    users: [],
+    loading: true,
+    statusFilter: 'en_proceso',
+    showSendModal: false,
+    showResolveModal: false,
+    showDecommissionModal: false,
+    showDocModal: false,
+    sendForm: {},
+    resolveForm: {},
+    decommissionForm: {},
+    resolving: null,
+    decommissioning: null,
+    docRecord: null,
+    message: '',
+    messageType: 'success',
+
+    get availableTools() {
+      return this.tools.filter((t) => t.status === 'disponible' || t.status === 'en_caja');
+    },
+
+    async init() {
+      this.user = await getCurrentUser();
+      await Promise.all([this.loadRecords(), this.loadTools(), this.loadProviders(), this.loadUsers()]);
+    },
+
+    canManage() { return hasRole(this.user, 'encargado'); },
+    canDecommission() { return hasRole(this.user, 'jefe'); },
+
+    async loadRecords() {
+      this.loading = true;
+      const params = new URLSearchParams();
+      if (this.statusFilter) params.set('status', this.statusFilter);
+      const res = await authFetch('/api/v1/maintenance?' + params.toString());
+      this.records = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    async loadTools() {
+      const res = await authFetch('/api/v1/tools?limit=500');
+      this.tools = res.ok ? await res.json() : [];
+    },
+
+    async loadProviders() {
+      const res = await authFetch('/api/v1/lookups/providers');
+      this.providers = res.ok ? await res.json() : [];
+    },
+
+    async loadUsers() {
+      const res = await authFetch('/api/v1/users');
+      this.users = res.ok ? await res.json() : [];
+    },
+
+    openSend() {
+      this.sendForm = { tool_id: '', provider: '', reason: '' };
+      this.showSendModal = true;
+    },
+
+    async sendToMaintenance() {
+      if (!this.sendForm.tool_id || !this.sendForm.reason) {
+        this.showMessage('Elegí la herramienta y describí el motivo', 'error');
+        return;
+      }
+      const res = await authFetch('/api/v1/maintenance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.sendForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo enviar a mantenimiento', 'error');
+        return;
+      }
+      this.showSendModal = false;
+      this.showMessage('Herramienta enviada a mantenimiento');
+      await Promise.all([this.loadRecords(), this.loadTools()]);
+    },
+
+    async uploadDocument(rec, file) {
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await authFetch(`/api/v1/maintenance/${rec.id}/document`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo subir la foto', 'error');
+        return;
+      }
+      this.showMessage('Foto del comprobante subida');
+      await this.loadRecords();
+    },
+
+    viewDocument(rec) {
+      this.docRecord = rec;
+      this.showDocModal = true;
+    },
+
+    openResolve(rec) {
+      this.resolving = rec;
+      this.resolveForm = { status: 'resuelto', resolution_notes: '' };
+      this.showResolveModal = true;
+    },
+
+    async confirmResolve() {
+      const res = await authFetch(`/api/v1/maintenance/${this.resolving.id}/resolve`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.resolveForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo resolver', 'error');
+        return;
+      }
+      this.showResolveModal = false;
+      this.showMessage('Mantenimiento actualizado');
+      await Promise.all([this.loadRecords(), this.loadTools()]);
+    },
+
+    openDecommission(rec) {
+      this.decommissioning = rec;
+      this.decommissionForm = { reason: '', authorized_by_id: '' };
+      this.showDecommissionModal = true;
+    },
+
+    async confirmDecommission() {
+      if (!this.decommissionForm.reason || !this.decommissionForm.authorized_by_id) {
+        this.showMessage('Completá el motivo y quién autoriza', 'error');
+        return;
+      }
+      const res = await authFetch(`/api/v1/tools/${this.decommissioning.tool_id}/decommission`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.decommissionForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo dar de baja', 'error');
+        return;
+      }
+      this.showDecommissionModal = false;
+      this.showMessage('Herramienta dada de baja');
+      await Promise.all([this.loadRecords(), this.loadTools()]);
+    },
+
+    statusLabel(status) {
+      return { en_proceso: 'En proceso', resuelto: 'Resuelto', sin_solucion: 'Sin solución' }[status] || status;
+    },
+    statusBadgeClass(status) {
+      return { en_proceso: 'badge-warning', resuelto: 'badge-success', sin_solucion: 'badge-danger' }[status] || 'badge-info';
+    },
+    formatDate(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleDateString('es-AR');
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+</script>
+{% endblock %}
