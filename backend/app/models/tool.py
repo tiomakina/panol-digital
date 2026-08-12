@@ -11,6 +11,7 @@ class ToolStatus(str, enum.Enum):
     prestado = "prestado"
     mantenimiento = "mantenimiento"
     baja = "baja"
+    en_caja = "en_caja"  # dentro de una caja de herramientas (toolbox)
 
 class DepreciationMethod(str, enum.Enum):
     lineal = "lineal"

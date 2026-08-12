@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
-from app.models.tool import Tool
+from app.models.tool import Tool, ToolStatus
 from app.models.toolbox import Toolbox, ToolboxItem
 from app.models.user import User
 from app.schemas.toolbox import ToolboxCreate, ToolboxOut, ToolboxUpdate
@@ -108,12 +108,15 @@ async def add_tool_to_toolbox(
     tool = await db.get(Tool, tool_id)
     if not tool:
         raise HTTPException(status_code=404, detail="Herramienta no encontrada")
+    if tool.status != ToolStatus.disponible:
+        raise HTTPException(status_code=400, detail="La herramienta no está disponible")
 
     existing = await db.execute(select(ToolboxItem).where(ToolboxItem.tool_id == tool_id))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Esa herramienta ya está en otra caja")
 
     db.add(ToolboxItem(toolbox_id=toolbox.id, tool_id=tool_id))
+    tool.status = ToolStatus.en_caja
     await db.commit()
     await db.refresh(toolbox)
     return toolbox
@@ -134,6 +137,10 @@ async def remove_tool_from_toolbox(
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Esa herramienta no está en esta caja")
+
+    tool = await db.get(Tool, tool_id)
+    if tool and tool.status == ToolStatus.en_caja:
+        tool.status = ToolStatus.disponible
 
     await db.delete(item)
     await db.commit()

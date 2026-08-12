@@ -20,7 +20,7 @@ from app.core.database import Base
 
 # Importar todos los modelos para que se registren en Base.metadata
 # (requerido para que --autogenerate detecte las tablas).
-from app.models import audit, brand, loan, tool, toolbox, user  # noqa: F401,E402
+from app.models import audit, brand, loan, lookup, tool, toolbox, user  # noqa: F401,E402
 
 # Objeto de configuración de Alembic (valores de alembic.ini)
 config = context.config

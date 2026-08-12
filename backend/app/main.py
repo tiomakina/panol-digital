@@ -127,3 +127,8 @@ async def users_page(request: Request):
 @app.get("/brand")
 async def brand_settings(request: Request):
     return await _render(request, "brand/brand_settings.html")
+
+
+@app.get("/lookups")
+async def lookups_page(request: Request):
+    return await _render(request, "lookups/index.html")
