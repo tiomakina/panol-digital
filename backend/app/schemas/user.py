@@ -30,6 +30,7 @@ class UserOut(UserBase):
     avatar_url: str | None = None
     created_at: datetime
     last_login: datetime | None = None
+    totp_enabled: bool = False
 
 
 class UserUpdate(BaseModel):

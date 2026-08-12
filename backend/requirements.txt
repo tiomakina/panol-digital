@@ -19,6 +19,7 @@ email-validator==2.1.1
 # Autenticación
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+pyotp==2.9.0
 # passlib 1.7.4 está sin mantenimiento y su auto-detección de bcrypt se
 # rompe con bcrypt>=4.1 (ValueError: password cannot be longer than 72
 # bytes) — se fija la última versión compatible.

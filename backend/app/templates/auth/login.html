@@ -125,6 +125,7 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .footer-note { text-align: center; font-size: 0.72rem; color: #94a3b8; margin-top: 1.5rem; }
+[x-cloak] { display: none !important; }
 </style>
 </head>
 <body>
@@ -141,7 +142,8 @@ body {
     </svg>
     {% endif %}
     <h1>{{ brand.company_name if brand else "Pañol v2.0" }}</h1>
-    <p>Ingresá con tu email y contraseña para continuar</p>
+    <p x-show="step === 'credentials'">Ingresá con tu email y contraseña para continuar</p>
+    <p x-show="step === '2fa'">Ingresá el código de tu app autenticadora</p>
   </div>
 
   <template x-if="errorMessage">
@@ -155,7 +157,7 @@ body {
      @submit.prevent nunca se activa y el navegador hace un submit nativo.
      Sin esto, ese submit por defecto sería GET y filtraría la contraseña
      en la URL (querystring, historial, logs del servidor). #}
-  <form @submit.prevent="submit()" method="post">
+  <form @submit.prevent="step === 'credentials' ? submit() : submitCode()" method="post" x-show="step === 'credentials'">
     <div class="field">
       <label for="email">Email</label>
       <input id="email" type="email" name="email" x-model="email" autocomplete="username" required placeholder="tu@empresa.com">
@@ -171,16 +173,41 @@ body {
     </button>
   </form>
 
+  <form @submit.prevent="submitCode()" x-show="step === '2fa'" x-cloak>
+    <div class="field">
+      <label for="code">Código de 6 dígitos</label>
+      <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" x-model="code" maxlength="6"
+             placeholder="000000" style="text-align:center;letter-spacing:0.4em;font-size:1.2rem;" autofocus>
+    </div>
+    <button type="submit" class="login-btn" :disabled="loading">
+      <template x-if="loading"><span class="spinner"></span></template>
+      <span x-text="loading ? 'Verificando...' : 'Verificar'"></span>
+    </button>
+    <button type="button" @click="step = 'credentials'; code = ''; errorMessage = '';"
+            style="width:100%;background:none;border:none;color:#64748b;font-size:0.8rem;margin-top:0.75rem;cursor:pointer;">
+      ← Volver
+    </button>
+  </form>
+
   <p class="footer-note">Sistema de Gestión de Herramientas · {{ brand.company_name if brand else "Pañol v2.0" }}</p>
 </div>
 
 <script>
 function loginForm() {
   return {
+    step: 'credentials', // 'credentials' | '2fa'
     email: '',
     password: '',
+    code: '',
+    tempToken: '',
     loading: false,
     errorMessage: '',
+
+    _saveTokensAndRedirect(data) {
+      localStorage.setItem('panol-access-token', data.access_token);
+      localStorage.setItem('panol-refresh-token', data.refresh_token);
+      window.location.href = '/';
+    },
 
     async submit() {
       this.loading = true;
@@ -204,9 +231,39 @@ function loginForm() {
           return;
         }
 
-        localStorage.setItem('panol-access-token', data.access_token);
-        localStorage.setItem('panol-refresh-token', data.refresh_token);
-        window.location.href = '/';
+        if (data.requires_2fa) {
+          this.tempToken = data.temp_token;
+          this.step = '2fa';
+          return;
+        }
+
+        this._saveTokensAndRedirect(data);
+      } catch (e) {
+        this.errorMessage = 'Error de conexión con el servidor';
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async submitCode() {
+      this.loading = true;
+      this.errorMessage = '';
+
+      try {
+        const res = await fetch('/api/v1/auth/2fa/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ temp_token: this.tempToken, code: this.code }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          this.errorMessage = data.detail || 'Código incorrecto';
+          return;
+        }
+
+        this._saveTokensAndRedirect(data);
       } catch (e) {
         this.errorMessage = 'Error de conexión con el servidor';
       } finally {

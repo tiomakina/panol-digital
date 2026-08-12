@@ -22,3 +22,11 @@ class User(Base):
     phone: Mapped[str] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_login: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+
+    # 2FA (TOTP, compatible con Google Authenticator/Authy) — recomendado
+    # especialmente para el rol Jefe. totp_secret se guarda apenas se pide
+    # /2fa/setup pero totp_enabled queda en False hasta confirmar un código
+    # válido en /2fa/enable, para no bloquear al usuario con un secreto que
+    # nunca llegó a escanear.
+    totp_secret: Mapped[str] = mapped_column(String(64), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)

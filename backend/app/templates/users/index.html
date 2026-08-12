@@ -13,6 +13,10 @@
     <input type="text" x-model="search" @input.debounce.400ms="loadUsers()" placeholder="Buscar por nombre o email..."
            style="flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
     <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openPasswordModal()">Cambiar mi contraseña</button>
+    <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="open2faModal()">
+      Verificación en dos pasos
+      <span x-show="user && user.totp_enabled" class="badge badge-success" style="margin-left:0.35rem;">Activa</span>
+    </button>
     <button class="btn-primary" @click="openCreate()" x-show="isJefe()">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Nuevo usuario
@@ -117,6 +121,62 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal 2FA -->
+  <div x-show="show2faModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="show2faModal = false">
+    <div class="card" style="max-width:400px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Verificación en dos pasos</h2>
+
+      <!-- Estado: ya activa -->
+      <template x-if="twoFaStep === 'status' && user && user.totp_enabled">
+        <div>
+          <p style="font-size:0.85rem;color:#475569;margin-bottom:1rem;">
+            La verificación en dos pasos está <strong>activa</strong> en tu cuenta. Cada vez que inicies sesión
+            vas a necesitar un código de tu app autenticadora además de tu contraseña.
+          </p>
+          <label class="field-label">Ingresá tu contraseña para desactivarla</label>
+          <input type="password" x-model="disableForm.password" class="field-input" style="margin-bottom:1rem;">
+          <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+            <button @click="show2faModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cerrar</button>
+            <button @click="disable2fa()" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Desactivar</button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Estado: no activa, invitación a activarla -->
+      <template x-if="twoFaStep === 'status' && user && !user.totp_enabled">
+        <div>
+          <p style="font-size:0.85rem;color:#475569;margin-bottom:1rem;">
+            Agregá una capa extra de seguridad: además de tu contraseña, vas a necesitar un código de 6 dígitos
+            generado por una app como Google Authenticator o Authy. Muy recomendado para el Jefe.
+          </p>
+          <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+            <button @click="show2faModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Ahora no</button>
+            <button @click="startSetup2fa()" class="btn-primary">Activar</button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Setup: mostrar QR y pedir el primer código -->
+      <template x-if="twoFaStep === 'setup'">
+        <div>
+          <p style="font-size:0.8rem;color:#64748b;margin-bottom:0.75rem;">
+            Escaneá este código con tu app autenticadora y después ingresá el código de 6 dígitos que te muestre.
+          </p>
+          <div style="text-align:center;margin-bottom:0.75rem;">
+            <img :src="'data:image/png;base64,' + qrCodeBase64" style="width:180px;height:180px;">
+          </div>
+          <p style="font-size:0.7rem;color:#94a3b8;text-align:center;margin-bottom:1rem;word-break:break-all;" x-text="'Clave manual: ' + twoFaSecret"></p>
+          <label class="field-label">Código de 6 dígitos</label>
+          <input type="text" inputmode="numeric" x-model="enableCode" maxlength="6" class="field-input" style="text-align:center;letter-spacing:0.3em;margin-bottom:1rem;">
+          <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+            <button @click="twoFaStep = 'status'" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+            <button @click="confirmEnable2fa()" class="btn-primary">Confirmar y activar</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -137,10 +197,16 @@ function usersPage() {
     showCreateModal: false,
     showEditModal: false,
     showPasswordModal: false,
+    show2faModal: false,
     createForm: {},
     editForm: {},
     editingId: null,
     passwordForm: {},
+    twoFaStep: 'status',
+    qrCodeBase64: '',
+    twoFaSecret: '',
+    enableCode: '',
+    disableForm: {},
     message: '',
     messageType: 'success',
 
@@ -234,6 +300,50 @@ function usersPage() {
       }
       this.showPasswordModal = false;
       this.showMessage('Contraseña actualizada correctamente');
+    },
+
+    open2faModal() {
+      this.twoFaStep = 'status';
+      this.disableForm = { password: '' };
+      this.show2faModal = true;
+    },
+
+    async startSetup2fa() {
+      const res = await authFetch('/api/v1/auth/2fa/setup', { method: 'POST' });
+      if (!res.ok) { this.showMessage('No se pudo iniciar la activación', 'error'); return; }
+      const data = await res.json();
+      this.qrCodeBase64 = data.qr_code_base64;
+      this.twoFaSecret = data.secret;
+      this.enableCode = '';
+      this.twoFaStep = 'setup';
+    },
+
+    async confirmEnable2fa() {
+      const res = await authFetch('/api/v1/auth/2fa/enable', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: this.enableCode }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Código incorrecto', 'error');
+        return;
+      }
+      this.user.totp_enabled = true;
+      this.show2faModal = false;
+      this.showMessage('Verificación en dos pasos activada');
+    },
+
+    async disable2fa() {
+      const res = await authFetch('/api/v1/auth/2fa/disable', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.disableForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo desactivar', 'error');
+        return;
+      }
+      this.user.totp_enabled = false;
+      this.show2faModal = false;
+      this.showMessage('Verificación en dos pasos desactivada');
     },
 
     roleLabel(role) {

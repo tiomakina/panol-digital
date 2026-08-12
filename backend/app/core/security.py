@@ -41,6 +41,17 @@ def create_refresh_token(user_id: int, expires_delta: Optional[timedelta] = None
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
+def create_2fa_pending_token(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Token de corta vida (5 min) emitido tras validar email+contraseña cuando
+    el usuario tiene 2FA activo. Solo sirve para llamar a /auth/2fa/verify —
+    no es un access token, no da acceso a la API.
+    """
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=5))
+    payload = {"sub": str(user_id), "type": "2fa_pending", "jti": str(uuid4()), "exp": expire}
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
 def decode_token(token: str, expected_type: Optional[str] = None) -> dict:
     """Decodifica y valida la firma/expiración de un token. Opcionalmente exige un tipo (access/refresh)."""
     try:
