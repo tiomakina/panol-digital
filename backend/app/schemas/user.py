@@ -30,3 +30,24 @@ class UserOut(UserBase):
     avatar_url: str | None = None
     created_at: datetime
     last_login: datetime | None = None
+
+
+class UserUpdate(BaseModel):
+    """Campos editables de un usuario. role/is_active solo los puede tocar un jefe (ver users.py)."""
+    full_name: str | None = None
+    phone: str | None = None
+    avatar_url: str | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("La contraseña debe tener al menos 8 caracteres")
+        return v

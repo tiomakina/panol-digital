@@ -4,7 +4,7 @@ Endpoint: /api/v1/auth/
 """
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,12 +25,18 @@ from app.core.security import (
 from app.models.user import User
 from app.schemas.auth import RefreshRequest, Token
 from app.schemas.user import UserOut
+from app.services.audit_service import log_action
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(
@@ -46,11 +52,23 @@ async def login(
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
+        await log_action(
+            db,
+            user_id=user.id if user else None,
+            action="auth.login_failed",
+            entity_type="user",
+            detail=f"Intento fallido para {form_data.username}",
+            ip_address=_client_ip(request),
+        )
+        await db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email o contraseña incorrectos")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo, contacte al administrador")
 
     user.last_login = datetime.utcnow()
+    await log_action(
+        db, user_id=user.id, action="auth.login", entity_type="user", entity_id=user.id, ip_address=_client_ip(request)
+    )
     await db.commit()
 
     access_token = create_access_token(user.id, user.role.value)

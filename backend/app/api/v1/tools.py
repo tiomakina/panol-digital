@@ -14,6 +14,7 @@ from app.core.security import get_current_user, require_role
 from app.models.tool import Tool, ToolStatus
 from app.models.user import User
 from app.schemas.tool import ToolCreate, ToolOut, ToolUpdate
+from app.services.audit_service import log_action
 from app.services.brand_service import validate_image_magic_bytes
 from app.services.depreciation import calculate_current_value
 from app.services.qr_service import decode_qr_payload, generate_tool_qr
@@ -153,6 +154,7 @@ async def upload_tool_photo(
 @router.delete("/{tool_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tool(
     tool_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("jefe")),
 ):
@@ -163,5 +165,14 @@ async def delete_tool(
     if tool.status == ToolStatus.prestado:
         raise HTTPException(status_code=400, detail="No se puede eliminar una herramienta actualmente prestada")
 
+    await log_action(
+        db,
+        user_id=user.id,
+        action="tool.delete",
+        entity_type="tool",
+        entity_id=tool.id,
+        detail=f"Herramienta eliminada: {tool.name}",
+        ip_address=request.client.host if request.client else None,
+    )
     await db.delete(tool)
     await db.commit()

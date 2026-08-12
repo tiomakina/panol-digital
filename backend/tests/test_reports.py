@@ -1,0 +1,85 @@
+"""Pruebas de reportes: inventario, CSV, historial de préstamos y auditoría."""
+from datetime import date, timedelta
+
+from app.core.database import AsyncSessionLocal
+from app.core.security import hash_password
+from app.models.user import User, UserRole
+
+
+async def _create_user(email: str, password: str, role: UserRole) -> None:
+    async with AsyncSessionLocal() as db:
+        db.add(User(email=email, full_name="Seed", role=role, hashed_password=hash_password(password)))
+        await db.commit()
+
+
+async def _login(client, email, password) -> str:
+    res = await client.post("/api/v1/auth/login", data={"username": email, "password": password})
+    assert res.status_code == 200, res.text
+    return res.json()["access_token"]
+
+
+def _auth(token: str) -> dict:
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def test_inventory_report_json_and_csv(client):
+    await _create_user("jefe@test.com", "Clave123!", UserRole.jefe)
+    token = await _login(client, "jefe@test.com", "Clave123!")
+
+    await client.post(
+        "/api/v1/tools",
+        json={"name": "Sierra", "purchase_cost": "500.00", "purchase_date": "2024-01-01"},
+        headers=_auth(token),
+    )
+
+    report = await client.get("/api/v1/reports/inventory", headers=_auth(token))
+    assert report.status_code == 200
+    body = report.json()
+    assert body["total_purchase_cost"] >= 500
+    assert any(t["name"] == "Sierra" for t in body["tools"])
+
+    csv_res = await client.get("/api/v1/reports/inventory.csv", headers=_auth(token))
+    assert csv_res.status_code == 200
+    assert csv_res.headers["content-type"].startswith("text/csv")
+    assert "Sierra" in csv_res.text
+
+
+async def test_loans_report_filters_by_status(client):
+    await _create_user("jefe2@test.com", "Clave123!", UserRole.jefe)
+    await _create_user("mecanico@test.com", "Clave123!", UserRole.mecanico)
+    jefe_token = await _login(client, "jefe2@test.com", "Clave123!")
+    mecanico_token = await _login(client, "mecanico@test.com", "Clave123!")
+
+    tool = (await client.post("/api/v1/tools", json={"name": "Pinza"}, headers=_auth(jefe_token))).json()
+    borrower_id = (await client.get("/api/v1/auth/me", headers=_auth(mecanico_token))).json()["id"]
+    due = (date.today() + timedelta(days=5)).isoformat()
+
+    await client.post(
+        "/api/v1/loans",
+        json={"tool_id": tool["id"], "borrower_id": borrower_id, "due_date": due},
+        headers=_auth(jefe_token),
+    )
+
+    active = await client.get("/api/v1/reports/loans", params={"status": "activo"}, headers=_auth(jefe_token))
+    assert active.status_code == 200
+    assert active.json()["count"] >= 1
+    assert active.json()["loans"][0]["tool"] == "Pinza"
+
+    devuelto = await client.get("/api/v1/reports/loans", params={"status": "devuelto"}, headers=_auth(jefe_token))
+    assert devuelto.json()["count"] == 0
+
+
+async def test_audit_report_requires_jefe_and_records_actions(client):
+    await _create_user("jefe3@test.com", "Clave123!", UserRole.jefe)
+    await _create_user("encargado@test.com", "Clave123!", UserRole.encargado)
+    jefe_token = await _login(client, "jefe3@test.com", "Clave123!")
+    encargado_token = await _login(client, "encargado@test.com", "Clave123!")
+
+    forbidden = await client.get("/api/v1/reports/audit", headers=_auth(encargado_token))
+    assert forbidden.status_code == 403
+
+    audit = await client.get("/api/v1/reports/audit", headers=_auth(jefe_token))
+    assert audit.status_code == 200
+    actions = [entry["action"] for entry in audit.json()]
+    # Los logins de arriba ya debieron quedar registrados
+    assert "auth.login" in actions
