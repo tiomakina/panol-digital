@@ -5,7 +5,7 @@ Endpoint: /api/v1/tools/
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,7 @@ from app.schemas.maintenance import DecommissionInput
 from app.schemas.tool import ToolCreate, ToolOut, ToolUpdate
 from app.services.audit_service import log_action
 from app.services.brand_service import validate_image_magic_bytes
+from app.services.csv_service import parse_and_import_tools_csv, tools_to_csv
 from app.services.depreciation import calculate_current_value
 from app.services.qr_service import decode_qr_payload, generate_tool_qr
 
@@ -68,6 +69,61 @@ async def scan_qr(payload: str, db: AsyncSession = Depends(get_db), user: User =
     if not tool:
         raise HTTPException(status_code=404, detail="Herramienta no encontrada")
     return _to_out(tool)
+
+
+@router.get("/export")
+async def export_tools(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Descarga el inventario completo como CSV (compatible con Excel)."""
+    result = await db.execute(select(Tool).order_by(Tool.name))
+    csv_bytes = tools_to_csv(result.scalars().all())
+    filename = f"herramientas_{date.today().isoformat()}.csv"
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/import")
+async def import_tools(
+    request: Request,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("encargado")),
+):
+    """
+    Importa herramientas desde un CSV (mismas columnas que exporta /export).
+    Matchea por número de serie: si ya existe, actualiza; si no, crea una
+    nueva. No aborta ante una fila inválida — la salta y la reporta.
+    """
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="El archivo tiene que ser un .csv")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"El archivo supera los {settings.MAX_UPLOAD_SIZE_MB}MB permitidos")
+
+    result = await parse_and_import_tools_csv(db, file_bytes)
+
+    await log_action(
+        db,
+        user_id=user.id,
+        action="tool.bulk_import",
+        entity_type="tool",
+        entity_id=None,
+        detail=(
+            f"Importación masiva de herramientas: {result.created} creadas, {result.updated} actualizadas, "
+            f"{len(result.errors)} con error."
+        ),
+        ip_address=request.client.host if request.client else None,
+    )
+
+    await db.commit()
+    return {
+        "created": result.created,
+        "updated": result.updated,
+        "errors": [{"row": e.row, "detail": e.detail} for e in result.errors],
+    }
 
 
 @router.get("/{tool_id}", response_model=ToolOut)
