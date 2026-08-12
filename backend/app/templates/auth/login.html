@@ -11,8 +11,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<!-- Vendorizado en static/vendor/ (no CDN) — ver base.html -->
+<script defer src="/static/vendor/alpine.min.js"></script>
 
 <style>
 {{ brand_css | safe }}
@@ -148,7 +148,11 @@ body {
     </div>
   </template>
 
-  <form @submit.prevent="submit()">
+  {# method="post" es defensa en profundidad: si Alpine.js no llegó a cargar,
+     @submit.prevent nunca se activa y el navegador hace un submit nativo.
+     Sin esto, ese submit por defecto sería GET y filtraría la contraseña
+     en la URL (querystring, historial, logs del servidor). #}
+  <form @submit.prevent="submit()" method="post">
     <div class="field">
       <label for="email">Email</label>
       <input id="email" type="email" name="email" x-model="email" autocomplete="username" required placeholder="tu@empresa.com">

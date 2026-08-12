@@ -395,7 +395,7 @@ function brandEditor() {
       formData.append('extract_palette', this.extractPalette);
       
       try {
-        const res = await fetch('/api/v1/brand/logo', { method: 'POST', body: formData });
+        const res = await authFetch('/api/v1/brand/logo', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.logo_url) {
           this.logoPreview = data.logo_url;
@@ -413,7 +413,7 @@ function brandEditor() {
     async saveColors() {
       this.saving = true;
       try {
-        const res = await fetch('/api/v1/brand/colors', {
+        const res = await authFetch('/api/v1/brand/colors', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(this.brand)
@@ -430,7 +430,7 @@ function brandEditor() {
 
     async resetBrand() {
       if (!confirm("¿Restaurar la configuración a los valores predeterminados?")) return;
-      const res = await fetch('/api/v1/brand/reset', { method: 'POST' });
+      const res = await authFetch('/api/v1/brand/reset', { method: 'POST' });
       const data = await res.json();
       if (data.success) location.reload();
     },

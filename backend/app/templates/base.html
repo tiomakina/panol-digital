@@ -14,14 +14,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
-<!-- Tailwind CSS vía CDN (en producción usar build) -->
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- HTMX 2 y Alpine.js 3 — vendorizados en static/vendor/ (no CDN):
+     el sistema debe poder correr en un pañol/taller sin salida a internet. -->
+<script src="/static/vendor/htmx.min.js"></script>
+<script defer src="/static/vendor/alpine.min.js"></script>
 
-<!-- HTMX 2 -->
-<script src="https://unpkg.com/htmx.org@2.0.0/dist/htmx.min.js"></script>
-
-<!-- Alpine.js 3 -->
-<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<!-- Sesión JWT (localStorage) — adjunta el token a fetch/htmx y protege la página -->
+<script src="/static/js/auth.js"></script>
 
 <!-- CSS Variables de Branding — generadas dinámicamente desde el servidor -->
 <style>
@@ -180,11 +179,15 @@ body {
 [data-theme="dark"] .card, [data-theme="dark"] .topbar { background: #1e293b; border-color: #334155; }
 [data-theme="dark"] .kpi-card { background: #1e293b; border-color: #334155; }
 
+/* Botón de hamburguesa — solo visible en mobile */
+.sidebar-toggle-btn { display: none; }
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); }
   .main-content { margin-left: 0; }
+  .sidebar-toggle-btn { display: inline-flex; }
 }
 </style>
 </head>
@@ -267,7 +270,7 @@ body {
   <!-- Topbar -->
   <header class="topbar">
     <div style="display:flex;align-items:center;gap:1rem;">
-      <button @click="sidebarOpen = !sidebarOpen" class="md:hidden" style="background:none;border:none;cursor:pointer;padding:0.5rem;">
+      <button @click="sidebarOpen = !sidebarOpen" class="sidebar-toggle-btn" style="background:none;border:none;cursor:pointer;padding:0.5rem;">
         <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
       <h1 style="font-size:1rem;font-weight:600;color:#1e293b;">{% block page_title %}Dashboard{% endblock %}</h1>
@@ -310,6 +313,7 @@ function appState() {
     },
     
     init() {
+      requireAuth(); // manda a /login si no hay sesión guardada
       document.documentElement.setAttribute('data-theme', this.theme);
     }
   }
