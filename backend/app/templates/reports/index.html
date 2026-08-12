@@ -9,6 +9,7 @@
   <div style="display:flex;gap:0.5rem;border-bottom:1px solid #e2e8f0;margin-bottom:1.25rem;">
     <button @click="tab = 'inventory'" :style="tab === 'inventory' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Inventario</button>
     <button @click="tab = 'loans'" :style="tab === 'loans' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Préstamos</button>
+    <button @click="tab = 'maintenance'; loadMaintenanceReport()" :style="tab === 'maintenance' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Mantenimiento</button>
     <button x-show="isJefe()" @click="tab = 'audit'" :style="tab === 'audit' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Auditoría</button>
   </div>
 
@@ -21,11 +22,29 @@
       </div>
       <button @click="downloadInventoryCsv()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ Descargar CSV</button>
     </div>
+
+    <!-- Resumen por herramienta: cuántas unidades hay de cada modelo. El
+         detalle de abajo (con N° de serie y ubicación) es lo que permite
+         encontrar cada unidad puntual entre esas cantidades. -->
+    <div class="card" style="margin-bottom:1rem;">
+      <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:0.6rem;">Cantidad por herramienta</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+        <template x-for="s in inventorySummary" :key="s.name">
+          <div style="border:1px solid #e2e8f0;border-radius:8px;padding:0.4rem 0.75rem;display:flex;align-items:center;gap:0.5rem;">
+            <span style="font-size:0.8rem;color:#334155;" x-text="s.name"></span>
+            <span class="badge badge-info" x-text="s.quantity"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <div class="card" style="padding:0;overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
         <thead>
           <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
-            <th style="padding:0.75rem 1rem;">Herramienta</th><th style="padding:0.75rem 1rem;">Categoría</th>
+            <th style="padding:0.75rem 1rem;">Herramienta</th><th style="padding:0.75rem 1rem;">Marca</th>
+            <th style="padding:0.75rem 1rem;">Categoría</th><th style="padding:0.75rem 1rem;">N° de serie</th>
+            <th style="padding:0.75rem 1rem;">Ubicación</th><th style="padding:0.75rem 1rem;">Proveedor</th>
             <th style="padding:0.75rem 1rem;">Estado</th><th style="padding:0.75rem 1rem;">Costo de compra</th><th style="padding:0.75rem 1rem;">Valor actual</th>
           </tr>
         </thead>
@@ -33,7 +52,11 @@
           <template x-for="row in inventoryRows" :key="row.id">
             <tr style="border-bottom:1px solid #f1f5f9;">
               <td style="padding:0.6rem 1rem;font-weight:600;" x-text="row.name"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.brand || '—'"></td>
               <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.category || '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.serial_number || '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.location || '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.supplier || '—'"></td>
               <td style="padding:0.6rem 1rem;" x-text="row.status"></td>
               <td style="padding:0.6rem 1rem;" x-text="row.purchase_cost != null ? '$' + row.purchase_cost.toLocaleString() : '—'"></td>
               <td style="padding:0.6rem 1rem;" x-text="row.current_value != null ? '$' + row.current_value.toLocaleString() : '—'"></td>
@@ -56,25 +79,88 @@
       <span style="color:#94a3b8;font-size:0.8rem;">hasta</span>
       <input type="date" x-model="dateTo" @change="loadLoansReport()" class="field-input" style="width:auto;">
     </div>
+    <div class="card" style="margin-bottom:1rem;">
+      <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:0.6rem;">Cantidad de préstamos por herramienta</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+        <template x-if="loansSummary.length === 0"><span style="font-size:0.8rem;color:#94a3b8;">Sin datos para este filtro.</span></template>
+        <template x-for="s in loansSummary" :key="s.tool">
+          <div style="border:1px solid #e2e8f0;border-radius:8px;padding:0.4rem 0.75rem;display:flex;align-items:center;gap:0.5rem;">
+            <span style="font-size:0.8rem;color:#334155;" x-text="s.tool"></span>
+            <span class="badge badge-info" x-text="s.quantity"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <div class="card" style="padding:0;overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
         <thead>
           <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
-            <th style="padding:0.75rem 1rem;">Herramienta</th><th style="padding:0.75rem 1rem;">Responsable</th>
+            <th style="padding:0.75rem 1rem;">Herramienta</th><th style="padding:0.75rem 1rem;">Marca</th>
+            <th style="padding:0.75rem 1rem;">Categoría</th><th style="padding:0.75rem 1rem;">N° de serie</th>
+            <th style="padding:0.75rem 1rem;">Responsable</th>
             <th style="padding:0.75rem 1rem;">Préstamo</th><th style="padding:0.75rem 1rem;">Vence</th>
             <th style="padding:0.75rem 1rem;">Devolución</th><th style="padding:0.75rem 1rem;">Estado</th>
           </tr>
         </thead>
         <tbody>
-          <template x-if="loansReport.length === 0"><tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Sin resultados</td></tr></template>
+          <template x-if="loansReport.length === 0"><tr><td colspan="9" style="padding:2rem;text-align:center;color:#94a3b8;">Sin resultados</td></tr></template>
           <template x-for="row in loansReport" :key="row.id">
             <tr style="border-bottom:1px solid #f1f5f9;">
               <td style="padding:0.6rem 1rem;font-weight:600;" x-text="row.tool || '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool_brand || '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool_category || '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool_serial_number || '—'"></td>
               <td style="padding:0.6rem 1rem;" x-text="row.borrower || '—'"></td>
               <td style="padding:0.6rem 1rem;color:#64748b;" x-text="formatDate(row.loan_date)"></td>
               <td style="padding:0.6rem 1rem;color:#64748b;" x-text="formatDate(row.due_date)"></td>
               <td style="padding:0.6rem 1rem;color:#64748b;white-space:nowrap;" x-text="row.return_date ? formatDateTime(row.return_date) : '—'"></td>
               <td style="padding:0.6rem 1rem;"><span class="badge" :class="statusBadgeClass(row.status)" x-text="row.status"></span></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mantenimiento -->
+  <div x-show="tab === 'maintenance'">
+    <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+      <select x-model="maintenanceStatusFilter" @change="loadMaintenanceReport()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+        <option value="">Todos los estados</option>
+        <option value="en_proceso">En proceso</option>
+        <option value="resuelto">Resuelto</option>
+        <option value="sin_solucion">Sin solución</option>
+      </select>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <thead>
+          <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+            <th style="padding:0.75rem 1rem;">Herramienta</th><th style="padding:0.75rem 1rem;">Marca</th>
+            <th style="padding:0.75rem 1rem;">Categoría</th><th style="padding:0.75rem 1rem;">Proveedor</th>
+            <th style="padding:0.75rem 1rem;">Motivo</th><th style="padding:0.75rem 1rem;">Enviado</th>
+            <th style="padding:0.75rem 1rem;">Resuelto</th><th style="padding:0.75rem 1rem;">Estado</th>
+            <th style="padding:0.75rem 1rem;">Notas</th><th style="padding:0.75rem 1rem;">Comprobante</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-if="maintenanceReport.length === 0"><tr><td colspan="10" style="padding:2rem;text-align:center;color:#94a3b8;">Sin resultados</td></tr></template>
+          <template x-for="row in maintenanceReport" :key="row.id">
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:0.6rem 1rem;font-weight:600;" x-text="row.tool ? row.tool.name : ('#' + row.tool_id)"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool ? (row.tool.brand || '—') : '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool ? (row.tool.category || '—') : '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.provider || '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;max-width:220px;" x-text="row.reason"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="formatDate(row.sent_date)"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.resolved_date ? formatDate(row.resolved_date) : '—'"></td>
+              <td style="padding:0.6rem 1rem;"><span class="badge" :class="maintenanceBadgeClass(row.status)" x-text="maintenanceStatusLabel(row.status)"></span></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;max-width:200px;" x-text="row.resolution_notes || '—'"></td>
+              <td style="padding:0.6rem 1rem;">
+                <a x-show="row.document_url" :href="row.document_url" target="_blank" style="font-size:0.78rem;">Ver</a>
+                <span x-show="!row.document_url" style="color:#94a3b8;">—</span>
+              </td>
             </tr>
           </template>
         </tbody>
@@ -122,8 +208,12 @@ function reportsPage() {
     user: null,
     tab: 'inventory',
     inventoryRows: [],
+    inventorySummary: [],
     inventoryTotals: { total_purchase_cost: 0, total_current_value: 0 },
     loansReport: [],
+    loansSummary: [],
+    maintenanceReport: [],
+    maintenanceStatusFilter: '',
     auditLog: [],
     loanStatusFilter: '',
     dateFrom: '',
@@ -143,6 +233,7 @@ function reportsPage() {
       if (!res.ok) return;
       const data = await res.json();
       this.inventoryRows = data.tools;
+      this.inventorySummary = data.summary || [];
       this.inventoryTotals = { total_purchase_cost: data.total_purchase_cost, total_current_value: data.total_current_value };
     },
 
@@ -164,7 +255,26 @@ function reportsPage() {
       if (this.dateFrom) params.set('date_from', this.dateFrom);
       if (this.dateTo) params.set('date_to', this.dateTo);
       const res = await authFetch('/api/v1/reports/loans?' + params.toString());
-      this.loansReport = res.ok ? (await res.json()).loans : [];
+      if (!res.ok) { this.loansReport = []; this.loansSummary = []; return; }
+      const data = await res.json();
+      this.loansReport = data.loans;
+      this.loansSummary = data.summary || [];
+    },
+
+    async loadMaintenanceReport() {
+      const params = new URLSearchParams();
+      if (this.maintenanceStatusFilter) params.set('status', this.maintenanceStatusFilter);
+      // Reusa el mismo endpoint que el módulo de Mantenimiento — ya trae
+      // la herramienta (con marca/categoría) embebida.
+      const res = await authFetch('/api/v1/maintenance?' + params.toString());
+      this.maintenanceReport = res.ok ? await res.json() : [];
+    },
+
+    maintenanceStatusLabel(status) {
+      return { en_proceso: 'En proceso', resuelto: 'Resuelto', sin_solucion: 'Sin solución' }[status] || status;
+    },
+    maintenanceBadgeClass(status) {
+      return { en_proceso: 'badge-warning', resuelto: 'badge-success', sin_solucion: 'badge-danger' }[status] || 'badge-info';
     },
 
     async loadAudit() {

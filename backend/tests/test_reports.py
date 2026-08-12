@@ -44,6 +44,35 @@ async def test_inventory_report_json_and_csv(client):
     assert "Sierra" in csv_res.text
 
 
+async def test_inventory_report_includes_location_supplier_and_summary(client):
+    await _create_user("jefe_inv@test.com", "Clave123!", UserRole.jefe)
+    token = await _login(client, "jefe_inv@test.com", "Clave123!")
+
+    for serial in ("SN-INV-1", "SN-INV-2"):
+        await client.post(
+            "/api/v1/tools",
+            json={
+                "name": "Taladro Repetido", "brand": "Bosch", "category": "Eléctricas",
+                "location": "Depósito A", "supplier": "Casa Bagnara", "serial_number": serial,
+            },
+            headers=_auth(token),
+        )
+
+    report = await client.get("/api/v1/reports/inventory", headers=_auth(token))
+    body = report.json()
+    row = next(t for t in body["tools"] if t["serial_number"] == "SN-INV-1")
+    assert row["brand"] == "Bosch"
+    assert row["location"] == "Depósito A"
+    assert row["supplier"] == "Casa Bagnara"
+
+    summary_entry = next(s for s in body["summary"] if s["name"] == "Taladro Repetido")
+    assert summary_entry["quantity"] == 2
+
+    csv_res = await client.get("/api/v1/reports/inventory.csv", headers=_auth(token))
+    assert "location" in csv_res.text.splitlines()[0]
+    assert "Depósito A" in csv_res.text
+
+
 async def test_loans_report_filters_by_status(client):
     await _create_user("jefe2@test.com", "Clave123!", UserRole.jefe)
     await _create_user("mecanico@test.com", "Clave123!", UserRole.mecanico)
@@ -67,6 +96,37 @@ async def test_loans_report_filters_by_status(client):
 
     devuelto = await client.get("/api/v1/reports/loans", params={"status": "devuelto"}, headers=_auth(jefe_token))
     assert devuelto.json()["count"] == 0
+
+
+async def test_loans_report_includes_tool_details_and_summary(client):
+    await _create_user("jefe_lr@test.com", "Clave123!", UserRole.jefe)
+    await _create_user("meca_lr@test.com", "Clave123!", UserRole.mecanico)
+    jefe_token = await _login(client, "jefe_lr@test.com", "Clave123!")
+    mecanico_token = await _login(client, "meca_lr@test.com", "Clave123!")
+
+    tool = (await client.post(
+        "/api/v1/tools",
+        json={"name": "Amoladora Reporte", "brand": "Makita", "category": "Eléctricas", "serial_number": "SN-LR-1"},
+        headers=_auth(jefe_token),
+    )).json()
+    borrower_id = (await client.get("/api/v1/auth/me", headers=_auth(mecanico_token))).json()["id"]
+    due = (date.today() + timedelta(days=3)).isoformat()
+
+    await client.post(
+        "/api/v1/loans",
+        json={"tool_id": tool["id"], "borrower_id": borrower_id, "due_date": due},
+        headers=_auth(jefe_token),
+    )
+
+    report = await client.get("/api/v1/reports/loans", headers=_auth(jefe_token))
+    body = report.json()
+    row = next(r for r in body["loans"] if r["tool"] == "Amoladora Reporte")
+    assert row["tool_brand"] == "Makita"
+    assert row["tool_category"] == "Eléctricas"
+    assert row["tool_serial_number"] == "SN-LR-1"
+
+    summary_entry = next(s for s in body["summary"] if s["tool"] == "Amoladora Reporte")
+    assert summary_entry["quantity"] == 1
 
 
 async def test_audit_report_requires_jefe_and_records_actions(client):
