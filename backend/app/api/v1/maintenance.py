@@ -15,11 +15,11 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_role
 from app.models.maintenance import MaintenanceRecord, MaintenanceStatus
 from app.models.tool import Tool, ToolStatus
-from app.models.toolbox import ToolboxItem
 from app.models.user import User
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceOut, MaintenanceResolve
 from app.services.audit_service import log_action
 from app.services.brand_service import validate_image_magic_bytes
+from app.services.maintenance_service import send_tool_to_maintenance
 
 router = APIRouter(prefix="/maintenance", tags=["Mantenimiento"])
 
@@ -70,44 +70,13 @@ async def send_to_maintenance(
     tool = await db.get(Tool, payload.tool_id)
     if not tool:
         raise HTTPException(status_code=404, detail="Herramienta no encontrada")
-    if tool.status not in (ToolStatus.disponible, ToolStatus.en_caja):
-        raise HTTPException(
-            status_code=400,
-            detail="Solo se puede enviar a mantenimiento una herramienta disponible o en una caja de herramientas",
-        )
 
-    removed_from_toolbox = False
-    if tool.status == ToolStatus.en_caja:
-        item_result = await db.execute(select(ToolboxItem).where(ToolboxItem.tool_id == tool.id))
-        item = item_result.scalar_one_or_none()
-        if item:
-            await db.delete(item)
-            removed_from_toolbox = True
-
-    record = MaintenanceRecord(
-        tool_id=tool.id,
+    record = await send_tool_to_maintenance(
+        db,
+        tool=tool,
         provider=payload.provider,
         reason=payload.reason,
-        status=MaintenanceStatus.en_proceso,
-        sent_date=date.today(),
-        created_by_id=user.id,
-    )
-    db.add(record)
-    tool.status = ToolStatus.mantenimiento
-    await db.flush()
-
-    detail = f"Herramienta '{tool.name}' enviada a mantenimiento. Motivo: {payload.reason}."
-    if payload.provider:
-        detail += f" Proveedor: {payload.provider}."
-    if removed_from_toolbox:
-        detail += " Se sacó de su caja de herramientas."
-    await log_action(
-        db,
-        user_id=user.id,
-        action="tool.send_to_maintenance",
-        entity_type="tool",
-        entity_id=tool.id,
-        detail=detail,
+        user=user,
         ip_address=request.client.host if request.client else None,
     )
 

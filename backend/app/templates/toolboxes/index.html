@@ -111,9 +111,79 @@
         </div>
       </template>
 
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:1rem 0 0.5rem;">
+        <h3 style="font-size:0.85rem;font-weight:600;">Auditoría / inventario</h3>
+        <button @click="startNewAudit()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.35rem 0.7rem;cursor:pointer;font-size:0.75rem;">+ Nueva auditoría</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.35rem;margin-bottom:1rem;">
+        <template x-if="audits.length === 0">
+          <p style="color:#94a3b8;font-size:0.8rem;">Todavía no se hizo ninguna auditoría de esta caja.</p>
+        </template>
+        <template x-for="a in audits" :key="a.id">
+          <button @click="openAuditModal(a)" style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;text-align:left;">
+            <span style="font-size:0.8rem;">
+              <span x-text="formatDate(a.audit_date)"></span>
+              <span style="color:#94a3b8;"> · </span>
+              <span style="color:#64748b;" x-text="a.performed_by ? a.performed_by.full_name : 'Sin datos'"></span>
+            </span>
+            <span class="badge" :class="a.status === 'completado' ? 'badge-success' : 'badge-warning'" x-text="a.status === 'completado' ? 'Completada' : 'En progreso'"></span>
+          </button>
+        </template>
+      </div>
+
       <div style="display:flex;justify-content:space-between;">
         <button x-show="canDelete()" @click="deleteToolbox()" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Eliminar caja</button>
         <button @click="showDetailModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;margin-left:auto;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal auditoría: checklist herramienta por herramienta -->
+  <div x-show="showAuditModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.6);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="showAuditModal = false">
+    <div class="card" style="max-width:560px;width:100%;max-height:90vh;overflow-y:auto;" x-show="activeAudit">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.25rem;">
+        <h2 style="font-size:1.05rem;font-weight:600;">Auditoría de caja</h2>
+        <button @click="showAuditModal = false" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+      </div>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;">
+        <span x-text="activeAudit ? formatDate(activeAudit.audit_date) : ''"></span>
+        <span x-show="activeAudit && activeAudit.performed_by"> · <span x-text="activeAudit && activeAudit.performed_by ? activeAudit.performed_by.full_name : ''"></span></span>
+        <span class="badge" style="margin-left:0.5rem;" :class="activeAudit && activeAudit.status === 'completado' ? 'badge-success' : 'badge-warning'" x-text="activeAudit && activeAudit.status === 'completado' ? 'Completada' : 'En progreso'"></span>
+      </p>
+
+      <template x-for="item in (activeAudit ? activeAudit.items : [])" :key="item.id">
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:0.75rem;margin-bottom:0.6rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+            <strong style="font-size:0.85rem;" x-text="item.tool ? item.tool.name : ('Herramienta #' + item.tool_id)"></strong>
+            <span class="badge" x-show="item.condition" :class="auditConditionBadge(item.condition)" x-text="auditConditionLabel(item.condition)"></span>
+          </div>
+
+          <template x-if="activeAudit.status === 'en_progreso' && !item.sent_to_maintenance">
+            <div>
+              <select x-model="itemDrafts[item.id].condition" class="field-input" style="margin-bottom:0.5rem;">
+                <option value="bueno">Bueno</option>
+                <option value="dañado">Dañado</option>
+                <option value="faltante">Faltante</option>
+              </select>
+              <textarea x-show="itemDrafts[item.id].condition !== 'bueno'" x-model="itemDrafts[item.id].observation" class="field-input" rows="2" placeholder="Observación (obligatoria) — qué pasó con la herramienta" style="margin-bottom:0.5rem;"></textarea>
+              <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+                <button @click="saveAuditItem(item)" class="btn-primary" style="padding:0.3rem 0.7rem;font-size:0.78rem;">Guardar</button>
+                <button x-show="itemDrafts[item.id].condition === 'dañado'" @click="sendAuditItemToMaintenance(item)" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:0.3rem 0.7rem;cursor:pointer;font-size:0.78rem;">Enviar a mantenimiento</button>
+              </div>
+            </div>
+          </template>
+          <template x-if="item.sent_to_maintenance">
+            <p style="font-size:0.75rem;color:#92400e;margin:0;">✓ Enviada a mantenimiento</p>
+          </template>
+          <template x-if="activeAudit.status === 'completado' && item.observation">
+            <p style="font-size:0.78rem;color:#64748b;margin:0;" x-text="item.observation"></p>
+          </template>
+        </div>
+      </template>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.5rem;">
+        <button @click="showAuditModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cerrar</button>
+        <button x-show="activeAudit && activeAudit.status === 'en_progreso'" @click="completeAudit()" class="btn-primary">Finalizar auditoría</button>
       </div>
     </div>
   </div>
@@ -141,6 +211,10 @@ function toolboxesPage() {
     form: {},
     toolToAdd: '',
     responsibleEdit: '',
+    audits: [],
+    showAuditModal: false,
+    activeAudit: null,
+    itemDrafts: {},
     message: '',
     messageType: 'success',
 
@@ -202,6 +276,103 @@ function toolboxesPage() {
       this.toolToAdd = '';
       this.responsibleEdit = box.responsible_user_id || '';
       this.showDetailModal = true;
+      this.loadAudits();
+    },
+
+    async loadAudits() {
+      if (!this.detail) return;
+      const res = await authFetch(`/api/v1/toolbox-audits?toolbox_id=${this.detail.id}`);
+      this.audits = res.ok ? await res.json() : [];
+    },
+
+    async startNewAudit() {
+      const res = await authFetch('/api/v1/toolbox-audits', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ toolbox_id: this.detail.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo iniciar la auditoría', 'error');
+        return;
+      }
+      const audit = await res.json();
+      await this.loadAudits();
+      this.openAuditModal(audit);
+    },
+
+    openAuditModal(audit) {
+      this.activeAudit = audit;
+      this.itemDrafts = {};
+      audit.items.forEach((item) => {
+        this.itemDrafts[item.id] = { condition: item.condition || 'bueno', observation: item.observation || '' };
+      });
+      this.showAuditModal = true;
+    },
+
+    async refreshActiveAudit() {
+      if (!this.activeAudit) return;
+      const res = await authFetch(`/api/v1/toolbox-audits/${this.activeAudit.id}`);
+      if (res.ok) {
+        const audit = await res.json();
+        this.activeAudit = audit;
+        audit.items.forEach((item) => {
+          if (!this.itemDrafts[item.id]) {
+            this.itemDrafts[item.id] = { condition: item.condition || 'bueno', observation: item.observation || '' };
+          }
+        });
+      }
+      await this.loadAudits();
+    },
+
+    async saveAuditItem(item) {
+      const draft = this.itemDrafts[item.id];
+      const res = await authFetch(`/api/v1/toolbox-audits/${this.activeAudit.id}/items/${item.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo guardar', 'error');
+        return;
+      }
+      this.showMessage('Herramienta revisada');
+      await this.refreshActiveAudit();
+    },
+
+    async sendAuditItemToMaintenance(item) {
+      const draft = this.itemDrafts[item.id];
+      const res = await authFetch(`/api/v1/toolbox-audits/${this.activeAudit.id}/items/${item.id}/send-to-maintenance`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: draft.observation || null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo enviar a mantenimiento', 'error');
+        return;
+      }
+      this.showMessage('Herramienta enviada a mantenimiento y sacada de la caja');
+      await this.refreshActiveAudit();
+      await this.refreshDetail();
+      await this.loadTools();
+    },
+
+    async completeAudit() {
+      const res = await authFetch(`/api/v1/toolbox-audits/${this.activeAudit.id}/complete`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo cerrar la auditoría', 'error');
+        return;
+      }
+      this.showMessage('Auditoría finalizada');
+      await this.refreshActiveAudit();
+    },
+
+    auditConditionLabel(condition) {
+      return { bueno: 'Bueno', dañado: 'Dañado', faltante: 'Faltante' }[condition] || condition;
+    },
+    auditConditionBadge(condition) {
+      return { bueno: 'badge-success', dañado: 'badge-danger', faltante: 'badge-warning' }[condition] || 'badge-info';
+    },
+    formatDate(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleDateString('es-AR');
     },
 
     async updateResponsible() {
