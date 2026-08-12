@@ -184,6 +184,10 @@ function toolsPage() {
 
     async init() {
       this.user = await getCurrentUser();
+      // Si llegamos desde una tarjeta del dashboard (?status=...), pre-filtramos.
+      const urlParams = new URLSearchParams(window.location.search);
+      const statusFromUrl = urlParams.get('status');
+      if (statusFromUrl) this.statusFilter = statusFromUrl;
       await this.loadTools();
     },
 

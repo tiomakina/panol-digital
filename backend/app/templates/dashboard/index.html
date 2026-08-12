@@ -5,9 +5,9 @@
 {% block content %}
 <div x-data="dashboardData()">
 
-  <!-- KPIs en tiempo real -->
+  <!-- KPIs en tiempo real — cada tarjeta lleva a la vista filtrada correspondiente -->
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
-    <div class="kpi-card">
+    <a href="/tools" class="kpi-card" style="text-decoration:none;cursor:pointer;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
         <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Herramientas</span>
         <span style="width:32px;height:32px;background:var(--brand-light);border-radius:8px;display:flex;align-items:center;justify-content:center;">
@@ -16,9 +16,9 @@
       </div>
       <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="kpis.total_tools">—</div>
       <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">en inventario</div>
-    </div>
+    </a>
 
-    <div class="kpi-card" style="border-top-color:var(--brand-accent);">
+    <a href="/loans?status=en_curso" class="kpi-card" style="border-top-color:var(--brand-accent);text-decoration:none;cursor:pointer;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
         <span style="font-size:0.8rem;color:#64748b;font-weight:500;">En préstamo</span>
         <span style="width:32px;height:32px;background:#fef9c3;border-radius:8px;display:flex;align-items:center;justify-content:center;">
@@ -27,9 +27,9 @@
       </div>
       <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="kpis.active_loans">—</div>
       <div style="font-size:0.75rem;" :style="kpis.overdue_loans > 0 ? 'color:#dc2626;' : 'color:#64748b;'" x-text="kpis.overdue_loans > 0 ? `⚠ ${kpis.overdue_loans} vencidos` : 'sin vencidos'"></div>
-    </div>
+    </a>
 
-    <div class="kpi-card" style="border-top-color:#10b981;">
+    <a href="/reports" class="kpi-card" style="border-top-color:#10b981;text-decoration:none;cursor:pointer;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
         <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Valor inventario</span>
         <span style="width:32px;height:32px;background:#dcfce7;border-radius:8px;display:flex;align-items:center;justify-content:center;">
@@ -38,9 +38,9 @@
       </div>
       <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="'$' + (kpis.inventory_value || 0).toLocaleString()">—</div>
       <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">valor actual</div>
-    </div>
+    </a>
 
-    <div class="kpi-card" style="border-top-color:#ef4444;">
+    <a href="/tools?status=mantenimiento" class="kpi-card" style="border-top-color:#ef4444;text-decoration:none;cursor:pointer;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
         <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Mantenimiento</span>
         <span style="width:32px;height:32px;background:#fee2e2;border-radius:8px;display:flex;align-items:center;justify-content:center;">
@@ -49,7 +49,7 @@
       </div>
       <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="kpis.maintenance_count">—</div>
       <div style="font-size:0.75rem;color:#dc2626;margin-top:0.25rem;">requieren atención</div>
-    </div>
+    </a>
   </div>
 
   <!-- Fila 2: Préstamos recientes + gráfico uso -->

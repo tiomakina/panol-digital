@@ -24,6 +24,14 @@ async def _get_toolbox_or_404(db: AsyncSession, toolbox_id: int) -> Toolbox:
     return toolbox
 
 
+async def _validate_responsible(db: AsyncSession, responsible_user_id: int | None) -> None:
+    if responsible_user_id is None:
+        return
+    responsible = await db.get(User, responsible_user_id)
+    if not responsible or not responsible.is_active:
+        raise HTTPException(status_code=404, detail="Responsable no encontrado o inactivo")
+
+
 @router.get("", response_model=list[ToolboxOut])
 async def list_toolboxes(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     result = await db.execute(select(Toolbox).order_by(Toolbox.name))
@@ -45,6 +53,7 @@ async def create_toolbox(
     user: User = Depends(require_role("encargado")),
 ):
     """Crea una caja de herramientas vacía y genera su código QR."""
+    await _validate_responsible(db, payload.responsible_user_id)
     toolbox = Toolbox(**payload.model_dump())
     db.add(toolbox)
     await db.flush()
@@ -65,7 +74,10 @@ async def update_toolbox(
     user: User = Depends(require_role("encargado")),
 ):
     toolbox = await _get_toolbox_or_404(db, toolbox_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    fields = payload.model_dump(exclude_unset=True)
+    if "responsible_user_id" in fields:
+        await _validate_responsible(db, fields["responsible_user_id"])
+    for field, value in fields.items():
         setattr(toolbox, field, value)
 
     await db.commit()

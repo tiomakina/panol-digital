@@ -1,7 +1,16 @@
-"""Pruebas de cajas de herramientas: creación, agregar/quitar herramientas, exclusividad."""
+"""Pruebas de cajas de herramientas: creación, agregar/quitar herramientas, exclusividad, responsable."""
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
 from app.models.user import User, UserRole
+
+
+async def _create_user_full(email: str, password: str, role: UserRole, full_name: str = "Seed") -> int:
+    async with AsyncSessionLocal() as db:
+        user = User(email=email, full_name=full_name, role=role, hashed_password=hash_password(password))
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return user.id
 
 
 async def _create_user(email: str, password: str, role: UserRole) -> None:
@@ -78,3 +87,47 @@ async def test_toolbox_lifecycle(client):
 
     missing = await client.get(f"/api/v1/toolboxes/{toolbox_id}", headers=_auth(jefe_token))
     assert missing.status_code == 404
+
+
+async def test_toolbox_responsible_mechanic(client):
+    await _create_user_full("jefe2@test.com", "Clave123!", UserRole.jefe)
+    jefe_token = await _login(client, "jefe2@test.com", "Clave123!")
+    mecanico_id = await _create_user_full("meca@test.com", "Clave123!", UserRole.mecanico, "Juan Mecánico")
+
+    # Crear con responsable asignado desde el inicio
+    created = await client.post(
+        "/api/v1/toolboxes",
+        json={"name": "Caja Plomería", "responsible_user_id": mecanico_id},
+        headers=_auth(jefe_token),
+    )
+    assert created.status_code == 201, created.text
+    box = created.json()
+    assert box["responsible"]["full_name"] == "Juan Mecánico"
+    assert box["responsible_user_id"] == mecanico_id
+
+    # Un id de usuario inexistente debe rechazarse
+    invalid = await client.post(
+        "/api/v1/toolboxes",
+        json={"name": "Caja X", "responsible_user_id": 999999},
+        headers=_auth(jefe_token),
+    )
+    assert invalid.status_code == 404
+
+    # Reasignar el responsable vía update
+    other_id = await _create_user_full("meca2@test.com", "Clave123!", UserRole.mecanico, "Ana Mecánica")
+    updated = await client.put(
+        f"/api/v1/toolboxes/{box['id']}",
+        json={"responsible_user_id": other_id},
+        headers=_auth(jefe_token),
+    )
+    assert updated.status_code == 200
+    assert updated.json()["responsible"]["full_name"] == "Ana Mecánica"
+
+    # Quitar el responsable (volver a null)
+    cleared = await client.put(
+        f"/api/v1/toolboxes/{box['id']}",
+        json={"responsible_user_id": None},
+        headers=_auth(jefe_token),
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["responsible"] is None

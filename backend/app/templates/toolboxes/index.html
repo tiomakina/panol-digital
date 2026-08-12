@@ -27,6 +27,10 @@
           <span class="badge badge-info" x-text="box.items.length + (box.items.length === 1 ? ' herramienta' : ' herramientas')"></span>
         </div>
         <p style="font-size:0.8rem;color:#64748b;margin:0 0 0.5rem;" x-text="box.location || 'Sin ubicación asignada'"></p>
+        <p style="font-size:0.78rem;color:#475569;margin:0 0 0.35rem;display:flex;align-items:center;gap:0.3rem;">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:#94a3b8;"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          <span x-text="box.responsible ? box.responsible.full_name : 'Sin responsable asignado'" :style="box.responsible ? '' : 'color:#94a3b8;font-style:italic;'"></span>
+        </p>
         <p style="font-size:0.75rem;color:#94a3b8;margin:0;" x-text="box.description || ''"></p>
       </div>
     </template>
@@ -40,6 +44,13 @@
       <input type="text" x-model="form.name" class="field-input" style="margin-bottom:0.75rem;">
       <label class="field-label">Ubicación</label>
       <input type="text" x-model="form.location" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Mecánico responsable</label>
+      <select x-model="form.responsible_user_id" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Sin asignar</option>
+        <template x-for="u in users" :key="u.id">
+          <option :value="u.id" x-text="u.full_name + ' (' + u.email + ')'"></option>
+        </template>
+      </select>
       <label class="field-label">Descripción</label>
       <textarea x-model="form.description" class="field-input" rows="2" style="margin-bottom:1rem;"></textarea>
       <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
@@ -60,6 +71,19 @@
 
       <template x-if="detail && detail.qr_code_url">
         <img :src="detail.qr_code_url" style="width:56px;height:56px;margin-bottom:1rem;">
+      </template>
+
+      <label class="field-label">Mecánico responsable</label>
+      <template x-if="canManage()">
+        <select x-model="responsibleEdit" @change="updateResponsible()" class="field-input" style="margin-bottom:1rem;">
+          <option value="">Sin asignar</option>
+          <template x-for="u in users" :key="u.id">
+            <option :value="u.id" x-text="u.full_name + ' (' + u.email + ')'"></option>
+          </template>
+        </select>
+      </template>
+      <template x-if="!canManage()">
+        <p style="font-size:0.85rem;color:#334155;margin:0 0 1rem;" x-text="detail && detail.responsible ? detail.responsible.full_name : 'Sin responsable asignado'"></p>
       </template>
 
       <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">Herramientas en esta caja</h3>
@@ -109,24 +133,36 @@ function toolboxesPage() {
     user: null,
     toolboxes: [],
     tools: [],
+    users: [],
     loading: true,
     showCreateModal: false,
     showDetailModal: false,
     detail: null,
     form: {},
     toolToAdd: '',
+    responsibleEdit: '',
     message: '',
     messageType: 'success',
 
     get unassignedTools() {
+      // Solo herramientas "disponible" pueden agregarse a una caja — si ya
+      // está prestada, en mantenimiento o dada de baja no debe listarse acá.
+      // Además hay que excluir las que ya están en OTRA caja: agregarlas no
+      // les cambia el status (sigue "disponible" mientras está en la caja),
+      // así que sin este filtro aparecerían duplicadas en el desplegable.
       const assignedIds = new Set();
       this.toolboxes.forEach((b) => b.items.forEach((i) => assignedIds.add(i.tool_id)));
-      return this.tools.filter((t) => !assignedIds.has(t.id) && t.status !== 'baja');
+      return this.tools.filter((t) => t.status === 'disponible' && !assignedIds.has(t.id));
     },
 
     async init() {
       this.user = await getCurrentUser();
-      await Promise.all([this.loadToolboxes(), this.loadTools()]);
+      await Promise.all([this.loadToolboxes(), this.loadTools(), this.loadUsers()]);
+    },
+
+    async loadUsers() {
+      const res = await authFetch('/api/v1/users');
+      this.users = res.ok ? await res.json() : [];
     },
 
     canManage() { return hasRole(this.user, 'encargado'); },
@@ -145,14 +181,15 @@ function toolboxesPage() {
     },
 
     openCreate() {
-      this.form = { name: '', location: '', description: '' };
+      this.form = { name: '', location: '', description: '', responsible_user_id: '' };
       this.showCreateModal = true;
     },
 
     async createToolbox() {
       if (!this.form.name) { this.showMessage('El nombre es obligatorio', 'error'); return; }
+      const payload = { ...this.form, responsible_user_id: this.form.responsible_user_id || null };
       const res = await authFetch('/api/v1/toolboxes', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.form),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
       if (!res.ok) { this.showMessage('Error al crear la caja', 'error'); return; }
       this.showCreateModal = false;
@@ -163,7 +200,19 @@ function toolboxesPage() {
     openDetail(box) {
       this.detail = box;
       this.toolToAdd = '';
+      this.responsibleEdit = box.responsible_user_id || '';
       this.showDetailModal = true;
+    },
+
+    async updateResponsible() {
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responsible_user_id: this.responsibleEdit || null }),
+      });
+      if (!res.ok) { this.showMessage('No se pudo actualizar el responsable', 'error'); return; }
+      this.showMessage('Responsable actualizado');
+      await this.refreshDetail();
     },
 
     async refreshDetail() {

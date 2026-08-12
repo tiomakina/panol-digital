@@ -12,6 +12,7 @@
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
     <select x-model="statusFilter" @change="loadLoans()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
       <option value="">Todos los estados</option>
+      <option value="en_curso">En préstamo (activo + vencido)</option>
       <option value="activo">Activo</option>
       <option value="vencido">Vencido</option>
       <option value="devuelto">Devuelto</option>
@@ -32,12 +33,13 @@
           <th style="padding:0.75rem 1rem;font-weight:600;">Préstamo</th>
           <th style="padding:0.75rem 1rem;font-weight:600;">Vence</th>
           <th style="padding:0.75rem 1rem;font-weight:600;">Estado</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Devuelto</th>
           <th style="padding:0.75rem 1rem;font-weight:600;"></th>
         </tr>
       </thead>
       <tbody>
-        <template x-if="loading"><tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
-        <template x-if="!loading && loans.length === 0"><tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">No hay préstamos con ese filtro</td></tr></template>
+        <template x-if="loading"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-if="!loading && loans.length === 0"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">No hay préstamos con ese filtro</td></tr></template>
         <template x-for="loan in loans" :key="loan.id">
           <tr style="border-bottom:1px solid #f1f5f9;">
             <td style="padding:0.65rem 1rem;font-weight:600;" x-text="toolName(loan.tool_id)"></td>
@@ -45,6 +47,7 @@
             <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatDate(loan.loan_date)"></td>
             <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatDate(loan.due_date)"></td>
             <td style="padding:0.65rem 1rem;"><span class="badge" :class="statusBadgeClass(loan.status)" x-text="statusLabel(loan.status)"></span></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;white-space:nowrap;" x-text="loan.return_date ? formatDateTime(loan.return_date) : '—'"></td>
             <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;">
               <button @click="downloadVoucher(loan)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Vale PDF</button>
               <button x-show="(loan.status === 'activo' || loan.status === 'vencido') && canManage()" @click="openReturn(loan)" class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.75rem;">Devolver</button>
@@ -144,6 +147,10 @@ function loansPage() {
 
     async init() {
       this.user = await getCurrentUser();
+      // Si llegamos desde una tarjeta del dashboard (?status=...), pre-filtramos.
+      const urlParams = new URLSearchParams(window.location.search);
+      const statusFromUrl = urlParams.get('status');
+      if (statusFromUrl) this.statusFilter = statusFromUrl;
       await Promise.all([this.loadLoans(), this.loadTools(), this.loadUsers()]);
     },
 
@@ -152,9 +159,16 @@ function loansPage() {
     async loadLoans() {
       this.loading = true;
       const params = new URLSearchParams();
-      if (this.statusFilter) params.set('status', this.statusFilter);
+      // "en_curso" es un filtro virtual (activo + vencido) que el backend
+      // no soporta con un solo valor de status, así que traemos todo y
+      // filtramos acá.
+      if (this.statusFilter && this.statusFilter !== 'en_curso') params.set('status', this.statusFilter);
       const res = await authFetch('/api/v1/loans?' + params.toString());
-      this.loans = res.ok ? await res.json() : [];
+      let loans = res.ok ? await res.json() : [];
+      if (this.statusFilter === 'en_curso') {
+        loans = loans.filter((l) => l.status === 'activo' || l.status === 'vencido');
+      }
+      this.loans = loans;
       this.loading = false;
     },
 
@@ -244,6 +258,10 @@ function loansPage() {
     formatDate(value) {
       if (!value) return '—';
       return new Date(value).toLocaleDateString('es-AR');
+    },
+    formatDateTime(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleString('es-AR');
     },
     statusLabel(status) {
       return { activo: 'Activo', vencido: 'Vencido', devuelto: 'Devuelto', extraviado: 'Extraviado' }[status] || status;

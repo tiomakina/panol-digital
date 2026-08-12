@@ -73,7 +73,7 @@
               <td style="padding:0.6rem 1rem;" x-text="row.borrower || '—'"></td>
               <td style="padding:0.6rem 1rem;color:#64748b;" x-text="formatDate(row.loan_date)"></td>
               <td style="padding:0.6rem 1rem;color:#64748b;" x-text="formatDate(row.due_date)"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.return_date ? formatDate(row.return_date) : '—'"></td>
+              <td style="padding:0.6rem 1rem;color:#64748b;white-space:nowrap;" x-text="row.return_date ? formatDateTime(row.return_date) : '—'"></td>
               <td style="padding:0.6rem 1rem;"><span class="badge" :class="statusBadgeClass(row.status)" x-text="row.status"></span></td>
             </tr>
           </template>
