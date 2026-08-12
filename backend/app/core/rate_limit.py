@@ -1,6 +1,6 @@
 """Rate limiting para endpoints sensibles (login, etc.) con ventana fija en Redis."""
 from fastapi import HTTPException, Request, status
-from app.core.redis_client import redis_client
+from app.core import redis_client as redis_client_module
 
 
 def rate_limiter(key_prefix: str, max_attempts: int = 5, window_seconds: int = 300):
@@ -12,12 +12,12 @@ def rate_limiter(key_prefix: str, max_attempts: int = 5, window_seconds: int = 3
         client_ip = request.client.host if request.client else "unknown"
         key = f"ratelimit:{key_prefix}:{client_ip}"
 
-        attempts = await redis_client.incr(key)
+        attempts = await redis_client_module.redis_client.incr(key)
         if attempts == 1:
-            await redis_client.expire(key, window_seconds)
+            await redis_client_module.redis_client.expire(key, window_seconds)
 
         if attempts > max_attempts:
-            ttl = await redis_client.ttl(key)
+            ttl = await redis_client_module.redis_client.ttl(key)
             wait = ttl if ttl and ttl > 0 else window_seconds
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,

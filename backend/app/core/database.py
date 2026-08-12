@@ -1,15 +1,22 @@
 """Motor async de base de datos con SQLAlchemy 2.0."""
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import StaticPool
 from app.core.config import settings
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-)
+_engine_kwargs = {"echo": settings.DEBUG}
+
+if settings.DATABASE_URL.startswith("sqlite"):
+    # SQLite (usado en la suite de tests) no acepta pool_size/max_overflow.
+    # Para bases ":memory:" se necesita StaticPool para compartir la misma
+    # conexión entre sesiones — de lo contrario cada una ve una BD vacía.
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+    if ":memory:" in settings.DATABASE_URL:
+        _engine_kwargs["poolclass"] = StaticPool
+else:
+    _engine_kwargs.update(pool_size=10, max_overflow=20, pool_pre_ping=True)
+
+engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

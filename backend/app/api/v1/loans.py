@@ -16,7 +16,7 @@ from app.models.loan import Loan, LoanStatus, ReturnCondition
 from app.models.tool import Tool, ToolStatus
 from app.models.user import User
 from app.schemas.loan import LoanCreate, LoanOut, LoanReturnInput
-from app.services.pdf_service import generate_loan_voucher
+from app.services.pdf_service import VOUCHER_DIR, generate_loan_voucher
 
 router = APIRouter(prefix="/loans", tags=["Préstamos"])
 templates = Jinja2Templates(directory="app/templates")
@@ -161,5 +161,5 @@ async def download_voucher(loan_id: int, db: AsyncSession = Depends(get_db), use
         loan.voucher_pdf_url = voucher_url
         await db.commit()
 
-    file_path = f"app/{voucher_url.lstrip('/')}"
+    file_path = VOUCHER_DIR / f"vale_{loan.id}.pdf"
     return FileResponse(file_path, media_type="application/pdf", filename=f"vale_{loan.id}.pdf")

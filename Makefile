@@ -1,4 +1,4 @@
-.PHONY: dev test migrate seed up down logs build-installer
+.PHONY: dev test migrate migrate-create seed up down logs shell build-installer backup restore
 
 # Desarrollo local
 dev:
@@ -39,3 +39,7 @@ build-installer:
 # Backup
 backup:
 	bash scripts/backup.sh
+
+# Restaurar (make restore dir=backups/20260812_120000)
+restore:
+	bash scripts/restore.sh $(dir)

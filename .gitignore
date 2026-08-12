@@ -4,6 +4,10 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+.pytest_cache/
+
+# Backups generados por scripts/backup.sh
+backups/
 
 # Entorno
 .env

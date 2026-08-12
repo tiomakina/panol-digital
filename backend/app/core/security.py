@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.redis_client import redis_client
+from app.core import redis_client as redis_client_module
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -61,14 +61,14 @@ async def revoke_token(payload: dict) -> None:
         return
     ttl = int(exp - datetime.now(timezone.utc).timestamp())
     if ttl > 0:
-        await redis_client.set(f"revoked:{jti}", "1", ex=ttl)
+        await redis_client_module.redis_client.set(f"revoked:{jti}", "1", ex=ttl)
 
 
 async def is_token_revoked(payload: dict) -> bool:
     jti = payload.get("jti")
     if not jti:
         return False
-    return await redis_client.exists(f"revoked:{jti}") == 1
+    return await redis_client_module.redis_client.exists(f"revoked:{jti}") == 1
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):

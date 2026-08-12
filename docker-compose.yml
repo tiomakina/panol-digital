@@ -65,6 +65,21 @@ services:
       - redis
       - backend
 
+  # Celery beat — dispara las tareas periódicas (ver beat_schedule en celery_app.py)
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.celery_app beat --loglevel=info
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+      - celery_worker
+
   # Nginx reverse proxy
   nginx:
     image: nginx:alpine

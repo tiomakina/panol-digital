@@ -1,14 +1,17 @@
 """Modelo de Préstamo con vales PDF y firma digital."""
 from datetime import datetime, date
-from typing import TYPE_CHECKING
 from sqlalchemy import String, DateTime, Date, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
-import enum
 
-if TYPE_CHECKING:
-    from app.models.tool import Tool
-    from app.models.user import User
+# Import real (no solo TYPE_CHECKING): relationship() resuelve "Tool"/"User"
+# contra el registro declarativo compartido, y ese registro solo los conoce
+# si sus módulos fueron importados. Dejarlo librado a que algún otro código
+# (p. ej. los routers de FastAPI) los importe primero es frágil — se rompe
+# en cualquier contexto que solo toque Loan, como las tareas de Celery.
+from app.models.tool import Tool  # noqa: F401
+from app.models.user import User  # noqa: F401
+import enum
 
 class LoanStatus(str, enum.Enum):
     activo = "activo"
