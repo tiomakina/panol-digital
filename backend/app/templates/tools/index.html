@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}Herramientas{% endblock %}
+{% block page_title %}Herramientas{% endblock %}
+
+{% block content %}
+<div x-data="toolsPage()" x-init="init()">
+
+  <!-- Mensaje de éxito/error -->
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <!-- Barra de filtros -->
+  <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+    <input type="text" x-model="search" @input.debounce.400ms="loadTools()" placeholder="Buscar por nombre, marca o número de serie..."
+           style="flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+    <select x-model="statusFilter" @change="loadTools()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+      <option value="">Todos los estados</option>
+      <option value="disponible">Disponible</option>
+      <option value="prestado">Prestado</option>
+      <option value="mantenimiento">Mantenimiento</option>
+      <option value="baja">Baja</option>
+    </select>
+    <button class="btn-primary" @click="openCreate()" x-show="canManage()">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Nueva herramienta
+    </button>
+  </div>
+
+  <!-- Tabla -->
+  <div class="card" style="padding:0;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.75rem 1rem;font-weight:600;">Herramienta</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Categoría</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">N° de serie</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Estado</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Valor actual</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="loading">
+          <tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr>
+        </template>
+        <template x-if="!loading && tools.length === 0">
+          <tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">No se encontraron herramientas</td></tr>
+        </template>
+        <template x-for="tool in tools" :key="tool.id">
+          <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;" @click="openEdit(tool)">
+            <td style="padding:0.65rem 1rem;">
+              <div style="display:flex;align-items:center;gap:0.6rem;">
+                <template x-if="tool.photo_url">
+                  <img :src="tool.photo_url" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">
+                </template>
+                <div>
+                  <div style="font-weight:600;color:#1e293b;" x-text="tool.name"></div>
+                  <div style="color:#94a3b8;font-size:0.75rem;" x-text="[tool.brand, tool.model].filter(Boolean).join(' · ')"></div>
+                </div>
+              </div>
+            </td>
+            <td style="padding:0.65rem 1rem;color:#475569;" x-text="tool.category || '—'"></td>
+            <td style="padding:0.65rem 1rem;color:#475569;" x-text="tool.serial_number || '—'"></td>
+            <td style="padding:0.65rem 1rem;">
+              <span class="badge" :class="statusBadgeClass(tool.status)" x-text="statusLabel(tool.status)"></span>
+            </td>
+            <td style="padding:0.65rem 1rem;color:#475569;" x-text="tool.current_value != null ? '$' + Number(tool.current_value).toLocaleString() : '—'"></td>
+            <td style="padding:0.65rem 1rem;text-align:right;">
+              <button @click.stop="openEdit(tool)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Ver / editar</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal crear/editar -->
+  <div x-show="showModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="closeModal()">
+    <div class="card" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h2 style="font-size:1.05rem;font-weight:600;" x-text="editing ? 'Editar herramienta' : 'Nueva herramienta'"></h2>
+        <button @click="closeModal()" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Nombre *</label>
+          <input type="text" x-model="form.name" class="field-input" required>
+        </div>
+        <div><label class="field-label">Marca</label><input type="text" x-model="form.brand" class="field-input"></div>
+        <div><label class="field-label">Modelo</label><input type="text" x-model="form.model" class="field-input"></div>
+        <div><label class="field-label">N° de serie</label><input type="text" x-model="form.serial_number" class="field-input"></div>
+        <div><label class="field-label">Categoría</label><input type="text" x-model="form.category" class="field-input"></div>
+        <div><label class="field-label">Ubicación</label><input type="text" x-model="form.location" class="field-input"></div>
+        <div><label class="field-label">Proveedor</label><input type="text" x-model="form.supplier" class="field-input"></div>
+        <div><label class="field-label">Fecha de compra</label><input type="date" x-model="form.purchase_date" class="field-input"></div>
+        <div><label class="field-label">Costo de compra</label><input type="number" step="0.01" x-model="form.purchase_cost" class="field-input"></div>
+        <div><label class="field-label">Valor de rescate</label><input type="number" step="0.01" x-model="form.salvage_value" class="field-input"></div>
+        <div><label class="field-label">Vida útil (años)</label><input type="number" x-model="form.useful_life_years" class="field-input"></div>
+        <div>
+          <label class="field-label">Método de depreciación</label>
+          <select x-model="form.depreciation_method" class="field-input">
+            <option value="lineal">Lineal</option>
+            <option value="doble_saldo">Doble saldo decreciente</option>
+            <option value="uop">Unidades de producción</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Descripción</label>
+          <textarea x-model="form.description" class="field-input" rows="2"></textarea>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Foto</label>
+          <input type="file" accept="image/*" @change="photoFile = $event.target.files[0]" class="field-input">
+        </div>
+      </div>
+
+      <template x-if="editing && editing.qr_code_url">
+        <div style="margin-top:1rem;display:flex;align-items:center;gap:0.75rem;">
+          <img :src="editing.qr_code_url" style="width:64px;height:64px;">
+          <span style="font-size:0.8rem;color:#64748b;">Código QR de esta herramienta</span>
+        </div>
+      </template>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;">
+        <button x-show="editing && canDelete()" @click="deleteTool(editing)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Eliminar</button>
+        <div style="display:flex;gap:0.5rem;margin-left:auto;">
+          <button @click="closeModal()" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+          <button @click="save()" class="btn-primary">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toolsPage() {
+  return {
+    user: null,
+    tools: [],
+    loading: true,
+    search: '',
+    statusFilter: '',
+    showModal: false,
+    editing: null,
+    form: {},
+    photoFile: null,
+    message: '',
+    messageType: 'success',
+
+    async init() {
+      this.user = await getCurrentUser();
+      await this.loadTools();
+    },
+
+    canManage() { return hasRole(this.user, 'encargado'); },
+    canDelete() { return hasRole(this.user, 'jefe'); },
+
+    async loadTools() {
+      this.loading = true;
+      const params = new URLSearchParams();
+      if (this.search) params.set('search', this.search);
+      if (this.statusFilter) params.set('status', this.statusFilter);
+      const res = await authFetch('/api/v1/tools?' + params.toString());
+      this.tools = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    openCreate() {
+      this.editing = null;
+      this.form = {
+        name: '', brand: '', model: '', serial_number: '', category: '', location: '',
+        supplier: '', purchase_date: '', purchase_cost: '', salvage_value: '0',
+        useful_life_years: 5, depreciation_method: 'lineal', description: '',
+      };
+      this.photoFile = null;
+      this.showModal = true;
+    },
+
+    openEdit(tool) {
+      this.editing = tool;
+      this.form = { ...tool };
+      this.photoFile = null;
+      this.showModal = true;
+    },
+
+    closeModal() { this.showModal = false; },
+
+    async save() {
+      if (!this.form.name) { this.showMessage('El nombre es obligatorio', 'error'); return; }
+
+      const payload = { ...this.form };
+      delete payload.id; delete payload.status; delete payload.photo_url;
+      delete payload.qr_code_url; delete payload.created_at; delete payload.updated_at; delete payload.current_value;
+      ['purchase_date', 'purchase_cost'].forEach((f) => { if (payload[f] === '') payload[f] = null; });
+
+      const url = this.editing ? `/api/v1/tools/${this.editing.id}` : '/api/v1/tools';
+      const method = this.editing ? 'PUT' : 'POST';
+      const res = await authFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al guardar', 'error');
+        return;
+      }
+      const saved = await res.json();
+
+      if (this.photoFile) {
+        const fd = new FormData();
+        fd.append('file', this.photoFile);
+        await authFetch(`/api/v1/tools/${saved.id}/photo`, { method: 'POST', body: fd });
+      }
+
+      this.showMessage('Herramienta guardada correctamente');
+      this.showModal = false;
+      await this.loadTools();
+    },
+
+    async deleteTool(tool) {
+      if (!confirm(`¿Eliminar "${tool.name}" del inventario?`)) return;
+      const res = await authFetch(`/api/v1/tools/${tool.id}`, { method: 'DELETE' });
+      if (res.status === 204) {
+        this.showMessage('Herramienta eliminada');
+        this.showModal = false;
+        await this.loadTools();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo eliminar', 'error');
+      }
+    },
+
+    statusLabel(status) {
+      return { disponible: 'Disponible', prestado: 'Prestado', mantenimiento: 'Mantenimiento', baja: 'Baja' }[status] || status;
+    },
+    statusBadgeClass(status) {
+      return { disponible: 'badge-success', prestado: 'badge-warning', mantenimiento: 'badge-danger', baja: 'badge-info' }[status] || 'badge-info';
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+</script>
+{% endblock %}

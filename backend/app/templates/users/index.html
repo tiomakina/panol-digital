@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block page_title %}Usuarios{% endblock %}
+
+{% block content %}
+<div x-data="usersPage()" x-init="init()">
+
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+    <input type="text" x-model="search" @input.debounce.400ms="loadUsers()" placeholder="Buscar por nombre o email..."
+           style="flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+    <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openPasswordModal()">Cambiar mi contraseña</button>
+    <button class="btn-primary" @click="openCreate()" x-show="isJefe()">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Nuevo usuario
+    </button>
+  </div>
+
+  <div class="card" style="padding:0;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.75rem 1rem;">Nombre</th><th style="padding:0.75rem 1rem;">Email</th>
+          <th style="padding:0.75rem 1rem;">Rol</th><th style="padding:0.75rem 1rem;">Estado</th><th style="padding:0.75rem 1rem;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="loading"><tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-for="u in users" :key="u.id">
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:0.65rem 1rem;font-weight:600;" x-text="u.full_name"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="u.email"></td>
+            <td style="padding:0.65rem 1rem;"><span class="badge badge-info" x-text="roleLabel(u.role)"></span></td>
+            <td style="padding:0.65rem 1rem;">
+              <span class="badge" :class="u.is_active ? 'badge-success' : 'badge-danger'" x-text="u.is_active ? 'Activo' : 'Inactivo'"></span>
+            </td>
+            <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;">
+              <button @click="openEdit(u)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Editar</button>
+              <template x-if="isJefe() && u.id !== user.id">
+                <button @click="toggleActive(u)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;"
+                        x-text="u.is_active ? 'Desactivar' : 'Reactivar'"></button>
+              </template>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal crear -->
+  <div x-show="showCreateModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showCreateModal = false">
+    <div class="card" style="max-width:420px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Nuevo usuario</h2>
+      <label class="field-label">Nombre completo *</label>
+      <input type="text" x-model="createForm.full_name" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Email *</label>
+      <input type="email" x-model="createForm.email" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Teléfono</label>
+      <input type="text" x-model="createForm.phone" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Rol *</label>
+      <select x-model="createForm.role" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="mecanico">Mecánico</option>
+        <option value="encargado">Encargado</option>
+        <option value="jefe">Jefe</option>
+      </select>
+      <label class="field-label">Contraseña inicial * (mín. 8 caracteres)</label>
+      <input type="password" x-model="createForm.password" class="field-input" style="margin-bottom:1rem;">
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showCreateModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="createUser()" class="btn-primary">Crear usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal editar -->
+  <div x-show="showEditModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showEditModal = false">
+    <div class="card" style="max-width:420px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Editar usuario</h2>
+      <label class="field-label">Nombre completo</label>
+      <input type="text" x-model="editForm.full_name" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Teléfono</label>
+      <input type="text" x-model="editForm.phone" class="field-input" style="margin-bottom:0.75rem;">
+      <template x-if="isJefe()">
+        <div>
+          <label class="field-label">Rol</label>
+          <select x-model="editForm.role" class="field-input" style="margin-bottom:0.75rem;">
+            <option value="mecanico">Mecánico</option>
+            <option value="encargado">Encargado</option>
+            <option value="jefe">Jefe</option>
+          </select>
+        </div>
+      </template>
+      <template x-if="!isJefe()">
+        <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 0.75rem;">Solo un Jefe puede cambiar el rol o el estado de la cuenta.</p>
+      </template>
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showEditModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="saveEdit()" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal cambiar contraseña -->
+  <div x-show="showPasswordModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showPasswordModal = false">
+    <div class="card" style="max-width:380px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Cambiar mi contraseña</h2>
+      <label class="field-label">Contraseña actual</label>
+      <input type="password" x-model="passwordForm.current_password" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Contraseña nueva (mín. 8 caracteres)</label>
+      <input type="password" x-model="passwordForm.new_password" class="field-input" style="margin-bottom:1rem;">
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showPasswordModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="changePassword()" class="btn-primary">Guardar contraseña</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function usersPage() {
+  return {
+    user: null,
+    users: [],
+    loading: true,
+    search: '',
+    showCreateModal: false,
+    showEditModal: false,
+    showPasswordModal: false,
+    createForm: {},
+    editForm: {},
+    editingId: null,
+    passwordForm: {},
+    message: '',
+    messageType: 'success',
+
+    async init() {
+      this.user = await getCurrentUser();
+      await this.loadUsers();
+    },
+
+    isJefe() { return hasRole(this.user, 'jefe'); },
+
+    async loadUsers() {
+      this.loading = true;
+      const params = new URLSearchParams();
+      if (this.search) params.set('search', this.search);
+      const res = await authFetch('/api/v1/users?' + params.toString());
+      this.users = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    openCreate() {
+      this.createForm = { full_name: '', email: '', phone: '', role: 'mecanico', password: '' };
+      this.showCreateModal = true;
+    },
+
+    async createUser() {
+      if (!this.createForm.full_name || !this.createForm.email || !this.createForm.password) {
+        this.showMessage('Completá nombre, email y contraseña', 'error');
+        return;
+      }
+      const res = await authFetch('/api/v1/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.createForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al crear el usuario', 'error');
+        return;
+      }
+      this.showCreateModal = false;
+      this.showMessage('Usuario creado correctamente');
+      await this.loadUsers();
+    },
+
+    openEdit(u) {
+      this.editingId = u.id;
+      this.editForm = { full_name: u.full_name, phone: u.phone || '', role: u.role };
+      this.showEditModal = true;
+    },
+
+    async saveEdit() {
+      const payload = { full_name: this.editForm.full_name, phone: this.editForm.phone };
+      if (this.isJefe()) payload.role = this.editForm.role;
+
+      const res = await authFetch(`/api/v1/users/${this.editingId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al guardar', 'error');
+        return;
+      }
+      this.showEditModal = false;
+      this.showMessage('Usuario actualizado');
+      await this.loadUsers();
+    },
+
+    async toggleActive(u) {
+      const action = u.is_active ? 'deactivate' : 'reactivate';
+      if (u.is_active && !confirm(`¿Desactivar a ${u.full_name}? No podrá volver a iniciar sesión.`)) return;
+      const res = await authFetch(`/api/v1/users/${u.id}/${action}`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo actualizar el estado', 'error');
+        return;
+      }
+      await this.loadUsers();
+    },
+
+    openPasswordModal() {
+      this.passwordForm = { current_password: '', new_password: '' };
+      this.showPasswordModal = true;
+    },
+
+    async changePassword() {
+      const res = await authFetch('/api/v1/users/me/password', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.passwordForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al cambiar la contraseña', 'error');
+        return;
+      }
+      this.showPasswordModal = false;
+      this.showMessage('Contraseña actualizada correctamente');
+    },
+
+    roleLabel(role) {
+      return { jefe: 'Jefe', encargado: 'Encargado', mecanico: 'Mecánico' }[role] || role;
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+</script>
+{% endblock %}

@@ -21,7 +21,7 @@ DEFAULT_BRAND = {
     "light_color": "#ede9fe",
     "sidebar_bg": "#0f172a",
     "sidebar_text": "#e2e8f0",
-    "logo_url": "/static/uploads/logo_default.svg",
+    "logo_url": "/static/img/logo_default.svg",
     "font_heading": "Inter",
     "font_body": "Inter",
     "border_radius": "8px",

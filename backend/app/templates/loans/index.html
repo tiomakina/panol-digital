@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Préstamos{% endblock %}
+{% block page_title %}Préstamos{% endblock %}
+
+{% block content %}
+<div x-data="loansPage()" x-init="init()">
+
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+    <select x-model="statusFilter" @change="loadLoans()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+      <option value="">Todos los estados</option>
+      <option value="activo">Activo</option>
+      <option value="vencido">Vencido</option>
+      <option value="devuelto">Devuelto</option>
+      <option value="extraviado">Extraviado</option>
+    </select>
+    <button class="btn-primary" @click="openCreate()" x-show="canManage()">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Nuevo préstamo
+    </button>
+  </div>
+
+  <div class="card" style="padding:0;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.75rem 1rem;font-weight:600;">Herramienta</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Responsable</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Préstamo</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Vence</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Estado</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="loading"><tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-if="!loading && loans.length === 0"><tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">No hay préstamos con ese filtro</td></tr></template>
+        <template x-for="loan in loans" :key="loan.id">
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:0.65rem 1rem;font-weight:600;" x-text="toolName(loan.tool_id)"></td>
+            <td style="padding:0.65rem 1rem;" x-text="userName(loan.borrower_id)"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatDate(loan.loan_date)"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatDate(loan.due_date)"></td>
+            <td style="padding:0.65rem 1rem;"><span class="badge" :class="statusBadgeClass(loan.status)" x-text="statusLabel(loan.status)"></span></td>
+            <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;">
+              <button @click="downloadVoucher(loan)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Vale PDF</button>
+              <button x-show="(loan.status === 'activo' || loan.status === 'vencido') && canManage()" @click="openReturn(loan)" class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.75rem;">Devolver</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal nuevo préstamo -->
+  <div x-show="showCreateModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showCreateModal = false">
+    <div class="card" style="max-width:480px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Nuevo préstamo</h2>
+
+      <label class="field-label">Herramienta disponible *</label>
+      <select x-model="form.tool_id" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Seleccionar...</option>
+        <template x-for="tool in availableTools" :key="tool.id">
+          <option :value="tool.id" x-text="tool.name + (tool.brand ? ' — ' + tool.brand : '')"></option>
+        </template>
+      </select>
+
+      <label class="field-label">Responsable *</label>
+      <select x-model="form.borrower_id" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Seleccionar...</option>
+        <template x-for="u in users" :key="u.id">
+          <option :value="u.id" x-text="u.full_name + ' (' + u.email + ')'"></option>
+        </template>
+      </select>
+
+      <label class="field-label">Fecha de devolución prevista *</label>
+      <input type="date" x-model="form.due_date" class="field-input" style="margin-bottom:0.75rem;">
+
+      <label class="field-label">Motivo</label>
+      <input type="text" x-model="form.purpose" class="field-input" style="margin-bottom:1rem;">
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showCreateModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="createLoan()" class="btn-primary">Registrar préstamo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal devolución -->
+  <div x-show="showReturnModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showReturnModal = false">
+    <div class="card" style="max-width:420px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Registrar devolución</h2>
+
+      <label class="field-label">Condición de la herramienta *</label>
+      <select x-model="returnForm.return_condition" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="bueno">Buen estado</option>
+        <option value="dañado">Dañado</option>
+        <option value="reparacion">Necesita reparación</option>
+        <option value="perdido">Perdido / extraviado</option>
+      </select>
+
+      <label class="field-label">Notas</label>
+      <textarea x-model="returnForm.notes" class="field-input" rows="2" style="margin-bottom:1rem;"></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showReturnModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmReturn()" class="btn-primary">Confirmar devolución</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loansPage() {
+  return {
+    user: null,
+    loans: [],
+    tools: [],
+    users: [],
+    loading: true,
+    statusFilter: '',
+    showCreateModal: false,
+    showReturnModal: false,
+    form: {},
+    returnForm: {},
+    returningLoan: null,
+    message: '',
+    messageType: 'success',
+
+    get availableTools() {
+      return this.tools.filter((t) => t.status === 'disponible');
+    },
+
+    async init() {
+      this.user = await getCurrentUser();
+      await Promise.all([this.loadLoans(), this.loadTools(), this.loadUsers()]);
+    },
+
+    canManage() { return hasRole(this.user, 'encargado'); },
+
+    async loadLoans() {
+      this.loading = true;
+      const params = new URLSearchParams();
+      if (this.statusFilter) params.set('status', this.statusFilter);
+      const res = await authFetch('/api/v1/loans?' + params.toString());
+      this.loans = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    async loadTools() {
+      const res = await authFetch('/api/v1/tools?limit=500');
+      this.tools = res.ok ? await res.json() : [];
+    },
+
+    async loadUsers() {
+      const res = await authFetch('/api/v1/users');
+      this.users = res.ok ? await res.json() : [];
+    },
+
+    toolName(id) {
+      const t = this.tools.find((x) => x.id === id);
+      return t ? t.name : `Herramienta #${id}`;
+    },
+    userName(id) {
+      const u = this.users.find((x) => x.id === id);
+      return u ? u.full_name : `Usuario #${id}`;
+    },
+
+    openCreate() {
+      this.form = { tool_id: '', borrower_id: '', due_date: '', purpose: '' };
+      this.showCreateModal = true;
+    },
+
+    async createLoan() {
+      if (!this.form.tool_id || !this.form.borrower_id || !this.form.due_date) {
+        this.showMessage('Completá herramienta, responsable y fecha de devolución', 'error');
+        return;
+      }
+      const res = await authFetch('/api/v1/loans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tool_id: Number(this.form.tool_id),
+          borrower_id: Number(this.form.borrower_id),
+          due_date: this.form.due_date,
+          purpose: this.form.purpose || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al registrar el préstamo', 'error');
+        return;
+      }
+      this.showCreateModal = false;
+      this.showMessage('Préstamo registrado, vale PDF generado');
+      await Promise.all([this.loadLoans(), this.loadTools()]);
+    },
+
+    openReturn(loan) {
+      this.returningLoan = loan;
+      this.returnForm = { return_condition: 'bueno', notes: '' };
+      this.showReturnModal = true;
+    },
+
+    async confirmReturn() {
+      const res = await authFetch(`/api/v1/loans/${this.returningLoan.id}/return`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.returnForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al registrar la devolución', 'error');
+        return;
+      }
+      this.showReturnModal = false;
+      this.showMessage('Devolución registrada');
+      await Promise.all([this.loadLoans(), this.loadTools()]);
+    },
+
+    async downloadVoucher(loan) {
+      const res = await authFetch(`/api/v1/loans/${loan.id}/voucher`);
+      if (!res.ok) { this.showMessage('No se pudo generar el vale', 'error'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vale_${loan.id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    formatDate(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleDateString('es-AR');
+    },
+    statusLabel(status) {
+      return { activo: 'Activo', vencido: 'Vencido', devuelto: 'Devuelto', extraviado: 'Extraviado' }[status] || status;
+    },
+    statusBadgeClass(status) {
+      return { activo: 'badge-info', vencido: 'badge-danger', devuelto: 'badge-success', extraviado: 'badge-danger' }[status] || 'badge-info';
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+</script>
+{% endblock %}

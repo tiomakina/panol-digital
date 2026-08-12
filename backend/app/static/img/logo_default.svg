@@ -1,0 +1,5 @@
+<svg width="140" height="40" viewBox="0 0 140 40" xmlns="http://www.w3.org/2000/svg">
+  <rect width="40" height="40" rx="8" fill="#4f46e5"/>
+  <path d="M11 20h18M20 11v18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="48" y="26" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="600" fill="#1e293b">Pañol</text>
+</svg>

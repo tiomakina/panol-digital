@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Cajas de Herramientas{% endblock %}
+{% block page_title %}Cajas de Herramientas{% endblock %}
+
+{% block content %}
+<div x-data="toolboxesPage()" x-init="init()">
+
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+    <button class="btn-primary" @click="openCreate()" x-show="canManage()">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Nueva caja
+    </button>
+  </div>
+
+  <template x-if="loading"><p style="color:#94a3b8;">Cargando...</p></template>
+  <template x-if="!loading && toolboxes.length === 0"><p style="color:#94a3b8;">Todavía no hay cajas de herramientas creadas.</p></template>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:1rem;">
+    <template x-for="box in toolboxes" :key="box.id">
+      <div class="card" style="cursor:pointer;" @click="openDetail(box)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+          <h3 style="font-size:0.95rem;font-weight:600;" x-text="box.name"></h3>
+          <span class="badge badge-info" x-text="box.items.length + (box.items.length === 1 ? ' herramienta' : ' herramientas')"></span>
+        </div>
+        <p style="font-size:0.8rem;color:#64748b;margin:0 0 0.5rem;" x-text="box.location || 'Sin ubicación asignada'"></p>
+        <p style="font-size:0.75rem;color:#94a3b8;margin:0;" x-text="box.description || ''"></p>
+      </div>
+    </template>
+  </div>
+
+  <!-- Modal crear -->
+  <div x-show="showCreateModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showCreateModal = false">
+    <div class="card" style="max-width:420px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Nueva caja de herramientas</h2>
+      <label class="field-label">Nombre *</label>
+      <input type="text" x-model="form.name" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Ubicación</label>
+      <input type="text" x-model="form.location" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Descripción</label>
+      <textarea x-model="form.description" class="field-input" rows="2" style="margin-bottom:1rem;"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showCreateModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="createToolbox()" class="btn-primary">Crear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal detalle -->
+  <div x-show="showDetailModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showDetailModal = false">
+    <div class="card" style="max-width:520px;width:100%;max-height:90vh;overflow-y:auto;" x-show="detail">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.25rem;">
+        <h2 style="font-size:1.05rem;font-weight:600;" x-text="detail && detail.name"></h2>
+        <button @click="showDetailModal = false" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+      </div>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="detail && (detail.location || 'Sin ubicación asignada')"></p>
+
+      <template x-if="detail && detail.qr_code_url">
+        <img :src="detail.qr_code_url" style="width:56px;height:56px;margin-bottom:1rem;">
+      </template>
+
+      <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">Herramientas en esta caja</h3>
+      <div style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:1rem;">
+        <template x-if="detail && detail.items.length === 0">
+          <p style="color:#94a3b8;font-size:0.8rem;">Vacía por ahora.</p>
+        </template>
+        <template x-for="item in (detail ? detail.items : [])" :key="item.tool_id">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:6px;">
+            <span style="font-size:0.85rem;" x-text="item.tool ? item.tool.name : ('Herramienta #' + item.tool_id)"></span>
+            <button x-show="canManage()" @click="removeTool(item.tool_id)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;">Quitar</button>
+          </div>
+        </template>
+      </div>
+
+      <template x-if="canManage()">
+        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+          <select x-model="toolToAdd" class="field-input">
+            <option value="">Agregar herramienta suelta...</option>
+            <template x-for="tool in unassignedTools" :key="tool.id">
+              <option :value="tool.id" x-text="tool.name"></option>
+            </template>
+          </select>
+          <button @click="addTool()" class="btn-primary" style="white-space:nowrap;">Agregar</button>
+        </div>
+      </template>
+
+      <div style="display:flex;justify-content:space-between;">
+        <button x-show="canDelete()" @click="deleteToolbox()" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Eliminar caja</button>
+        <button @click="showDetailModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;margin-left:auto;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toolboxesPage() {
+  return {
+    user: null,
+    toolboxes: [],
+    tools: [],
+    loading: true,
+    showCreateModal: false,
+    showDetailModal: false,
+    detail: null,
+    form: {},
+    toolToAdd: '',
+    message: '',
+    messageType: 'success',
+
+    get unassignedTools() {
+      const assignedIds = new Set();
+      this.toolboxes.forEach((b) => b.items.forEach((i) => assignedIds.add(i.tool_id)));
+      return this.tools.filter((t) => !assignedIds.has(t.id) && t.status !== 'baja');
+    },
+
+    async init() {
+      this.user = await getCurrentUser();
+      await Promise.all([this.loadToolboxes(), this.loadTools()]);
+    },
+
+    canManage() { return hasRole(this.user, 'encargado'); },
+    canDelete() { return hasRole(this.user, 'jefe'); },
+
+    async loadToolboxes() {
+      this.loading = true;
+      const res = await authFetch('/api/v1/toolboxes');
+      this.toolboxes = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    async loadTools() {
+      const res = await authFetch('/api/v1/tools?limit=500');
+      this.tools = res.ok ? await res.json() : [];
+    },
+
+    openCreate() {
+      this.form = { name: '', location: '', description: '' };
+      this.showCreateModal = true;
+    },
+
+    async createToolbox() {
+      if (!this.form.name) { this.showMessage('El nombre es obligatorio', 'error'); return; }
+      const res = await authFetch('/api/v1/toolboxes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.form),
+      });
+      if (!res.ok) { this.showMessage('Error al crear la caja', 'error'); return; }
+      this.showCreateModal = false;
+      this.showMessage('Caja creada correctamente');
+      await this.loadToolboxes();
+    },
+
+    openDetail(box) {
+      this.detail = box;
+      this.toolToAdd = '';
+      this.showDetailModal = true;
+    },
+
+    async refreshDetail() {
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}`);
+      if (res.ok) this.detail = await res.json();
+      await this.loadToolboxes();
+    },
+
+    async addTool() {
+      if (!this.toolToAdd) return;
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}/tools?tool_id=${this.toolToAdd}`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo agregar la herramienta', 'error');
+        return;
+      }
+      this.toolToAdd = '';
+      await this.refreshDetail();
+    },
+
+    async removeTool(toolId) {
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}/tools/${toolId}`, { method: 'DELETE' });
+      if (!res.ok) { this.showMessage('No se pudo quitar la herramienta', 'error'); return; }
+      await this.refreshDetail();
+    },
+
+    async deleteToolbox() {
+      if (!confirm(`¿Eliminar la caja "${this.detail.name}"? Las herramientas que contiene quedan sueltas.`)) return;
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}`, { method: 'DELETE' });
+      if (res.status !== 204) { this.showMessage('No se pudo eliminar', 'error'); return; }
+      this.showDetailModal = false;
+      this.showMessage('Caja eliminada');
+      await this.loadToolboxes();
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+</script>
+{% endblock %}
