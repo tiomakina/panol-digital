@@ -14,6 +14,7 @@ Uso: docker-compose exec backend python scripts/seed_sample_data.py
      (o `python scripts/seed_sample_data.py` desde backend/ en desarrollo local)
 """
 import asyncio
+import base64
 import sys
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -24,10 +25,11 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal, create_tables
 from app.models.loan import Loan, LoanStatus, ReturnCondition
 from app.models.lookup import Brand, Category, Location, Provider
-from app.models.maintenance import MaintenanceRecord, MaintenanceStatus
+from app.models.maintenance import MaintenanceDocument, MaintenanceRecord, MaintenanceStatus
 from app.models.tool import DepreciationMethod, Tool, ToolStatus
 from app.models.toolbox import Toolbox, ToolboxItem
 from app.models.toolbox_audit import AuditItemCondition, ToolboxAudit, ToolboxAuditItem, ToolboxAuditStatus
@@ -35,6 +37,19 @@ from app.models.user import User, UserRole
 from app.services.maintenance_service import send_tool_to_maintenance
 from app.services.pdf_service import generate_loan_voucher
 from app.services.qr_service import generate_tool_qr, generate_toolbox_qr
+
+# Archivos mínimos válidos (no son documentos reales, solo lo justo para que
+# el visor de comprobantes — imagen o PDF — tenga algo real que mostrar en
+# vez de un enlace roto, igual que quedaría un comprobante subido a mano.
+_SAMPLE_PDF_BYTES = (
+    b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+    b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n"
+    b"xref\n0 4\n0000000000 65535 f \ntrailer<</Size 4/Root 1 0 R>>\n%%EOF"
+)
+_SAMPLE_PNG_BYTES = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 # Marca/Categoría/Ubicación/Proveedor de las tablas maestras (Fase 2) —
 # a propósito son EXACTAMENTE los mismos valores que usan las herramientas
@@ -53,24 +68,29 @@ LOCATIONS = [
 # Con datos de contacto en un par de ellos, para que el maestro de
 # Proveedores no se vea vacío la primera vez que se abre.
 PROVIDERS = [
-    dict(name="Casa Bagnara", contact_name="Rodrigo Bagnara", phone="+56 2 2555 1234",
+    dict(name="Casa Bagnara", rut="76.123.456-7", contact_name="Rodrigo Bagnara", phone="+56 2 2555 1234",
          email="ventas@casabagnara.cl", address="Av. Independencia 1450, Santiago"),
-    dict(name="Ferretería Central"),
-    dict(name="Instrumentos SRL", contact_name="Marisol Vega", phone="+56 2 2444 5678",
+    dict(name="Ferretería Central", rut="77.234.567-8"),
+    dict(name="Instrumentos SRL", rut="76.345.678-9", contact_name="Marisol Vega", phone="+56 2 2444 5678",
          email="contacto@instrumentossrl.cl"),
-    dict(name="Neumática del Sur"),
-    dict(name="Fluke Service Chile", contact_name="Soporte Técnico", phone="+56 2 2333 9900",
+    dict(name="Neumática del Sur", rut="77.456.789-0"),
+    dict(name="Fluke Service Chile", rut="76.567.890-1", contact_name="Soporte Técnico", phone="+56 2 2333 9900",
          email="soporte@flukeservice.cl", address="Av. Providencia 2050, of. 301, Santiago"),
-    dict(name="Taller de Motores del Sur"),
+    dict(name="Taller de Motores del Sur", rut="77.678.901-2"),
 ]
 
 TOOLS = [
     dict(name="Taladro Percutor", brand="Bosch", model="GSB 13 RE", serial_number="TL-0001",
+         product_code="BOSCH-GSB13RE", purchase_document_folio="Factura N° 4521",
          category="Eléctricas", location="Estante A1", supplier="Casa Bagnara",
          purchase_date=date.today() - timedelta(days=400), purchase_cost=Decimal("45000"),
          salvage_value=Decimal("4500"), useful_life_years=5, depreciation_method=DepreciationMethod.lineal,
          status=ToolStatus.disponible),
+    # Comparte product_code con TL-0012 más abajo: mismo modelo/producto,
+    # dos unidades físicas distintas (cada una con su propio serial_number)
+    # — el caso de uso que justifica "Duplicar herramienta".
     dict(name='Amoladora Angular 7"', brand="Makita", model="GA9020", serial_number="TL-0002",
+         product_code="MAKITA-GA9020",
          category="Eléctricas", location="Estante A1", supplier="Casa Bagnara",
          purchase_date=date.today() - timedelta(days=200), purchase_cost=Decimal("38000"),
          salvage_value=Decimal("3800"), useful_life_years=5, depreciation_method=DepreciationMethod.lineal,
@@ -86,6 +106,7 @@ TOOLS = [
          salvage_value=Decimal("2500"), useful_life_years=10, depreciation_method=DepreciationMethod.lineal,
          status=ToolStatus.disponible),
     dict(name="Calibre Digital", brand="Mitutoyo", model="500-196-30", serial_number="TL-0005",
+         product_code="MITU-500-196-30",
          category="Medición", location="Estante C1", supplier="Instrumentos SRL",
          purchase_date=date.today() - timedelta(days=300), purchase_cost=Decimal("60000"),
          salvage_value=Decimal("6000"), useful_life_years=6, depreciation_method=DepreciationMethod.doble_saldo,
@@ -93,6 +114,7 @@ TOOLS = [
     # En mantenimiento — el registro que explica el motivo se crea más abajo,
     # después de tener el usuario Encargado (MaintenanceRecord.created_by).
     dict(name="Multímetro Digital", brand="Fluke", model="115", serial_number="TL-0006",
+         product_code="FLUKE-115", purchase_document_folio="Factura N° 8890",
          category="Medición", location="Taller — banco 2", supplier="Instrumentos SRL",
          purchase_date=date.today() - timedelta(days=500), purchase_cost=Decimal("55000"),
          salvage_value=Decimal("5500"), useful_life_years=6, depreciation_method=DepreciationMethod.lineal,
@@ -130,6 +152,15 @@ TOOLS = [
          purchase_date=date.today() - timedelta(days=250), purchase_cost=Decimal("12000"),
          salvage_value=Decimal("1200"), useful_life_years=5, depreciation_method=DepreciationMethod.lineal,
          status=ToolStatus.en_caja),
+    # Segunda unidad física del mismo producto que TL-0002 (mismo
+    # product_code, distinto serial_number) — resultado típico de usar
+    # "Duplicar herramienta" al comprar una unidad extra del mismo modelo.
+    dict(name='Amoladora Angular 7"', brand="Makita", model="GA9020", serial_number="TL-0012",
+         product_code="MAKITA-GA9020",
+         category="Eléctricas", location="Estante A1", supplier="Casa Bagnara",
+         purchase_date=date.today() - timedelta(days=60), purchase_cost=Decimal("39500"),
+         salvage_value=Decimal("3950"), useful_life_years=5, depreciation_method=DepreciationMethod.lineal,
+         status=ToolStatus.disponible),
 ]
 
 
@@ -142,6 +173,18 @@ async def _get_or_create(db: AsyncSession, model, name: str, **extra):
     db.add(row)
     await db.flush()
     return row
+
+
+def _write_upload_file(relative_dir: str, filename: str, content: bytes) -> str:
+    """Escribe un archivo físico bajo app/static/uploads/<relative_dir>/ y
+    devuelve la URL pública — mismo patrón de carpeta/URL que usan los
+    endpoints reales de subida, para que los comprobantes de ejemplo
+    también se puedan abrir/ver en el navegador, no solo quedar como una
+    fila en la base con un link roto."""
+    target_dir = Path(settings.UPLOAD_DIR) / relative_dir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    (target_dir / filename).write_bytes(content)
+    return f"/static/uploads/{relative_dir}/{filename}"
 
 
 async def main() -> None:
@@ -185,24 +228,36 @@ async def main() -> None:
             print(f"✅ Herramienta: {tool.name} ({tool.status.value})")
         await db.commit()
 
+        # Comprobante de compra (Fase 5) — el Taladro Percutor es el ejemplo
+        # con la boleta/factura escaneada, para mostrar que el folio y el
+        # archivo se pueden abrir juntos desde la ficha de la herramienta.
+        taladro_doc = tools_by_serial["TL-0001"]
+        taladro_doc.purchase_document_url = _write_upload_file(
+            "purchase_docs", f"tool_{taladro_doc.id}.pdf", _SAMPLE_PDF_BYTES,
+        )
+        await db.commit()
+        print(f"✅ Comprobante de compra: {taladro_doc.name} ({taladro_doc.purchase_document_folio})")
+
         # --- Mantenimiento (Fase 3) ---
         # Multímetro: todavía en curso — el motivo por el que está "en
         # mantenimiento" en vez de flotar como un estado sin explicación.
         multimetro = tools_by_serial["TL-0006"]
-        db.add(MaintenanceRecord(
+        record_multimetro = MaintenanceRecord(
             tool_id=multimetro.id, provider="Fluke Service Chile",
             reason="Pantalla intermitente, posible falla del flex interno",
             status=MaintenanceStatus.en_proceso,
             sent_date=date.today() - timedelta(days=10),
             created_by_id=encargado.id,
-        ))
+        )
+        db.add(record_multimetro)
+        await db.flush()
         print(f"✅ Mantenimiento en curso: {multimetro.name} → Fluke Service Chile")
 
         # Sierra Circular: la historia completa detrás de la baja —
         # se mandó a mantenimiento, no tuvo arreglo posible, y por eso
         # se dio de baja (no una baja "de la nada").
         sierra = tools_by_serial["TL-0009"]
-        db.add(MaintenanceRecord(
+        record_sierra = MaintenanceRecord(
             tool_id=sierra.id, provider="Taller de Motores del Sur",
             reason="Motor quemado, no arranca",
             status=MaintenanceStatus.sin_solucion,
@@ -210,12 +265,56 @@ async def main() -> None:
             resolved_date=date.today() - timedelta(days=45),
             resolution_notes="Bobinado quemado — el costo de repuesto supera el valor de reposición de la herramienta.",
             created_by_id=encargado.id,
-        ))
+        )
+        db.add(record_sierra)
+        await db.flush()
         sierra.decommission_reason = "Motor quemado sin reparación viable (ver historial de mantenimiento)."
         sierra.decommission_date = date.today() - timedelta(days=40)
         sierra.decommission_authorized_by_id = jefe.id
         print(f"✅ Mantenimiento sin solución + baja: {sierra.name} (autorizó: {jefe.full_name})")
         await db.commit()
+
+        # --- Comprobantes de mantenimiento (con título/observación) ---
+        # Dos por el Multímetro (imagen + PDF), uno por la Sierra — a
+        # propósito varios en el primero, para mostrar la lista de
+        # comprobantes múltiples (no solo el caso de uno solo).
+        doc1 = MaintenanceDocument(
+            maintenance_record_id=record_multimetro.id, file_url="",
+            original_filename="cotizacion_fluke.pdf", mime_type="application/pdf",
+            title="Cotización de reparación", note="Presupuesto inicial de Fluke Service Chile.",
+            uploaded_by_id=encargado.id,
+        )
+        db.add(doc1)
+        await db.flush()
+        doc1.file_url = _write_upload_file(
+            "maintenance", f"maintenance_{record_multimetro.id}_{doc1.id}.pdf", _SAMPLE_PDF_BYTES,
+        )
+
+        doc2 = MaintenanceDocument(
+            maintenance_record_id=record_multimetro.id, file_url="",
+            original_filename="foto_falla.png", mime_type="image/png",
+            title="Foto de la falla", note="Pantalla parpadeando al encender.",
+            uploaded_by_id=encargado.id,
+        )
+        db.add(doc2)
+        await db.flush()
+        doc2.file_url = _write_upload_file(
+            "maintenance", f"maintenance_{record_multimetro.id}_{doc2.id}.png", _SAMPLE_PNG_BYTES,
+        )
+
+        doc3 = MaintenanceDocument(
+            maintenance_record_id=record_sierra.id, file_url="",
+            original_filename="informe_tecnico.pdf", mime_type="application/pdf",
+            title="Informe técnico final", note="Diagnóstico del Taller de Motores del Sur: bobinado quemado.",
+            uploaded_by_id=encargado.id,
+        )
+        db.add(doc3)
+        await db.flush()
+        doc3.file_url = _write_upload_file(
+            "maintenance", f"maintenance_{record_sierra.id}_{doc3.id}.pdf", _SAMPLE_PDF_BYTES,
+        )
+        await db.commit()
+        print("✅ Comprobantes de mantenimiento: 2 en el Multímetro, 1 en la Sierra Circular")
 
         # --- Préstamos ---
         amoladora = tools_by_serial["TL-0002"]

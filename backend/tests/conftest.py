@@ -19,6 +19,7 @@ os.environ.setdefault("SECRET_KEY", "test_secret_key")
 os.environ.setdefault("JWT_SECRET_KEY", "test_jwt_secret_key")
 os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp(prefix="panol_test_uploads_"))
 
+import fakeredis
 import fakeredis.aioredis
 import pytest
 import pytest_asyncio
@@ -26,8 +27,14 @@ from httpx import ASGITransport, AsyncClient
 
 import app.core.redis_client as _redis_module
 
-# Valor inicial — se renueva por test en _fresh_fake_redis (ver más abajo).
-_redis_module.redis_client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+# server=fakeredis.FakeServer() es lo que da el aislamiento real: sin él,
+# fakeredis.aioredis.FakeRedis() reutiliza un server en memoria COMPARTIDO
+# por defecto entre todas las instancias del proceso — es decir que, aunque
+# _fresh_fake_redis (ver más abajo) cree una instancia nueva en cada test,
+# seguían pisando el mismo estado (p. ej. el contador del rate limiter de
+# login se acumulaba entre tests y terminaba devolviendo 429 en tests que
+# no tenían nada que ver entre sí).
+_redis_module.redis_client = fakeredis.aioredis.FakeRedis(decode_responses=True, server=fakeredis.FakeServer())
 
 from app.core.database import Base, engine  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
@@ -42,8 +49,13 @@ def _fresh_fake_redis():
     revienta con "Queue is bound to a different event loop". security.py y
     rate_limit.py acceden al cliente vía el módulo (no vía import directo del
     nombre) para que este reemplazo se vea reflejado en todos lados.
+
+    server=fakeredis.FakeServer() es igual de necesario acá que en la
+    inicialización de arriba: sin él, todas las instancias del proceso
+    comparten el mismo estado en memoria por defecto, y el aislamiento
+    "una instancia nueva por test" queda solo de nombre.
     """
-    _redis_module.redis_client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    _redis_module.redis_client = fakeredis.aioredis.FakeRedis(decode_responses=True, server=fakeredis.FakeServer())
 
 
 @pytest_asyncio.fixture()
