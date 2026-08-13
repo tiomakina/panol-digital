@@ -50,9 +50,18 @@ LOCATIONS = [
 # Incluye tanto los proveedores de COMPRA (los que traen la herramienta
 # nueva) como los talleres de SERVICIO TÉCNICO que se usan en Mantenimiento
 # — es el mismo desplegable en las dos pantallas (GET /api/v1/lookups/providers).
+# Con datos de contacto en un par de ellos, para que el maestro de
+# Proveedores no se vea vacío la primera vez que se abre.
 PROVIDERS = [
-    "Casa Bagnara", "Ferretería Central", "Instrumentos SRL", "Neumática del Sur",
-    "Fluke Service Chile", "Taller de Motores del Sur",
+    dict(name="Casa Bagnara", contact_name="Rodrigo Bagnara", phone="+56 2 2555 1234",
+         email="ventas@casabagnara.cl", address="Av. Independencia 1450, Santiago"),
+    dict(name="Ferretería Central"),
+    dict(name="Instrumentos SRL", contact_name="Marisol Vega", phone="+56 2 2444 5678",
+         email="contacto@instrumentossrl.cl"),
+    dict(name="Neumática del Sur"),
+    dict(name="Fluke Service Chile", contact_name="Soporte Técnico", phone="+56 2 2333 9900",
+         email="soporte@flukeservice.cl", address="Av. Providencia 2050, of. 301, Santiago"),
+    dict(name="Taller de Motores del Sur"),
 ]
 
 TOOLS = [
@@ -158,8 +167,9 @@ async def main() -> None:
             await _get_or_create(db, Category, name)
         for name in LOCATIONS:
             await _get_or_create(db, Location, name)
-        for name in PROVIDERS:
-            await _get_or_create(db, Provider, name)
+        for provider_data in PROVIDERS:
+            name, extra = provider_data["name"], {k: v for k, v in provider_data.items() if k != "name"}
+            await _get_or_create(db, Provider, name, **extra)
         await db.commit()
         print(f"✅ Tablas maestras: {len(BRANDS)} marcas, {len(CATEGORIES)} categorías, "
               f"{len(LOCATIONS)} ubicaciones, {len(PROVIDERS)} proveedores")

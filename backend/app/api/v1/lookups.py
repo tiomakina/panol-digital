@@ -102,7 +102,10 @@ async def list_providers(db: AsyncSession = Depends(get_db), user: User = Depend
 async def create_provider(
     payload: ProviderCreate, db: AsyncSession = Depends(get_db), user: User = Depends(require_role("encargado"))
 ):
-    provider = Provider(name=payload.name.strip(), contact_info=payload.contact_info)
+    provider = Provider(
+        name=payload.name.strip(), contact_name=payload.contact_name,
+        phone=payload.phone, email=payload.email, address=payload.address,
+    )
     db.add(provider)
     try:
         await db.commit()
@@ -125,8 +128,14 @@ async def update_provider(
         raise HTTPException(status_code=404, detail="No encontrado en Proveedores")
     if payload.name is not None:
         provider.name = payload.name.strip()
-    if payload.contact_info is not None:
-        provider.contact_info = payload.contact_info
+    if payload.contact_name is not None:
+        provider.contact_name = payload.contact_name
+    if payload.phone is not None:
+        provider.phone = payload.phone
+    if payload.email is not None:
+        provider.email = payload.email
+    if payload.address is not None:
+        provider.address = payload.address
     try:
         await db.commit()
     except IntegrityError:

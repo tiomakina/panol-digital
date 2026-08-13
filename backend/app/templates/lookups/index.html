@@ -23,7 +23,9 @@
 
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;" x-show="canManage()">
     <input type="text" x-model="newName" @keydown.enter.prevent="addItem()" class="field-input" style="flex:1;min-width:220px;" :placeholder="addPlaceholder()">
-    <input type="text" x-model="newContact" @keydown.enter.prevent="addItem()" class="field-input" style="flex:1;min-width:220px;" placeholder="Contacto (teléfono/email) — opcional" x-show="tab === 'providers'">
+    <template x-for="f in providerFields" :key="f.key">
+      <input type="text" x-model="newProvider[f.key]" x-show="tab === 'providers'" @keydown.enter.prevent="addItem()" class="field-input" style="flex:1;min-width:180px;" :placeholder="f.label + ' — opcional'">
+    </template>
     <button class="btn-primary" @click="addItem()">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Agregar
@@ -35,13 +37,15 @@
       <thead>
         <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
           <th style="padding:0.75rem 1rem;font-weight:600;" x-text="tabLabel()"></th>
-          <th style="padding:0.75rem 1rem;font-weight:600;" x-show="tab === 'providers'">Contacto</th>
+          <template x-for="f in providerFields" :key="f.key">
+            <th style="padding:0.75rem 1rem;font-weight:600;" x-show="tab === 'providers'" x-text="f.label"></th>
+          </template>
           <th style="padding:0.75rem 1rem;font-weight:600;"></th>
         </tr>
       </thead>
       <tbody>
-        <template x-if="loading"><tr><td colspan="3" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
-        <template x-if="!loading && items.length === 0"><tr><td colspan="3" style="padding:2rem;text-align:center;color:#94a3b8;">Todavía no hay nada cargado acá.</td></tr></template>
+        <template x-if="loading"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-if="!loading && items.length === 0"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">Todavía no hay nada cargado acá.</td></tr></template>
         <template x-for="item in items" :key="item.id">
           <tr style="border-bottom:1px solid #f1f5f9;">
             <td style="padding:0.65rem 1rem;">
@@ -52,14 +56,16 @@
                 <input type="text" x-model="editName" class="field-input" @keydown.enter.prevent="saveEdit(item)">
               </template>
             </td>
-            <td style="padding:0.65rem 1rem;color:#64748b;" x-show="tab === 'providers'">
-              <template x-if="editingId !== item.id">
-                <span x-text="item.contact_info || '—'"></span>
-              </template>
-              <template x-if="editingId === item.id">
-                <input type="text" x-model="editContact" class="field-input" @keydown.enter.prevent="saveEdit(item)">
-              </template>
-            </td>
+            <template x-for="f in providerFields" :key="f.key">
+              <td style="padding:0.65rem 1rem;color:#64748b;" x-show="tab === 'providers'">
+                <template x-if="editingId !== item.id">
+                  <span x-text="item[f.key] || '—'"></span>
+                </template>
+                <template x-if="editingId === item.id">
+                  <input type="text" x-model="editProvider[f.key]" class="field-input" @keydown.enter.prevent="saveEdit(item)">
+                </template>
+              </td>
+            </template>
             <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;" x-show="canManage()">
               <template x-if="editingId !== item.id">
                 <span>
@@ -96,17 +102,28 @@ function lookupsPage() {
     items: [],
     loading: true,
     newName: '',
-    newContact: '',
+    newProvider: { contact_name: '', phone: '', email: '', address: '' },
     editingId: null,
     editName: '',
-    editContact: '',
+    editProvider: { contact_name: '', phone: '', email: '', address: '' },
+    providerFields: [
+      { key: 'contact_name', label: 'Contacto' },
+      { key: 'phone', label: 'Teléfono' },
+      { key: 'email', label: 'Email' },
+      { key: 'address', label: 'Dirección' },
+    ],
     message: '',
     messageType: 'success',
 
     async init() {
       this.user = await getCurrentUser();
       await this.loadItems();
-      this.$watch('tab', () => { this.editingId = null; this.newName = ''; this.newContact = ''; this.loadItems(); });
+      this.$watch('tab', () => {
+        this.editingId = null;
+        this.newName = '';
+        this.newProvider = { contact_name: '', phone: '', email: '', address: '' };
+        this.loadItems();
+      });
     },
 
     canManage() { return hasRole(this.user, 'encargado'); },
@@ -131,7 +148,9 @@ function lookupsPage() {
     async addItem() {
       const name = this.newName.trim();
       if (!name) return;
-      const payload = this.tab === 'providers' ? { name, contact_info: this.newContact.trim() || null } : { name };
+      const payload = this.tab === 'providers'
+        ? { name, ...this.trimmedProvider(this.newProvider) }
+        : { name };
       const res = await authFetch(`/api/v1/lookups/${this.pathForTab()}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
@@ -141,20 +160,29 @@ function lookupsPage() {
         return;
       }
       this.newName = '';
-      this.newContact = '';
+      this.newProvider = { contact_name: '', phone: '', email: '', address: '' };
       this.showMessage('Agregado correctamente');
       await this.loadItems();
+    },
+
+    trimmedProvider(source) {
+      const out = {};
+      for (const f of this.providerFields) out[f.key] = (source[f.key] || '').trim() || null;
+      return out;
     },
 
     startEdit(item) {
       this.editingId = item.id;
       this.editName = item.name;
-      this.editContact = item.contact_info || '';
+      this.editProvider = {
+        contact_name: item.contact_name || '', phone: item.phone || '',
+        email: item.email || '', address: item.address || '',
+      };
     },
 
     async saveEdit(item) {
       const payload = this.tab === 'providers'
-        ? { name: this.editName.trim(), contact_info: this.editContact.trim() || null }
+        ? { name: this.editName.trim(), ...this.trimmedProvider(this.editProvider) }
         : { name: this.editName.trim() };
       const res = await authFetch(`/api/v1/lookups/${this.pathForTab()}/${item.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),

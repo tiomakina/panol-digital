@@ -204,3 +204,113 @@ async def test_damaged_return_creates_maintenance_record(client):
     assert len(body) == 1
     assert "reparación" in body[0]["reason"] or str(loan_id) in body[0]["reason"]
     assert "Hace ruido raro" in body[0]["reason"]
+
+
+def _fake_png() -> bytes:
+    return b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+
+def _fake_pdf() -> bytes:
+    # Header real de PDF (magic bytes) — no hace falta un PDF válido entero
+    # para pasar la validación de tipo real de archivo.
+    return b"%PDF-1.4\n" + b"\x00" * 32
+
+
+async def _send_tool_to_maintenance(client, token: str, tool_name: str = "Multímetro") -> tuple[int, int]:
+    async with AsyncSessionLocal() as db:
+        tool = Tool(name=tool_name, status=ToolStatus.disponible)
+        db.add(tool)
+        await db.commit()
+        await db.refresh(tool)
+        tool_id = tool.id
+
+    sent = await client.post(
+        "/api/v1/maintenance", json={"tool_id": tool_id, "reason": "en revisión"}, headers=_auth(token)
+    )
+    assert sent.status_code == 201, sent.text
+    return tool_id, sent.json()["id"]
+
+
+async def test_upload_multiple_documents_image_and_pdf(client):
+    """
+    Un mismo registro tiene que poder acumular varios comprobantes (antes
+    la segunda subida pisaba a la primera), y aceptar tanto imagen como PDF.
+    """
+    await _create_user("encargado_doc@test.com", "Clave123!", UserRole.encargado)
+    token = await _login(client, "encargado_doc@test.com", "Clave123!")
+    _, record_id = await _send_tool_to_maintenance(client, token)
+
+    up1 = await client.post(
+        f"/api/v1/maintenance/{record_id}/document",
+        files={"file": ("cotizacion.png", _fake_png(), "image/png")},
+        headers=_auth(token),
+    )
+    assert up1.status_code == 200, up1.text
+    assert len(up1.json()["documents"]) == 1
+    assert up1.json()["documents"][0]["mime_type"] == "image/png"
+
+    up2 = await client.post(
+        f"/api/v1/maintenance/{record_id}/document",
+        files={"file": ("orden_trabajo.pdf", _fake_pdf(), "application/pdf")},
+        headers=_auth(token),
+    )
+    assert up2.status_code == 200, up2.text
+    docs = up2.json()["documents"]
+    assert len(docs) == 2  # la segunda subida se SUMA, no reemplaza a la primera
+    mimes = {d["mime_type"] for d in docs}
+    assert mimes == {"image/png", "application/pdf"}
+    for d in docs:
+        assert d["file_url"].startswith("/static/uploads/maintenance/")
+
+
+async def test_reject_invalid_document_file(client):
+    await _create_user("encargado_doc2@test.com", "Clave123!", UserRole.encargado)
+    token = await _login(client, "encargado_doc2@test.com", "Clave123!")
+    _, record_id = await _send_tool_to_maintenance(client, token)
+
+    bad = await client.post(
+        f"/api/v1/maintenance/{record_id}/document",
+        files={"file": ("virus.exe", b"MZ\x90\x00" + b"\x00" * 32, "application/octet-stream")},
+        headers=_auth(token),
+    )
+    assert bad.status_code == 400
+
+
+async def test_mecanico_cannot_upload_or_delete_documents(client):
+    await _create_user("encargado_doc3@test.com", "Clave123!", UserRole.encargado)
+    await _create_user("meca_doc@test.com", "Clave123!", UserRole.mecanico)
+    encargado_token = await _login(client, "encargado_doc3@test.com", "Clave123!")
+    meca_token = await _login(client, "meca_doc@test.com", "Clave123!")
+    _, record_id = await _send_tool_to_maintenance(client, encargado_token)
+
+    forbidden_upload = await client.post(
+        f"/api/v1/maintenance/{record_id}/document",
+        files={"file": ("foto.png", _fake_png(), "image/png")},
+        headers=_auth(meca_token),
+    )
+    assert forbidden_upload.status_code == 403
+
+    forbidden_delete = await client.delete(
+        f"/api/v1/maintenance/{record_id}/document/1", headers=_auth(meca_token)
+    )
+    assert forbidden_delete.status_code == 403
+
+
+async def test_delete_maintenance_document(client):
+    await _create_user("encargado_doc4@test.com", "Clave123!", UserRole.encargado)
+    token = await _login(client, "encargado_doc4@test.com", "Clave123!")
+    _, record_id = await _send_tool_to_maintenance(client, token)
+
+    uploaded = await client.post(
+        f"/api/v1/maintenance/{record_id}/document",
+        files={"file": ("foto.png", _fake_png(), "image/png")},
+        headers=_auth(token),
+    )
+    doc_id = uploaded.json()["documents"][0]["id"]
+
+    deleted = await client.delete(f"/api/v1/maintenance/{record_id}/document/{doc_id}", headers=_auth(token))
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["documents"] == []
+
+    not_found = await client.delete(f"/api/v1/maintenance/{record_id}/document/{doc_id}", headers=_auth(token))
+    assert not_found.status_code == 404

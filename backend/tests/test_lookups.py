@@ -55,24 +55,32 @@ async def test_brand_crud_and_uniqueness(client):
     assert not any(b["id"] == brand_id for b in missing.json())
 
 
-async def test_provider_has_contact_info(client):
+async def test_provider_has_contact_fields(client):
     await _create_user("jefe_lk2@test.com", "Clave123!", UserRole.jefe)
     jefe_token = await _login(client, "jefe_lk2@test.com", "Clave123!")
 
     created = await client.post(
         "/api/v1/lookups/providers",
-        json={"name": "Ferretería Central", "contact_info": "+56 9 1234 5678"},
+        json={
+            "name": "Ferretería Central", "contact_name": "Juan Pérez",
+            "phone": "+56 9 1234 5678", "email": "contacto@ferreteria.cl",
+            "address": "Av. Siempre Viva 742, Santiago",
+        },
         headers=_auth(jefe_token),
     )
     assert created.status_code == 201, created.text
     body = created.json()
-    assert body["contact_info"] == "+56 9 1234 5678"
+    assert body["contact_name"] == "Juan Pérez"
+    assert body["phone"] == "+56 9 1234 5678"
+    assert body["email"] == "contacto@ferreteria.cl"
+    assert body["address"] == "Av. Siempre Viva 742, Santiago"
 
     updated = await client.put(
         f"/api/v1/lookups/providers/{body['id']}",
-        json={"contact_info": "contacto@ferreteria.cl"},
+        json={"phone": "+56 9 8765 4321"},
         headers=_auth(jefe_token),
     )
     assert updated.status_code == 200
-    assert updated.json()["contact_info"] == "contacto@ferreteria.cl"
+    assert updated.json()["phone"] == "+56 9 8765 4321"
     assert updated.json()["name"] == "Ferretería Central"  # no se pisa si no viene en el payload
+    assert updated.json()["email"] == "contacto@ferreteria.cl"  # tampoco los demás campos

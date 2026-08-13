@@ -133,12 +133,36 @@ body {
   margin-left: 260px;
   min-height: 100vh;
   display: flex; flex-direction: column;
+  transition: margin-left 0.3s ease;
+}
+
+/* Sidebar colapsable en desktop — independiente del drawer de mobile de
+   más abajo (ahí .sidebar.open resuelve otro caso: pantalla chica donde
+   el sidebar arranca oculto y se abre a pedido; acá es al revés, arranca
+   visible y el usuario lo puede ocultar para ganar espacio). */
+@media (min-width: 769px) {
+  .sidebar.collapsed { transform: translateX(-100%); }
+  .main-content.sidebar-collapsed { margin-left: 0; }
 }
 
 .page-content {
   flex: 1;
   padding: 1.75rem 2rem;
 }
+
+.app-footer {
+  padding: 0.9rem 2rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.8;
+}
+.app-footer a { color: #94a3b8; text-decoration: none; }
+.app-footer a:hover { color: var(--brand-primary, #4f46e5); text-decoration: underline; }
+[data-theme="dark"] .app-footer { background: #1e293b; border-color: #334155; color: #64748b; }
+[data-theme="dark"] .app-footer a { color: #64748b; }
 
 /* Botón primario con branding */
 .btn-primary {
@@ -207,15 +231,15 @@ a.kpi-card:hover {
 [data-theme="dark"] .card, [data-theme="dark"] .topbar { background: #1e293b; border-color: #334155; }
 [data-theme="dark"] .kpi-card { background: #1e293b; border-color: #334155; }
 
-/* Botón de hamburguesa — solo visible en mobile */
-.sidebar-toggle-btn { display: none; }
+/* Botón de hamburguesa — visible siempre: en desktop colapsa/muestra el
+   sidebar, en mobile abre/cierra el drawer (ver toggleSidebar() en JS). */
+.sidebar-toggle-btn { display: inline-flex; }
 
 /* Mobile responsive */
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); }
   .main-content { margin-left: 0; }
-  .sidebar-toggle-btn { display: inline-flex; }
 }
 </style>
 </head>
@@ -223,7 +247,7 @@ a.kpi-card:hover {
 <body x-data="appState()" :data-theme="theme">
 
 <!-- SIDEBAR -->
-<aside class="sidebar" :class="{'open': sidebarOpen}">
+<aside class="sidebar" :class="{'open': sidebarOpen, 'collapsed': sidebarCollapsed}">
   <!-- Logo de la empresa -->
   <div class="sidebar-logo">
     {% if brand and brand.logo_url %}
@@ -314,11 +338,11 @@ a.kpi-card:hover {
 </aside>
 
 <!-- CONTENIDO PRINCIPAL -->
-<div class="main-content">
+<div class="main-content" :class="{'sidebar-collapsed': sidebarCollapsed}">
   <!-- Topbar -->
   <header class="topbar">
     <div style="display:flex;align-items:center;gap:1rem;">
-      <button @click="sidebarOpen = !sidebarOpen" class="sidebar-toggle-btn" style="background:none;border:none;cursor:pointer;padding:0.5rem;">
+      <button @click="toggleSidebar()" class="sidebar-toggle-btn" title="Mostrar/ocultar menú" style="background:none;border:none;cursor:pointer;padding:0.5rem;">
         <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
       <h1 style="font-size:1rem;font-weight:600;color:#1e293b;">{% block page_title %}Dashboard{% endblock %}</h1>
@@ -377,6 +401,14 @@ a.kpi-card:hover {
   <main class="page-content">
     {% block content %}{% endblock %}
   </main>
+
+  <footer class="app-footer">
+    Desarrollado por Valentín Morales Silva
+    &nbsp;|&nbsp; Copyright © 2026 VMS Ingeniería
+    &nbsp;|&nbsp; Email: <a href="mailto:hablemos@valentinmorales.cl">hablemos@valentinmorales.cl</a>
+    &nbsp;|&nbsp; Web: <a href="https://www.valentinmorales.cl" target="_blank" rel="noopener">www.valentinmorales.cl</a>
+    &nbsp;|&nbsp; Fono: <a href="tel:+56930688762">+569 30688762</a>
+  </footer>
 </div>
 
 <!-- Alpine.js Global State -->
@@ -385,6 +417,7 @@ function appState() {
   return {
     theme: localStorage.getItem('panol-theme') || 'light',
     sidebarOpen: false,
+    sidebarCollapsed: localStorage.getItem('panol-sidebar-collapsed') === '1',
     currentUser: null,
     showNotifications: false,
     overdueLoans: [],
@@ -394,6 +427,19 @@ function appState() {
       this.theme = this.theme === 'light' ? 'dark' : 'light';
       localStorage.setItem('panol-theme', this.theme);
       document.documentElement.setAttribute('data-theme', this.theme);
+    },
+
+    // En desktop el sidebar arranca visible y se puede ocultar para ganar
+    // espacio (se recuerda entre sesiones); en mobile es el drawer de
+    // siempre, que arranca oculto y se abre a pedido. Es el mismo botón
+    // en las dos resoluciones, solo cambia qué bandera toca.
+    toggleSidebar() {
+      if (window.innerWidth <= 768) {
+        this.sidebarOpen = !this.sidebarOpen;
+      } else {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        localStorage.setItem('panol-sidebar-collapsed', this.sidebarCollapsed ? '1' : '0');
+      }
     },
 
     userInitials() {

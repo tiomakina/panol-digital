@@ -42,5 +42,13 @@ class Provider(Base):
     __tablename__ = "providers"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    # contact_info queda como estaba (un campo libre "teléfono/email" de la
+    # primera versión) por compatibilidad con datos ya cargados, pero el
+    # formulario ya no lo usa — los datos de contacto ahora van en los
+    # campos de abajo, cada uno en el suyo.
     contact_info: Mapped[str] = mapped_column(String(500), nullable=True)
+    contact_name: Mapped[str] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str] = mapped_column(String(50), nullable=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=True)
+    address: Mapped[str] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -10,11 +10,26 @@ WORKDIR /app
 # asyncpg). No se instalan libpango/libcairo/libgdk-pixbuf: esas son para
 # WeasyPrint, que no se usa — los vales PDF se generan con reportlab, que
 # es Python puro y no necesita librerías nativas de renderizado.
-# postgresql-client trae pg_dump/psql, que usa el módulo de respaldo
-# integral (app/services/backup_service.py) para generar y restaurar
-# backups directo desde la web, sin pasar por `docker compose exec`.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libpq-dev libffi-dev postgresql-client \
+    build-essential libpq-dev libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# postgresql-client (pg_dump/psql, para el módulo de respaldo integral —
+# app/services/backup_service.py — que genera y restaura backups directo
+# desde la web sin pasar por `docker compose exec`) tiene que ser la MISMA
+# versión mayor que el server de docker-compose.yml (postgres:16-alpine).
+# El paquete "postgresql-client" genérico de los repos de Debian bookworm
+# resuelve a la v15 (la versión "stable" de Debian en este momento), no a
+# la 16 — y pg_dump se niega a hablar con un server más nuevo que él mismo
+# ("aborting because of server version mismatch"). Por eso se agrega el
+# repo oficial de PGDG y se pide postgresql-client-16 explícito, en vez de
+# depender de lo que Debian traiga por defecto.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates gnupg lsb-release curl \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-16 \
+    && apt-get purge -y gnupg lsb-release curl && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

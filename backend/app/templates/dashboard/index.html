@@ -67,10 +67,12 @@
       </div>
     </div>
 
-    <!-- Gráfico de uso por categoría -->
+    <!-- Distribución del inventario por categoría -->
     <div class="card">
-      <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:1rem;">Uso por categoría</h3>
-      <canvas id="categoryChart" height="200"></canvas>
+      <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:0.15rem;">Herramientas por categoría</h3>
+      <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 1rem;">Cuántas herramientas activas tenés en cada categoría (no incluye las dadas de baja)</p>
+      <canvas id="categoryChart" height="200" x-show="categoryData.length > 0"></canvas>
+      <p x-show="categoryData.length === 0" style="text-align:center;color:#94a3b8;font-size:0.85rem;padding:2rem 0;">Todavía no hay herramientas cargadas</p>
     </div>
   </div>
 </div>
@@ -83,7 +85,8 @@
 function dashboardData() {
   return {
     kpis: { total_tools: 0, active_loans: 0, overdue_loans: 0, inventory_value: 0, maintenance_count: 0 },
-    
+    categoryData: [],
+
     async init() {
       // Cargar KPIs
       try {
@@ -93,24 +96,37 @@ function dashboardData() {
         // Datos de ejemplo mientras no hay API
         this.kpis = { total_tools: 247, active_loans: 18, overdue_loans: 3, inventory_value: 1240000, maintenance_count: 5 };
       }
-      
-      // Gráfico de categorías
+
+      // Gráfico: herramientas activas por categoría (datos reales, no fijos)
+      try {
+        const catRes = await authFetch('/api/v1/dashboard/tools-by-category');
+        this.categoryData = catRes.ok ? await catRes.json() : [];
+      } catch (e) {
+        this.categoryData = [];
+      }
+      if (this.categoryData.length === 0) return;
+
       const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--brand-primary').trim() || '#4f46e5';
       const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--brand-secondary').trim() || '#06b6d4';
       const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--brand-accent').trim() || '#f59e0b';
-      
+      const palette = [primaryColor, secondaryColor, accentColor, '#94a3b8', '#f472b6', '#22c55e', '#a855f7', '#eab308'];
+
       const ctx = document.getElementById('categoryChart');
       if (ctx) {
         new Chart(ctx, {
           type: 'doughnut',
           data: {
-            labels: ['Eléctricas', 'Manuales', 'Medición', 'Neumáticas'],
-            datasets: [{ data: [68, 45, 31, 22], backgroundColor: [primaryColor, secondaryColor, accentColor, '#94a3b8'], borderWidth: 0 }]
+            labels: this.categoryData.map((c) => c.category),
+            datasets: [{
+              data: this.categoryData.map((c) => c.count),
+              backgroundColor: this.categoryData.map((_, i) => palette[i % palette.length]),
+              borderWidth: 0,
+            }],
           },
           options: {
             responsive: true, maintainAspectRatio: true,
-            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } } }
-          }
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } } },
+          },
         });
       }
     }

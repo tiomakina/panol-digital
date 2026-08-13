@@ -55,3 +55,21 @@ async def get_kpis(db: AsyncSession = Depends(get_db), user: User = Depends(get_
         "inventory_value": float(inventory_value),
         "maintenance_count": maintenance_count,
     }
+
+
+@router.get("/tools-by-category")
+async def get_tools_by_category(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Cantidad de herramientas activas (no dadas de baja) por categoría —
+    alimenta el gráfico de dona del dashboard. Antes ese gráfico mostraba
+    números fijos hardcodeados (68/45/31/22) sin ninguna conexión a datos
+    reales, por eso no coincidía con el inventario real de nadie.
+    """
+    category_label = func.coalesce(Tool.category, "Sin categoría")
+    result = await db.execute(
+        select(category_label, func.count(Tool.id))
+        .where(Tool.status != ToolStatus.baja)
+        .group_by(category_label)
+        .order_by(func.count(Tool.id).desc())
+    )
+    return [{"category": category, "count": count} for category, count in result.all()]

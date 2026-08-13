@@ -158,8 +158,10 @@
               <td style="padding:0.6rem 1rem;"><span class="badge" :class="maintenanceBadgeClass(row.status)" x-text="maintenanceStatusLabel(row.status)"></span></td>
               <td style="padding:0.6rem 1rem;color:#64748b;max-width:200px;" x-text="row.resolution_notes || '—'"></td>
               <td style="padding:0.6rem 1rem;">
-                <a x-show="row.document_url" :href="row.document_url" target="_blank" style="font-size:0.78rem;">Ver</a>
-                <span x-show="!row.document_url" style="color:#94a3b8;">—</span>
+                <a x-show="row.documents && row.documents.length" :href="row.documents && row.documents[0] && row.documents[0].file_url" target="_blank" style="font-size:0.78rem;">
+                  Ver<template x-if="row.documents && row.documents.length > 1"> (<span x-text="row.documents.length"></span>)</template>
+                </a>
+                <span x-show="!row.documents || row.documents.length === 0" style="color:#94a3b8;">—</span>
               </td>
             </tr>
           </template>

@@ -27,6 +27,23 @@ def validate_image_magic_bytes(file_bytes: bytes) -> Tuple[bool, str]:
             return True, mime_type
     return False, ""
 
+
+PDF_MAGIC = b'%PDF'
+
+
+def validate_document_magic_bytes(file_bytes: bytes) -> Tuple[bool, str]:
+    """
+    Como validate_image_magic_bytes, pero además acepta PDF — para
+    documentos adjuntos (comprobantes de mantenimiento), no para logos,
+    avatares ni fotos de herramienta, que siguen aceptando solo imagen.
+    """
+    valid, mime_type = validate_image_magic_bytes(file_bytes)
+    if valid:
+        return valid, mime_type
+    if file_bytes[:len(PDF_MAGIC)] == PDF_MAGIC:
+        return True, "application/pdf"
+    return False, ""
+
 def resize_logo(image_bytes: bytes, max_width: int = 400, max_height: int = 200) -> bytes:
     """Redimensiona el logo manteniendo proporción."""
     try:

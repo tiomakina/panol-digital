@@ -26,6 +26,17 @@ class MaintenanceCreatedByOut(BaseModel):
     full_name: str
 
 
+class MaintenanceDocumentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    file_url: str
+    original_filename: str | None = None
+    mime_type: str
+    uploaded_at: datetime
+    uploaded_by: MaintenanceCreatedByOut | None = None
+
+
 class MaintenanceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -37,7 +48,7 @@ class MaintenanceOut(BaseModel):
     status: MaintenanceStatus
     sent_date: date
     resolved_date: date | None = None
-    document_url: str | None = None
+    documents: list[MaintenanceDocumentOut] = []
     resolution_notes: str | None = None
     created_by: MaintenanceCreatedByOut | None = None
     created_at: datetime

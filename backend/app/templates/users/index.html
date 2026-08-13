@@ -10,8 +10,9 @@
   </div>
 
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
-    <input type="text" x-model="search" @input.debounce.400ms="loadUsers()" placeholder="Buscar por nombre o email..."
+    <input type="text" x-model="search" @input.debounce.400ms="loadUsers()" placeholder="Buscar por nombre o email..." x-show="canList()"
            style="flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+    <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openEdit(user)">Mi perfil</button>
     <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openPasswordModal()">Cambiar mi contraseña</button>
     <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="open2faModal()">
       Verificación en dos pasos
@@ -23,7 +24,12 @@
     </button>
   </div>
 
-  <div class="card" style="padding:0;overflow-x:auto;">
+  <div class="card" x-show="!canList()" style="color:#64748b;font-size:0.85rem;">
+    Para ver y administrar a todo el equipo se necesita rol Encargado o Jefe.
+    Usá el botón <strong>"Mi perfil"</strong> de arriba para editar tus propios datos y tu foto.
+  </div>
+
+  <div class="card" x-show="canList()" style="padding:0;overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
       <thead>
         <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
@@ -236,10 +242,23 @@ function usersPage() {
 
     async init() {
       this.user = await getCurrentUser();
-      await this.loadUsers();
+      // Ver/administrar el listado completo requiere Encargado o Jefe —
+      // un Mecánico igual puede editar su propio perfil (botón "Mi
+      // perfil", arriba), simplemente no ve el directorio del resto del
+      // equipo. Antes se llamaba a loadUsers() sin importar el rol, y
+      // como el endpoint devuelve 403 para Mecánico, la tabla quedaba
+      // vacía sin ninguna explicación — parecía que el sistema no
+      // dejaba editar nada, cuando en realidad el problema era no poder
+      // LISTAR, no poder EDITAR la propia cuenta.
+      if (this.canList()) {
+        await this.loadUsers();
+      } else {
+        this.loading = false;
+      }
     },
 
     isJefe() { return hasRole(this.user, 'jefe'); },
+    canList() { return hasRole(this.user, 'encargado'); },
 
     async loadUsers() {
       this.loading = true;
@@ -292,7 +311,7 @@ function usersPage() {
       const updated = await res.json();
       this.editForm.avatar_url = updated.avatar_url;
       this.showMessage('Foto actualizada');
-      await this.loadUsers();
+      if (this.canList()) await this.loadUsers();
       if (this.editingId === this.user.id) {
         this.user.avatar_url = updated.avatar_url;
         window.dispatchEvent(new CustomEvent('panol-avatar-updated', { detail: updated.avatar_url }));
@@ -318,7 +337,10 @@ function usersPage() {
       }
       this.showEditModal = false;
       this.showMessage('Usuario actualizado');
-      await this.loadUsers();
+      if (this.editingId === this.user.id) {
+        this.user.full_name = this.editForm.full_name;
+      }
+      if (this.canList()) await this.loadUsers();
     },
 
     async toggleActive(u) {

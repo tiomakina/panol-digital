@@ -60,3 +60,31 @@ async def test_overdue_kpi_counts_loans_regardless_of_celery_having_run(client):
     kpis = await client.get("/api/v1/dashboard/kpis", headers=_auth(token))
     assert kpis.status_code == 200
     assert kpis.json()["overdue_loans"] == 2
+
+
+async def test_tools_by_category_groups_and_excludes_baja(client):
+    """
+    El gráfico del dashboard antes mostraba números fijos (68/45/31/22) sin
+    conexión a la base — este endpoint es el que lo reemplaza con datos
+    reales, agrupados por categoría y sin contar las herramientas de baja
+    (ya no son parte del inventario activo).
+    """
+    await _create_user("jefe_cat@test.com", "Clave123!", UserRole.jefe)
+    token = await _login(client, "jefe_cat@test.com", "Clave123!")
+
+    async with AsyncSessionLocal() as db:
+        db.add_all([
+            Tool(name="Taladro", category="Eléctricas", status=ToolStatus.disponible),
+            Tool(name="Amoladora", category="Eléctricas", status=ToolStatus.prestado),
+            Tool(name="Martillo", category="Manuales", status=ToolStatus.disponible),
+            Tool(name="Sierra vieja", category="Eléctricas", status=ToolStatus.baja),  # no debe contar
+            Tool(name="Sin categoría", category=None, status=ToolStatus.disponible),
+        ])
+        await db.commit()
+
+    res = await client.get("/api/v1/dashboard/tools-by-category", headers=_auth(token))
+    assert res.status_code == 200
+    by_category = {row["category"]: row["count"] for row in res.json()}
+    assert by_category["Eléctricas"] == 2  # no 3 — la de baja queda afuera
+    assert by_category["Manuales"] == 1
+    assert by_category["Sin categoría"] == 1

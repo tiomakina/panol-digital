@@ -13,12 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
-from app.models.maintenance import MaintenanceRecord, MaintenanceStatus
+from app.models.maintenance import MaintenanceDocument, MaintenanceRecord, MaintenanceStatus
 from app.models.tool import Tool, ToolStatus
 from app.models.user import User
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceOut, MaintenanceResolve
 from app.services.audit_service import log_action
-from app.services.brand_service import validate_image_magic_bytes
+from app.services.brand_service import validate_document_magic_bytes
 from app.services.maintenance_service import send_tool_to_maintenance
 
 router = APIRouter(prefix="/maintenance", tags=["Mantenimiento"])
@@ -92,23 +92,56 @@ async def upload_maintenance_document(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("encargado")),
 ):
-    """Sube/reemplaza la foto del comprobante físico (orden de trabajo, cotización o factura)."""
+    """
+    Suma un comprobante al registro (orden de trabajo, cotización, factura)
+    — no reemplaza los anteriores, un mismo mantenimiento puede tener
+    varios. Acepta imagen (PNG/JPG/WebP) o PDF.
+    """
     record = await _get_record_or_404(db, record_id)
 
     file_bytes = await file.read()
-    valid, mime_type = validate_image_magic_bytes(file_bytes)
+    valid, mime_type = validate_document_magic_bytes(file_bytes)
     if not valid or mime_type == "image/svg+xml":
-        raise HTTPException(status_code=400, detail="Archivo inválido (solo PNG, JPG o WebP)")
+        raise HTTPException(status_code=400, detail="Archivo inválido (solo PNG, JPG, WebP o PDF)")
     if len(file_bytes) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=400, detail=f"El archivo supera los {settings.MAX_UPLOAD_SIZE_MB}MB permitidos")
 
+    document = MaintenanceDocument(
+        maintenance_record_id=record_id, file_url="", original_filename=file.filename,
+        mime_type=mime_type, uploaded_by_id=user.id,
+    )
+    db.add(document)
+    await db.flush()
+
     ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
     DOCUMENT_DIR.mkdir(parents=True, exist_ok=True)
-    doc_path = DOCUMENT_DIR / f"maintenance_{record_id}.{ext}"
+    doc_path = DOCUMENT_DIR / f"maintenance_{record_id}_{document.id}.{ext}"
     with open(doc_path, "wb") as f:
         f.write(file_bytes)
+    document.file_url = f"/static/uploads/maintenance/maintenance_{record_id}_{document.id}.{ext}"
 
-    record.document_url = f"/static/uploads/maintenance/maintenance_{record_id}.{ext}"
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+@router.delete("/{record_id}/document/{document_id}", response_model=MaintenanceOut)
+async def delete_maintenance_document(
+    record_id: int,
+    document_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("encargado")),
+):
+    """Elimina un comprobante subido por error (no borra los demás del mismo registro)."""
+    record = await _get_record_or_404(db, record_id)
+    document = await db.get(MaintenanceDocument, document_id)
+    if not document or document.maintenance_record_id != record_id:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    file_path = DOCUMENT_DIR / Path(document.file_url).name
+    file_path.unlink(missing_ok=True)
+
+    await db.delete(document)
     await db.commit()
     await db.refresh(record)
     return record

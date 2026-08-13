@@ -171,6 +171,39 @@ async def test_cannot_upload_photo_for_another_user_without_being_jefe(client):
     assert forbidden.status_code == 403
 
 
+async def test_mecanico_cannot_list_but_can_still_edit_own_profile(client):
+    """
+    Documenta el contrato a propósito: un Mecánico NO puede ver el listado
+    completo de usuarios (GET /users requiere Encargado+, es intencional —
+    no debería ver el directorio de todo el equipo), pero SÍ tiene que
+    poder editar sus propios datos y subir su propia foto sin importar el
+    rol. Antes el frontend llamaba a loadUsers() sin importar el rol, y
+    como devolvía 403 la tabla quedaba vacía sin explicación — parecía que
+    el sistema no dejaba subir la foto, cuando el problema real era no
+    poder LISTAR. La UI ahora usa GET /auth/me para el propio perfil en
+    vez de depender del listado.
+    """
+    await _create_user("meca_perfil@test.com", "Clave123!", UserRole.mecanico)
+    token = await _login(client, "meca_perfil@test.com", "Clave123!")
+    me = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()
+
+    listing = await client.get("/api/v1/users", headers=_auth(token))
+    assert listing.status_code == 403
+
+    own_upload = await client.post(
+        f"/api/v1/users/{me['id']}/photo",
+        files={"file": ("foto.png", _fake_png(), "image/png")},
+        headers=_auth(token),
+    )
+    assert own_upload.status_code == 200, own_upload.text
+
+    own_edit = await client.put(
+        f"/api/v1/users/{me['id']}", json={"full_name": "Mecánico Actualizado"}, headers=_auth(token)
+    )
+    assert own_edit.status_code == 200, own_edit.text
+    assert own_edit.json()["full_name"] == "Mecánico Actualizado"
+
+
 async def test_photo_upload_rejects_non_image_file(client):
     await _create_user("meca_bad@test.com", "Clave123!", UserRole.mecanico)
     token = await _login(client, "meca_bad@test.com", "Clave123!")

@@ -20,12 +20,21 @@ class LookupOut(BaseModel):
 
 
 class ProviderCreate(LookupCreate):
-    contact_info: str | None = None
+    contact_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None
 
 
 class ProviderUpdate(LookupUpdate):
-    contact_info: str | None = None
+    contact_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None
 
 
 class ProviderOut(LookupOut):
-    contact_info: str | None = None
+    contact_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None

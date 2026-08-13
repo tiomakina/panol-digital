@@ -34,9 +34,6 @@ class MaintenanceRecord(Base):
     status: Mapped[MaintenanceStatus] = mapped_column(SQLEnum(MaintenanceStatus), default=MaintenanceStatus.en_proceso)
     sent_date: Mapped[date] = mapped_column(Date, default=date.today)
     resolved_date: Mapped[date] = mapped_column(Date, nullable=True)
-    # Foto del registro físico del seguimiento: orden de trabajo, cotización
-    # o factura — no es la foto de la herramienta (esa es Tool.photo_url).
-    document_url: Mapped[str] = mapped_column(String(500), nullable=True)
     resolution_notes: Mapped[str] = mapped_column(Text, nullable=True)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -44,3 +41,27 @@ class MaintenanceRecord(Base):
 
     tool: Mapped["Tool"] = relationship(lazy="joined")
     created_by: Mapped["User | None"] = relationship(lazy="joined")
+    # Comprobantes del seguimiento: orden de trabajo, cotización, factura...
+    # Puede haber varios (antes era un solo document_url que se pisaba con
+    # cada subida nueva). No es la foto de la herramienta (esa es
+    # Tool.photo_url).
+    documents: Mapped[list["MaintenanceDocument"]] = relationship(
+        back_populates="record", cascade="all, delete-orphan",
+        order_by="MaintenanceDocument.uploaded_at", lazy="selectin",
+    )
+
+
+class MaintenanceDocument(Base):
+    """Un comprobante subido para un registro de mantenimiento (imagen o PDF)."""
+    __tablename__ = "maintenance_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    maintenance_record_id: Mapped[int] = mapped_column(ForeignKey("maintenance_records.id"))
+    file_url: Mapped[str] = mapped_column(String(500))
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=True)
+    mime_type: Mapped[str] = mapped_column(String(100))
+    uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    record: Mapped["MaintenanceRecord"] = relationship(back_populates="documents")
+    uploaded_by: Mapped["User | None"] = relationship(lazy="joined")

@@ -31,7 +31,7 @@
           <th style="padding:0.75rem 1rem;font-weight:600;">Motivo</th>
           <th style="padding:0.75rem 1rem;font-weight:600;">Enviado</th>
           <th style="padding:0.75rem 1rem;font-weight:600;">Estado</th>
-          <th style="padding:0.75rem 1rem;font-weight:600;">Documento</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Documentos</th>
           <th style="padding:0.75rem 1rem;font-weight:600;"></th>
         </tr>
       </thead>
@@ -46,17 +46,19 @@
             <td style="padding:0.65rem 1rem;color:#64748b;white-space:nowrap;" x-text="formatDate(rec.sent_date)"></td>
             <td style="padding:0.65rem 1rem;"><span class="badge" :class="statusBadgeClass(rec.status)" x-text="statusLabel(rec.status)"></span></td>
             <td style="padding:0.65rem 1rem;">
-              <template x-if="rec.document_url">
-                <button @click="viewDocument(rec)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Ver</button>
+              <template x-if="rec.documents && rec.documents.length">
+                <button @click="viewDocuments(rec)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">
+                  Ver (<span x-text="rec.documents.length"></span>)
+                </button>
               </template>
-              <template x-if="!rec.document_url">
+              <template x-if="!rec.documents || rec.documents.length === 0">
                 <span style="color:#94a3b8;">—</span>
               </template>
             </td>
             <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;" x-show="canManage()">
               <label style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;display:inline-block;">
-                Subir foto
-                <input type="file" accept="image/*" style="display:none;" @change="uploadDocument(rec, $event.target.files[0])">
+                Subir documento
+                <input type="file" accept="image/*,application/pdf" multiple style="display:none;" @change="uploadDocuments(rec, $event.target.files); $event.target.value = ''">
               </label>
               <button x-show="rec.status === 'en_proceso'" @click="openResolve(rec)" class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.75rem;margin-right:0.35rem;">Resolver</button>
               <button x-show="rec.status === 'sin_solucion' && canDecommission()" @click="openDecommission(rec)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Dar de baja</button>
@@ -142,17 +144,42 @@
     </div>
   </div>
 
-  <!-- Modal: ver documento -->
+  <!-- Modal: ver documentos (puede haber varios, imagen o PDF) -->
   <div x-show="showDocModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.7);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="showDocModal = false">
-    <div class="card" style="max-width:600px;width:100%;max-height:90vh;overflow-y:auto;" x-show="docRecord">
+    <div class="card" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;" x-show="docRecord">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
-        <h2 style="font-size:1.05rem;font-weight:600;">Comprobante</h2>
+        <h2 style="font-size:1.05rem;font-weight:600;">Comprobantes</h2>
         <button @click="showDocModal = false" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
       </div>
-      <img :src="docRecord && docRecord.document_url" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;">
-      <div style="margin-top:0.75rem;text-align:right;">
-        <a :href="docRecord && docRecord.document_url" download class="btn-primary" style="text-decoration:none;display:inline-block;">Descargar</a>
-      </div>
+
+      <template x-if="docRecord && docRecord.documents && docRecord.documents.length === 0">
+        <p style="color:#94a3b8;font-size:0.85rem;">Todavía no hay documentos subidos.</p>
+      </template>
+
+      <template x-for="doc in (docRecord ? docRecord.documents : [])" :key="doc.id">
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+            <span style="font-size:0.78rem;color:#64748b;" x-text="(doc.original_filename || 'Documento') + ' · ' + formatDate(doc.uploaded_at)"></span>
+            <button x-show="canManage()" @click="deleteDocument(doc)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;">Eliminar</button>
+          </div>
+
+          <template x-if="doc.mime_type && doc.mime_type.startsWith('image/')">
+            <img :src="doc.file_url" style="width:100%;border-radius:6px;border:1px solid #e2e8f0;">
+          </template>
+          <template x-if="doc.mime_type === 'application/pdf'">
+            <iframe :src="doc.file_url" style="width:100%;height:50vh;border:1px solid #e2e8f0;border-radius:6px;"></iframe>
+          </template>
+
+          <div style="margin-top:0.5rem;text-align:right;">
+            <a :href="doc.file_url" download style="font-size:0.78rem;">Descargar</a>
+          </div>
+        </div>
+      </template>
+
+      <label x-show="canManage()" style="background:#f1f5f9;border-radius:6px;padding:0.5rem 0.75rem;cursor:pointer;font-size:0.8rem;display:inline-block;">
+        + Agregar documento
+        <input type="file" accept="image/*,application/pdf" multiple style="display:none;" @change="uploadDocuments(docRecord, $event.target.files); $event.target.value = ''">
+      </label>
     </div>
   </div>
 </div>
@@ -247,23 +274,47 @@ function maintenancePage() {
       await Promise.all([this.loadRecords(), this.loadTools()]);
     },
 
-    async uploadDocument(rec, file) {
-      if (!file) return;
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await authFetch(`/api/v1/maintenance/${rec.id}/document`, { method: 'POST', body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        this.showMessage(err.detail || 'No se pudo subir la foto', 'error');
-        return;
+    async uploadDocuments(rec, fileList) {
+      const files = Array.from(fileList || []);
+      if (!files.length) return;
+      let okCount = 0;
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await authFetch(`/api/v1/maintenance/${rec.id}/document`, { method: 'POST', body: fd });
+        if (res.ok) {
+          okCount++;
+        } else {
+          const err = await res.json().catch(() => ({}));
+          this.showMessage(err.detail || `No se pudo subir "${file.name}"`, 'error');
+        }
       }
-      this.showMessage('Foto del comprobante subida');
+      if (okCount) this.showMessage(okCount === 1 ? 'Documento subido' : `${okCount} documentos subidos`);
       await this.loadRecords();
+      // Si el modal de "ver documentos" está abierto para este mismo
+      // registro, lo refrescamos también — si no, quedan viejos hasta
+      // cerrar y volver a abrir.
+      if (this.docRecord && this.docRecord.id === rec.id) {
+        this.docRecord = this.records.find((r) => r.id === rec.id) || this.docRecord;
+      }
     },
 
-    viewDocument(rec) {
+    viewDocuments(rec) {
       this.docRecord = rec;
       this.showDocModal = true;
+    },
+
+    async deleteDocument(doc) {
+      if (!this.docRecord) return;
+      const res = await authFetch(`/api/v1/maintenance/${this.docRecord.id}/document/${doc.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo eliminar el documento', 'error');
+        return;
+      }
+      this.showMessage('Documento eliminado');
+      await this.loadRecords();
+      this.docRecord = this.records.find((r) => r.id === this.docRecord.id) || null;
     },
 
     openResolve(rec) {
