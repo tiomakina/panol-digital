@@ -57,7 +57,7 @@
             <td style="padding:0.65rem 1rem;"><span class="badge" :class="statusBadgeClass(loan.status)" x-text="statusLabel(loan.status)"></span></td>
             <td style="padding:0.65rem 1rem;color:#64748b;white-space:nowrap;" x-text="loan.return_date ? formatDateTime(loan.return_date) : '—'"></td>
             <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;">
-              <button @click="downloadVoucher(loan)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Vale PDF</button>
+              <button @click="viewVoucher(loan)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Vale PDF</button>
               <button x-show="(loan.status === 'activo' || loan.status === 'vencido') && canManage()" @click="openReturn(loan)" class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.75rem;">Devolver</button>
             </td>
           </tr>
@@ -197,6 +197,29 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal: ver vale de préstamo (mismo patrón visor + descargar que Mantenimiento) -->
+  <div x-show="showVoucherModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.7);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="closeVoucher()">
+    <div class="card" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <h2 style="font-size:1.05rem;font-weight:600;">Vale de préstamo</h2>
+        <button @click="closeVoucher()" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+      </div>
+
+      <template x-if="voucherLoading">
+        <p style="color:#94a3b8;font-size:0.85rem;">Generando vale...</p>
+      </template>
+
+      <template x-if="!voucherLoading && voucherUrl">
+        <div>
+          <iframe :src="voucherUrl" style="width:100%;height:60vh;border:1px solid #e2e8f0;border-radius:6px;"></iframe>
+          <div style="margin-top:0.5rem;text-align:right;">
+            <a :href="voucherUrl" :download="voucherFilename" style="font-size:0.78rem;">Descargar</a>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -219,6 +242,10 @@ function loansPage() {
     showCreateModal: false,
     showReturnModal: false,
     showBulkModal: false,
+    showVoucherModal: false,
+    voucherLoading: false,
+    voucherUrl: null,
+    voucherFilename: '',
     form: {},
     returnForm: {},
     returningLoan: null,
@@ -397,16 +424,32 @@ function loansPage() {
       await Promise.all([this.loadLoans(), this.loadTools()]);
     },
 
-    async downloadVoucher(loan) {
+    async viewVoucher(loan) {
+      this.voucherFilename = `vale_${loan.id}.pdf`;
+      this.showVoucherModal = true;
+      this.voucherLoading = true;
+      this.voucherUrl = null;
       const res = await authFetch(`/api/v1/loans/${loan.id}/voucher`);
-      if (!res.ok) { this.showMessage('No se pudo generar el vale', 'error'); return; }
+      this.voucherLoading = false;
+      if (!res.ok) {
+        this.showVoucherModal = false;
+        this.showMessage('No se pudo generar el vale', 'error');
+        return;
+      }
+      // El endpoint exige JWT (no es un archivo estático público como los
+      // comprobantes de Mantenimiento), así que no se puede apuntar un
+      // <iframe src="..."> directo a la API — se trae el PDF con authFetch
+      // y se arma un blob URL local para el visor y la descarga.
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `vale_${loan.id}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      this.voucherUrl = URL.createObjectURL(blob);
+    },
+
+    closeVoucher() {
+      this.showVoucherModal = false;
+      if (this.voucherUrl) {
+        URL.revokeObjectURL(this.voucherUrl);
+        this.voucherUrl = null;
+      }
     },
 
     formatDate(value) {
