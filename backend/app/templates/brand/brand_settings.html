@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Personalización de Marca{% endblock %}
 {% block page_title %}Personalización de Marca{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Logo, colores y nombre de la empresa</span>
+{% endblock %}
 
 {% block content %}
 <div x-data="brandEditor()" style="max-width: 1000px;">

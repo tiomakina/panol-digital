@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Mantenimiento{% endblock %}
 {% block page_title %}Mantenimiento{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Herramientas en service y su historial</span>
+{% endblock %}
 
 {% block content %}
 <div x-data="maintenancePage()" x-init="init()">

@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Cajas de Herramientas{% endblock %}
 {% block page_title %}Cajas de Herramientas{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Cajas armadas y auditorías de contenido</span>
+{% endblock %}
 
 {% block content %}
 <div x-data="toolboxesPage()" x-init="init()">

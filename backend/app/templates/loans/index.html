@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Préstamos{% endblock %}
 {% block page_title %}Préstamos{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Préstamos activos, vencidos e historial</span>
+{% endblock %}
 
 {% block content %}
 <div x-data="loansPage()" x-init="init()">

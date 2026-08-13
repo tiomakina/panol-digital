@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Herramientas{% endblock %}
 {% block page_title %}Herramientas{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Inventario completo de herramientas y equipos</span>
+{% endblock %}
 
 {% block content %}
 <div x-data="toolsPage()" x-init="init()">

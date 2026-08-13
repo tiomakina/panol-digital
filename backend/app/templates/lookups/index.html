@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Tablas maestras{% endblock %}
 {% block page_title %}Tablas maestras{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Marcas, categorías, ubicaciones y proveedores</span>
+{% endblock %}
 
 {% block content %}
 <div x-data="lookupsPage()" x-init="init()">

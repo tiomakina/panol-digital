@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Respaldo{% endblock %}
 {% block page_title %}Respaldo{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Copias de seguridad de la base de datos</span>
+{% endblock %}
 
 {% block content %}
 <div x-data="backupPage()" x-init="init()">
