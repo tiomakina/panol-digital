@@ -102,11 +102,12 @@ function lookupsPage() {
     items: [],
     loading: true,
     newName: '',
-    newProvider: { contact_name: '', phone: '', email: '', address: '' },
+    newProvider: { rut: '', contact_name: '', phone: '', email: '', address: '' },
     editingId: null,
     editName: '',
-    editProvider: { contact_name: '', phone: '', email: '', address: '' },
+    editProvider: { rut: '', contact_name: '', phone: '', email: '', address: '' },
     providerFields: [
+      { key: 'rut', label: 'RUT' },
       { key: 'contact_name', label: 'Contacto' },
       { key: 'phone', label: 'Teléfono' },
       { key: 'email', label: 'Email' },
@@ -121,7 +122,7 @@ function lookupsPage() {
       this.$watch('tab', () => {
         this.editingId = null;
         this.newName = '';
-        this.newProvider = { contact_name: '', phone: '', email: '', address: '' };
+        this.newProvider = { rut: '', contact_name: '', phone: '', email: '', address: '' };
         this.loadItems();
       });
     },
@@ -160,7 +161,7 @@ function lookupsPage() {
         return;
       }
       this.newName = '';
-      this.newProvider = { contact_name: '', phone: '', email: '', address: '' };
+      this.newProvider = { rut: '', contact_name: '', phone: '', email: '', address: '' };
       this.showMessage('Agregado correctamente');
       await this.loadItems();
     },

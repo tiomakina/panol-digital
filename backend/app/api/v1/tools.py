@@ -17,19 +17,31 @@ from app.models.user import User
 from app.schemas.maintenance import DecommissionInput
 from app.schemas.tool import ToolCreate, ToolOut, ToolUpdate
 from app.services.audit_service import log_action
-from app.services.brand_service import validate_image_magic_bytes
-from app.services.csv_service import parse_and_import_tools_csv, tools_to_csv
+from app.services.brand_service import validate_document_magic_bytes, validate_image_magic_bytes
+from app.services.csv_service import example_csv_bytes, parse_and_import_tools_csv, tools_to_csv
 from app.services.depreciation import calculate_current_value
 from app.services.qr_service import decode_qr_payload, generate_tool_qr
 
 router = APIRouter(prefix="/tools", tags=["Herramientas"])
 
 PHOTO_DIR = Path(settings.UPLOAD_DIR) / "tools"
+PURCHASE_DOC_DIR = Path(settings.UPLOAD_DIR) / "purchase_docs"
 
 
-def _to_out(tool: Tool) -> ToolOut:
+def _to_out(tool: Tool, viewer: User) -> ToolOut:
+    """
+    viewer determina si se muestran los valores económicos (costo de
+    compra, valor de rescate, valor actual/depreciado) — solo el Jefe los
+    ve. No alcanza con ocultarlos en el frontend: si el dato sigue viniendo
+    en el JSON, cualquiera puede leerlo abriendo el panel de red del
+    navegador, así que se los saca acá antes de responder.
+    """
     data = ToolOut.model_validate(tool)
     data.current_value = calculate_current_value(tool)
+    if viewer.role.value != "jefe":
+        data.purchase_cost = None
+        data.salvage_value = None
+        data.current_value = None
     return data
 
 
@@ -56,7 +68,7 @@ async def list_tools(
 
     result = await db.execute(stmt)
     tools = result.scalars().all()
-    return [_to_out(t) for t in tools]
+    return [_to_out(t, user) for t in tools]
 
 
 @router.get("/scan/{payload:path}", response_model=ToolOut)
@@ -68,7 +80,7 @@ async def scan_qr(payload: str, db: AsyncSession = Depends(get_db), user: User =
     tool = await db.get(Tool, tool_id)
     if not tool:
         raise HTTPException(status_code=404, detail="Herramienta no encontrada")
-    return _to_out(tool)
+    return _to_out(tool, user)
 
 
 @router.get("/export")
@@ -81,6 +93,16 @@ async def export_tools(db: AsyncSession = Depends(get_db), user: User = Depends(
         content=csv_bytes,
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/import/example")
+async def download_example_csv(user: User = Depends(get_current_user)):
+    """Plantilla CSV descargable con las columnas esperadas y un par de filas de ejemplo."""
+    return Response(
+        content=example_csv_bytes(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="herramientas_ejemplo.csv"'},
     )
 
 
@@ -131,7 +153,7 @@ async def get_tool(tool_id: int, db: AsyncSession = Depends(get_db), user: User 
     tool = await db.get(Tool, tool_id)
     if not tool:
         raise HTTPException(status_code=404, detail="Herramienta no encontrada")
-    return _to_out(tool)
+    return _to_out(tool, user)
 
 
 @router.post("", response_model=ToolOut, status_code=status.HTTP_201_CREATED)
@@ -156,7 +178,7 @@ async def create_tool(
 
     await db.commit()
     await db.refresh(tool)
-    return _to_out(tool)
+    return _to_out(tool, user)
 
 
 @router.put("/{tool_id}", response_model=ToolOut)
@@ -175,7 +197,7 @@ async def update_tool(
 
     await db.commit()
     await db.refresh(tool)
-    return _to_out(tool)
+    return _to_out(tool, user)
 
 
 @router.post("/{tool_id}/photo", response_model=ToolOut)
@@ -206,7 +228,38 @@ async def upload_tool_photo(
     tool.photo_url = f"/static/uploads/tools/tool_{tool_id}.{ext}"
     await db.commit()
     await db.refresh(tool)
-    return _to_out(tool)
+    return _to_out(tool, user)
+
+
+@router.post("/{tool_id}/purchase-document", response_model=ToolOut)
+async def upload_purchase_document(
+    tool_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("encargado")),
+):
+    """Sube o reemplaza el comprobante de compra (boleta/factura) — imagen o PDF."""
+    tool = await db.get(Tool, tool_id)
+    if not tool:
+        raise HTTPException(status_code=404, detail="Herramienta no encontrada")
+
+    file_bytes = await file.read()
+    valid, mime_type = validate_document_magic_bytes(file_bytes)
+    if not valid or mime_type == "image/svg+xml":
+        raise HTTPException(status_code=400, detail="Archivo inválido (solo PNG, JPG, WebP o PDF)")
+    if len(file_bytes) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"El archivo supera los {settings.MAX_UPLOAD_SIZE_MB}MB permitidos")
+
+    ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
+    PURCHASE_DOC_DIR.mkdir(parents=True, exist_ok=True)
+    doc_path = PURCHASE_DOC_DIR / f"tool_{tool_id}.{ext}"
+    with open(doc_path, "wb") as f:
+        f.write(file_bytes)
+
+    tool.purchase_document_url = f"/static/uploads/purchase_docs/tool_{tool_id}.{ext}"
+    await db.commit()
+    await db.refresh(tool)
+    return _to_out(tool, user)
 
 
 @router.delete("/{tool_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -275,4 +328,4 @@ async def decommission_tool(
     )
     await db.commit()
     await db.refresh(tool)
-    return _to_out(tool)
+    return _to_out(tool, user)

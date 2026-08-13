@@ -35,6 +35,10 @@
       Importar CSV
       <input type="file" accept=".csv" style="display:none;" @change="importTools($event.target.files[0]); $event.target.value = ''">
     </label>
+    <button x-show="canManage()" @click="downloadExampleCsv()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;color:#64748b;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Descargar ejemplo
+    </button>
     <button class="btn-primary" @click="openCreate()" x-show="canManage()">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Nueva herramienta
@@ -50,7 +54,7 @@
           <th style="padding:0.75rem 1rem;font-weight:600;">Categoría</th>
           <th style="padding:0.75rem 1rem;font-weight:600;">N° de serie</th>
           <th style="padding:0.75rem 1rem;font-weight:600;">Estado</th>
-          <th style="padding:0.75rem 1rem;font-weight:600;">Valor actual</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;" x-show="isJefe()">Valor actual</th>
           <th style="padding:0.75rem 1rem;font-weight:600;"></th>
         </tr>
       </thead>
@@ -80,11 +84,11 @@
               <div class="status-tooltip-wrap" style="position:relative;display:inline-block;">
                 <span class="badge" :class="statusBadgeClass(tool.status)" x-text="statusLabel(tool.status)"></span>
                 <template x-if="statusDetail(tool)">
-                  <div class="status-tooltip" x-text="statusDetail(tool)"></div>
+                  <div class="status-tooltip" :style="'color:' + loanUrgencyColor(tool)" x-text="statusDetail(tool)"></div>
                 </template>
               </div>
             </td>
-            <td style="padding:0.65rem 1rem;color:#475569;" x-text="tool.current_value != null ? '$' + Number(tool.current_value).toLocaleString() : '—'"></td>
+            <td style="padding:0.65rem 1rem;color:#475569;" x-show="isJefe()" x-text="tool.current_value != null ? '$' + Number(tool.current_value).toLocaleString() : '—'"></td>
             <td style="padding:0.65rem 1rem;text-align:right;">
               <button @click.stop="openEdit(tool)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Ver / editar</button>
             </td>
@@ -122,6 +126,10 @@
         <div style="grid-column:1/-1;">
           <label class="field-label">Nombre *</label>
           <input type="text" x-model="form.name" class="field-input" required>
+        </div>
+        <div>
+          <label class="field-label">Código de producto</label>
+          <input type="text" x-model="form.product_code" class="field-input" placeholder="Identifica el modelo — puede repetirse entre unidades">
         </div>
         <div>
           <label class="field-label">Marca</label>
@@ -193,8 +201,12 @@
           </template>
         </div>
         <div><label class="field-label">Fecha de compra</label><input type="date" x-model="form.purchase_date" class="field-input"></div>
-        <div><label class="field-label">Costo de compra</label><input type="number" step="0.01" x-model="form.purchase_cost" class="field-input"></div>
-        <div><label class="field-label">Valor de rescate</label><input type="number" step="0.01" x-model="form.salvage_value" class="field-input"></div>
+        <template x-if="isJefe()">
+          <div><label class="field-label">Costo de compra</label><input type="number" step="0.01" x-model="form.purchase_cost" class="field-input"></div>
+        </template>
+        <template x-if="isJefe()">
+          <div><label class="field-label">Valor de rescate</label><input type="number" step="0.01" x-model="form.salvage_value" class="field-input"></div>
+        </template>
         <div><label class="field-label">Vida útil (años)</label><input type="number" x-model="form.useful_life_years" class="field-input"></div>
         <div>
           <label class="field-label">Método de depreciación</label>
@@ -203,6 +215,14 @@
             <option value="doble_saldo">Doble saldo decreciente</option>
             <option value="uop">Unidades de producción</option>
           </select>
+        </div>
+        <div><label class="field-label">Folio documento de compra</label><input type="text" x-model="form.purchase_document_folio" class="field-input" placeholder="N° de boleta/factura"></div>
+        <div>
+          <label class="field-label">Comprobante de compra</label>
+          <input type="file" accept="image/*,application/pdf" @change="purchaseDocFile = $event.target.files[0]" class="field-input">
+          <template x-if="editing && editing.purchase_document_url">
+            <a :href="editing.purchase_document_url" target="_blank" style="font-size:0.72rem;display:inline-block;margin-top:0.25rem;">Ver comprobante actual</a>
+          </template>
         </div>
         <div style="grid-column:1/-1;">
           <label class="field-label">Descripción</label>
@@ -224,6 +244,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;">
         <div style="display:flex;gap:0.5rem;">
           <button x-show="editing && canDelete()" @click="deleteTool(editing)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Eliminar</button>
+          <button x-show="editing && canManage()" @click="duplicateTool()" style="background:#e0e7ff;color:#3730a3;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Duplicar herramienta</button>
           <button x-show="editing && canManage() && (editing.status === 'disponible' || editing.status === 'en_caja')" @click="openMaintenanceQuick()" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Enviar a mantenimiento</button>
         </div>
         <div style="display:flex;gap:0.5rem;margin-left:auto;">
@@ -342,6 +363,7 @@ function toolsPage() {
     editing: null,
     form: {},
     photoFile: null,
+    purchaseDocFile: null,
     showScanModal: false,
     scanError: '',
     _scanner: null,
@@ -452,13 +474,38 @@ function toolsPage() {
         return `Caja: ${box.name} · Responsable: ${responsible}`;
       }
       if (tool.status === 'prestado') {
-        const loan = this.loans.find((l) => l.tool_id === tool.id && (l.status === 'activo' || l.status === 'vencido'));
+        const loan = this._activeLoanFor(tool);
         if (!loan) return null;
         const borrower = this.userName(loan.borrower_id);
-        const dueLabel = loan.status === 'vencido' ? 'Vencido' : 'Al día';
+        let dueLabel = 'Al día';
+        if (loan.status === 'vencido') dueLabel = 'Vencido';
+        else if (this._daysUntilDue(loan) <= 2) dueLabel = 'Por vencer';
         return `Prestado a: ${borrower} · Vence: ${this.formatDate(loan.due_date)} (${dueLabel})`;
       }
       return null;
+    },
+
+    _activeLoanFor(tool) {
+      return this.loans.find((l) => l.tool_id === tool.id && (l.status === 'activo' || l.status === 'vencido'));
+    },
+
+    _daysUntilDue(loan) {
+      const due = new Date(loan.due_date + 'T00:00:00');
+      const today = new Date(new Date().toDateString());
+      return Math.round((due - today) / 86400000);
+    },
+
+    // Color del texto del tooltip de "Prestado": verde al día, naranjo si
+    // vence en 2 días o menos, rojo si ya venció. El badge en sí se queda
+    // amarillo siempre (statusBadgeClass no cambia) — esto es solo el
+    // texto de adentro del popup.
+    loanUrgencyColor(tool) {
+      if (tool.status !== 'prestado') return '#fff';
+      const loan = this._activeLoanFor(tool);
+      if (!loan) return '#fff';
+      if (loan.status === 'vencido') return '#f87171';
+      if (this._daysUntilDue(loan) <= 2) return '#fb923c';
+      return '#4ade80';
     },
 
     userName(userId) {
@@ -473,6 +520,7 @@ function toolsPage() {
 
     canManage() { return hasRole(this.user, 'encargado'); },
     canDelete() { return hasRole(this.user, 'jefe'); },
+    isJefe() { return hasRole(this.user, 'jefe'); },
 
     async loadTools() {
       this.loading = true;
@@ -487,11 +535,12 @@ function toolsPage() {
     openCreate() {
       this.editing = null;
       this.form = {
-        name: '', brand: '', model: '', serial_number: '', category: '', location: '',
+        name: '', product_code: '', brand: '', model: '', serial_number: '', category: '', location: '',
         supplier: '', purchase_date: '', purchase_cost: '', salvage_value: '0',
-        useful_life_years: 5, depreciation_method: 'lineal', description: '',
+        useful_life_years: 5, depreciation_method: 'lineal', description: '', purchase_document_folio: '',
       };
       this.photoFile = null;
+      this.purchaseDocFile = null;
       this.showModal = true;
     },
 
@@ -499,7 +548,22 @@ function toolsPage() {
       this.editing = tool;
       this.form = { ...tool };
       this.photoFile = null;
+      this.purchaseDocFile = null;
       this.showModal = true;
+    },
+
+    // "Duplicar" precarga todos los datos del producto (mismo
+    // product_code, marca, categoría, costos, etc.) menos el número de
+    // serie — así se pueden cargar varias unidades del mismo producto sin
+    // reescribir el formulario entero cada vez. Al guardar, como editing
+    // queda en null, save() hace un POST (crea una herramienta nueva) en
+    // vez de un PUT sobre la original.
+    duplicateTool() {
+      this.form = { ...this.form, serial_number: '' };
+      this.editing = null;
+      this.photoFile = null;
+      this.purchaseDocFile = null;
+      this.showMessage('Datos duplicados — completá el número de serie y guardá para crear la copia');
     },
 
     closeModal() { this.showModal = false; },
@@ -554,6 +618,15 @@ function toolsPage() {
       const payload = { ...this.form };
       delete payload.id; delete payload.status; delete payload.photo_url;
       delete payload.qr_code_url; delete payload.created_at; delete payload.updated_at; delete payload.current_value;
+      delete payload.purchase_document_url;
+      // Un no-Jefe nunca ve purchase_cost/salvage_value (el backend se los
+      // oculta al leer la herramienta — ver _to_out en tools.py), así que
+      // su formulario los tiene en null. Si los mandáramos igual en el
+      // PUT, el backend los interpretaría como "el usuario los puso en
+      // null a propósito" y borraría el costo real cargado por el Jefe
+      // con solo editar cualquier otro campo. Se sacan del todo del
+      // payload para que ese PUT ni los toque.
+      if (!this.isJefe()) { delete payload.purchase_cost; delete payload.salvage_value; }
       ['purchase_date', 'purchase_cost'].forEach((f) => { if (payload[f] === '') payload[f] = null; });
 
       const url = this.editing ? `/api/v1/tools/${this.editing.id}` : '/api/v1/tools';
@@ -571,6 +644,11 @@ function toolsPage() {
         const fd = new FormData();
         fd.append('file', this.photoFile);
         await authFetch(`/api/v1/tools/${saved.id}/photo`, { method: 'POST', body: fd });
+      }
+      if (this.purchaseDocFile) {
+        const fd = new FormData();
+        fd.append('file', this.purchaseDocFile);
+        await authFetch(`/api/v1/tools/${saved.id}/purchase-document`, { method: 'POST', body: fd });
       }
 
       this.showMessage('Herramienta guardada correctamente');
@@ -625,6 +703,18 @@ function toolsPage() {
       const a = document.createElement('a');
       a.href = url;
       a.download = `herramientas_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    async downloadExampleCsv() {
+      const res = await authFetch('/api/v1/tools/import/example');
+      if (!res.ok) { this.showMessage('No se pudo descargar el ejemplo', 'error'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'herramientas_ejemplo.csv';
       a.click();
       URL.revokeObjectURL(url);
     },

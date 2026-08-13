@@ -20,6 +20,7 @@ class LookupOut(BaseModel):
 
 
 class ProviderCreate(LookupCreate):
+    rut: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -27,6 +28,7 @@ class ProviderCreate(LookupCreate):
 
 
 class ProviderUpdate(LookupUpdate):
+    rut: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -34,6 +36,7 @@ class ProviderUpdate(LookupUpdate):
 
 
 class ProviderOut(LookupOut):
+    rut: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None

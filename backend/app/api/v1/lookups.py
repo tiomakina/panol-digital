@@ -103,7 +103,7 @@ async def create_provider(
     payload: ProviderCreate, db: AsyncSession = Depends(get_db), user: User = Depends(require_role("encargado"))
 ):
     provider = Provider(
-        name=payload.name.strip(), contact_name=payload.contact_name,
+        name=payload.name.strip(), rut=payload.rut, contact_name=payload.contact_name,
         phone=payload.phone, email=payload.email, address=payload.address,
     )
     db.add(provider)
@@ -128,6 +128,8 @@ async def update_provider(
         raise HTTPException(status_code=404, detail="No encontrado en Proveedores")
     if payload.name is not None:
         provider.name = payload.name.strip()
+    if payload.rut is not None:
+        provider.rut = payload.rut
     if payload.contact_name is not None:
         provider.contact_name = payload.contact_name
     if payload.phone is not None:

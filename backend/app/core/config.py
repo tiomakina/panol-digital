@@ -4,7 +4,7 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Pañol v2.0"
+    APP_NAME: str = "Pañol 360"
     APP_VERSION: str = "2.0.0"
     DEBUG: bool = False
     SECRET_KEY: str = "CAMBIAR_EN_PRODUCCION_clave_muy_segura_2025"

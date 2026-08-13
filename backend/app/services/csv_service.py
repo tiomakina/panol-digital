@@ -22,7 +22,7 @@ from app.models.lookup import Brand, Category, Location, Provider
 from app.models.tool import DepreciationMethod, Tool, ToolStatus
 
 CSV_COLUMNS = [
-    "name", "brand", "model", "serial_number", "category", "location", "supplier",
+    "name", "product_code", "brand", "model", "serial_number", "category", "location", "supplier",
     "status", "purchase_date", "purchase_cost", "salvage_value", "useful_life_years",
     "depreciation_method", "description",
 ]
@@ -40,6 +40,7 @@ def tools_to_csv(tools: list[Tool]) -> bytes:
     for t in tools:
         writer.writerow({
             "name": t.name,
+            "product_code": t.product_code or "",
             "brand": t.brand or "",
             "model": t.model or "",
             "serial_number": t.serial_number or "",
@@ -55,6 +56,43 @@ def tools_to_csv(tools: list[Tool]) -> bytes:
             "description": t.description or "",
         })
     # BOM al principio para que Excel abra el UTF-8 sin romper acentos/ñ.
+    return ("﻿" + buf.getvalue()).encode("utf-8")
+
+
+# Filas de ejemplo para la plantilla descargable — dos casos típicos (una
+# herramienta eléctrica con todos los datos, una manual con lo mínimo) para
+# que quede claro qué formato espera cada columna sin tener que adivinar.
+_EXAMPLE_ROWS = [
+    {
+        "name": "Taladro Percutor", "product_code": "TAL-BOSCH-13RE", "brand": "Bosch", "model": "GSB 13 RE",
+        "serial_number": "TL-0001", "category": "Eléctricas", "location": "Estante A1",
+        "supplier": "Casa Bagnara", "status": "disponible", "purchase_date": "2025-01-15",
+        "purchase_cost": "45000", "salvage_value": "4500", "useful_life_years": "5",
+        "depreciation_method": "lineal", "description": "Ejemplo con todos los datos completos",
+    },
+    {
+        "name": "Martillo de Bola", "product_code": "", "brand": "Stanley", "model": "",
+        "serial_number": "", "category": "Manuales", "location": "Estante B2",
+        "supplier": "", "status": "disponible", "purchase_date": "", "purchase_cost": "",
+        "salvage_value": "", "useful_life_years": "", "depreciation_method": "",
+        "description": "Ejemplo con solo lo mínimo — nombre, marca, categoría y ubicación",
+    },
+]
+
+
+def example_csv_bytes() -> bytes:
+    """
+    Plantilla descargable para el import — mismas columnas que exporta
+    /tools/export, con un par de filas de ejemplo en vez de vacía, así se
+    ve el formato esperado de cada columna (fechas AAAA-MM-DD, status y
+    depreciation_method con sus valores válidos, etc.) sin tener que leer
+    la documentación.
+    """
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS)
+    writer.writeheader()
+    for row in _EXAMPLE_ROWS:
+        writer.writerow(row)
     return ("﻿" + buf.getvalue()).encode("utf-8")
 
 
@@ -160,6 +198,7 @@ async def parse_and_import_tools_csv(db: AsyncSession, file_bytes: bytes) -> Imp
             continue
 
         serial_number = (row.get("serial_number") or "").strip() or None
+        product_code = (row.get("product_code") or "").strip() or None
         brand = (row.get("brand") or "").strip() or None
         category = (row.get("category") or "").strip() or None
         location = (row.get("location") or "").strip() or None
@@ -174,6 +213,7 @@ async def parse_and_import_tools_csv(db: AsyncSession, file_bytes: bytes) -> Imp
 
         if existing_tool:
             existing_tool.name = name
+            existing_tool.product_code = product_code
             existing_tool.brand = brand
             existing_tool.model = (row.get("model") or "").strip() or None
             existing_tool.category = category
@@ -199,6 +239,7 @@ async def parse_and_import_tools_csv(db: AsyncSession, file_bytes: bytes) -> Imp
         else:
             new_tool = Tool(
                 name=name,
+                product_code=product_code,
                 brand=brand,
                 model=(row.get("model") or "").strip() or None,
                 serial_number=serial_number,

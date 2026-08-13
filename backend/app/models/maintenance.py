@@ -59,6 +59,12 @@ class MaintenanceDocument(Base):
     maintenance_record_id: Mapped[int] = mapped_column(ForeignKey("maintenance_records.id"))
     file_url: Mapped[str] = mapped_column(String(500))
     original_filename: Mapped[str] = mapped_column(String(255), nullable=True)
+    # Título corto ("Cotización", "Factura N°123") y observación libre que
+    # el que sube el archivo carga a mano — sin esto, la lista de
+    # comprobantes de un mantenimiento con varios documentos es solo
+    # nombres de archivo sueltos, difícil de distinguir a simple vista.
+    title: Mapped[str] = mapped_column(String(255), nullable=True)
+    note: Mapped[str] = mapped_column(Text, nullable=True)
     mime_type: Mapped[str] = mapped_column(String(100))
     uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -33,8 +33,15 @@ class MaintenanceDocumentOut(BaseModel):
     file_url: str
     original_filename: str | None = None
     mime_type: str
+    title: str | None = None
+    note: str | None = None
     uploaded_at: datetime
     uploaded_by: MaintenanceCreatedByOut | None = None
+
+
+class MaintenanceDocumentUpdate(BaseModel):
+    title: str | None = None
+    note: str | None = None
 
 
 class MaintenanceOut(BaseModel):

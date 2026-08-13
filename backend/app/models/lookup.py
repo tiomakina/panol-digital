@@ -47,6 +47,7 @@ class Provider(Base):
     # formulario ya no lo usa — los datos de contacto ahora van en los
     # campos de abajo, cada uno en el suyo.
     contact_info: Mapped[str] = mapped_column(String(500), nullable=True)
+    rut: Mapped[str] = mapped_column(String(20), nullable=True)
     contact_name: Mapped[str] = mapped_column(String(255), nullable=True)
     phone: Mapped[str] = mapped_column(String(50), nullable=True)
     email: Mapped[str] = mapped_column(String(255), nullable=True)

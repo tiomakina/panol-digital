@@ -37,7 +37,7 @@ async def test_export_produces_valid_csv_with_bom(client):
     assert res.status_code == 200
     assert res.headers["content-type"].startswith("text/csv")
     body = res.content.decode("utf-8-sig")
-    assert "name,brand,model,serial_number" in body
+    assert "name,product_code,brand,model,serial_number" in body
     assert "Taladro CSV" in body
 
 

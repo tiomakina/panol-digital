@@ -58,7 +58,7 @@
             <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;" x-show="canManage()">
               <label style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;display:inline-block;">
                 Subir documento
-                <input type="file" accept="image/*,application/pdf" multiple style="display:none;" @change="uploadDocuments(rec, $event.target.files); $event.target.value = ''">
+                <input type="file" accept="image/*,application/pdf" style="display:none;" @change="promptDocumentUpload(rec, $event.target.files[0]); $event.target.value = ''">
               </label>
               <button x-show="rec.status === 'en_proceso'" @click="openResolve(rec)" class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.75rem;margin-right:0.35rem;">Resolver</button>
               <button x-show="rec.status === 'sin_solucion' && canDecommission()" @click="openDecommission(rec)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Dar de baja</button>
@@ -158,10 +158,32 @@
 
       <template x-for="doc in (docRecord ? docRecord.documents : [])" :key="doc.id">
         <div style="border:1px solid #e2e8f0;border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
-            <span style="font-size:0.78rem;color:#64748b;" x-text="(doc.original_filename || 'Documento') + ' · ' + formatDate(doc.uploaded_at)"></span>
-            <button x-show="canManage()" @click="deleteDocument(doc)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;">Eliminar</button>
-          </div>
+          <template x-if="editingDocumentId !== doc.id">
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.25rem;">
+                <span style="font-size:0.88rem;font-weight:600;color:#1e293b;" x-text="doc.title || doc.original_filename || 'Documento'"></span>
+                <span x-show="canManage()" style="white-space:nowrap;">
+                  <button @click="startEditDocument(doc)" style="background:none;border:none;color:#475569;cursor:pointer;font-size:0.75rem;margin-right:0.5rem;">Editar</button>
+                  <button @click="deleteDocument(doc)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;">Eliminar</button>
+                </span>
+              </div>
+              <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:0.5rem;" x-text="(doc.original_filename || '') + ' · ' + formatDate(doc.uploaded_at)"></div>
+              <p x-show="doc.note" style="font-size:0.8rem;color:#475569;margin:0 0 0.5rem;" x-text="doc.note"></p>
+            </div>
+          </template>
+
+          <template x-if="editingDocumentId === doc.id">
+            <div style="margin-bottom:0.75rem;">
+              <label class="field-label">Título</label>
+              <input type="text" x-model="editDocumentForm.title" class="field-input" style="margin-bottom:0.5rem;" placeholder="Ej: Cotización, Factura N°123...">
+              <label class="field-label">Observación</label>
+              <textarea x-model="editDocumentForm.note" class="field-input" rows="2" style="margin-bottom:0.5rem;"></textarea>
+              <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+                <button @click="editingDocumentId = null" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.35rem 0.7rem;cursor:pointer;font-size:0.78rem;">Cancelar</button>
+                <button @click="saveDocumentEdit(doc)" class="btn-primary" style="padding:0.35rem 0.7rem;font-size:0.78rem;">Guardar</button>
+              </div>
+            </div>
+          </template>
 
           <template x-if="doc.mime_type && doc.mime_type.startsWith('image/')">
             <img :src="doc.file_url" style="width:100%;border-radius:6px;border:1px solid #e2e8f0;">
@@ -178,8 +200,26 @@
 
       <label x-show="canManage()" style="background:#f1f5f9;border-radius:6px;padding:0.5rem 0.75rem;cursor:pointer;font-size:0.8rem;display:inline-block;">
         + Agregar documento
-        <input type="file" accept="image/*,application/pdf" multiple style="display:none;" @change="uploadDocuments(docRecord, $event.target.files); $event.target.value = ''">
+        <input type="file" accept="image/*,application/pdf" style="display:none;" @change="promptDocumentUpload(docRecord, $event.target.files[0]); $event.target.value = ''">
       </label>
+    </div>
+  </div>
+
+  <!-- Modal: título/observación al subir un documento -->
+  <div x-show="showUploadDetailsModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.6);display:flex;align-items:center;justify-content:center;z-index:70;padding:1rem;" @click.self="showUploadDetailsModal = false">
+    <div class="card" style="max-width:400px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;">Datos del documento</h2>
+      <p style="font-size:0.78rem;color:#64748b;margin:0 0 1rem;" x-text="pendingUploadFile ? pendingUploadFile.name : ''"></p>
+
+      <label class="field-label">Título</label>
+      <input type="text" x-model="uploadForm.title" class="field-input" style="margin-bottom:0.75rem;" placeholder="Ej: Cotización, Factura N°123...">
+      <label class="field-label">Observación</label>
+      <textarea x-model="uploadForm.note" class="field-input" rows="2"></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showUploadDetailsModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmDocumentUpload()" class="btn-primary">Subir</button>
+      </div>
     </div>
   </div>
 </div>
@@ -206,12 +246,18 @@ function maintenancePage() {
     showResolveModal: false,
     showDecommissionModal: false,
     showDocModal: false,
+    showUploadDetailsModal: false,
     sendForm: {},
     resolveForm: {},
     decommissionForm: {},
+    uploadForm: {},
+    editDocumentForm: {},
     resolving: null,
     decommissioning: null,
     docRecord: null,
+    pendingUploadRecordId: null,
+    pendingUploadFile: null,
+    editingDocumentId: null,
     message: '',
     messageType: 'success',
 
@@ -274,34 +320,66 @@ function maintenancePage() {
       await Promise.all([this.loadRecords(), this.loadTools()]);
     },
 
-    async uploadDocuments(rec, fileList) {
-      const files = Array.from(fileList || []);
-      if (!files.length) return;
-      let okCount = 0;
-      for (const file of files) {
-        const fd = new FormData();
-        fd.append('file', file);
-        const res = await authFetch(`/api/v1/maintenance/${rec.id}/document`, { method: 'POST', body: fd });
-        if (res.ok) {
-          okCount++;
-        } else {
-          const err = await res.json().catch(() => ({}));
-          this.showMessage(err.detail || `No se pudo subir "${file.name}"`, 'error');
-        }
+    // Antes de subir de verdad, pedimos título/observación en un modal
+    // aparte — así cada comprobante queda identificable a simple vista en
+    // vez de ser solo un nombre de archivo suelto.
+    promptDocumentUpload(rec, file) {
+      if (!file || !rec) return;
+      this.pendingUploadRecordId = rec.id;
+      this.pendingUploadFile = file;
+      this.uploadForm = { title: '', note: '' };
+      this.showUploadDetailsModal = true;
+    },
+
+    async confirmDocumentUpload() {
+      const fd = new FormData();
+      fd.append('file', this.pendingUploadFile);
+      if (this.uploadForm.title) fd.append('title', this.uploadForm.title);
+      if (this.uploadForm.note) fd.append('note', this.uploadForm.note);
+
+      const res = await authFetch(`/api/v1/maintenance/${this.pendingUploadRecordId}/document`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo subir el documento', 'error');
+        return;
       }
-      if (okCount) this.showMessage(okCount === 1 ? 'Documento subido' : `${okCount} documentos subidos`);
+      this.showMessage('Documento subido');
+      this.showUploadDetailsModal = false;
+      const recordId = this.pendingUploadRecordId;
+      this.pendingUploadFile = null;
       await this.loadRecords();
       // Si el modal de "ver documentos" está abierto para este mismo
-      // registro, lo refrescamos también — si no, quedan viejos hasta
+      // registro, lo refrescamos también — si no, queda viejo hasta
       // cerrar y volver a abrir.
-      if (this.docRecord && this.docRecord.id === rec.id) {
-        this.docRecord = this.records.find((r) => r.id === rec.id) || this.docRecord;
+      if (this.docRecord && this.docRecord.id === recordId) {
+        this.docRecord = this.records.find((r) => r.id === recordId) || this.docRecord;
       }
     },
 
     viewDocuments(rec) {
       this.docRecord = rec;
       this.showDocModal = true;
+    },
+
+    startEditDocument(doc) {
+      this.editingDocumentId = doc.id;
+      this.editDocumentForm = { title: doc.title || '', note: doc.note || '' };
+    },
+
+    async saveDocumentEdit(doc) {
+      if (!this.docRecord) return;
+      const res = await authFetch(`/api/v1/maintenance/${this.docRecord.id}/document/${doc.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.editDocumentForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo guardar', 'error');
+        return;
+      }
+      this.editingDocumentId = null;
+      this.showMessage('Documento actualizado');
+      await this.loadRecords();
+      this.docRecord = this.records.find((r) => r.id === this.docRecord.id) || null;
     },
 
     async deleteDocument(doc) {

@@ -140,6 +140,12 @@ async def test_audit_report_requires_jefe_and_records_actions(client):
 
     audit = await client.get("/api/v1/reports/audit", headers=_auth(jefe_token))
     assert audit.status_code == 200
-    actions = [entry["action"] for entry in audit.json()]
+    entries = audit.json()
+    actions = [entry["action"] for entry in entries]
     # Los logins de arriba ya debieron quedar registrados
     assert "auth.login" in actions
+    # El registro trae quién hizo la acción, no solo el user_id crudo —
+    # así el reporte puede mostrar el nombre en vez de un número suelto.
+    login_entry = next(e for e in entries if e["action"] == "auth.login")
+    assert login_entry["user"] is not None
+    assert login_entry["user"]["full_name"]

@@ -1,4 +1,4 @@
-# 🔧 Pañol v2.0 — Sistema de Gestión de Herramientas
+# 🔧 Pañol 360 — Sistema de Gestión de Herramientas
 
 ## Visión del proyecto
 Sistema empresarial de gestión de herramientas con **branding dinámico por empresa**. 

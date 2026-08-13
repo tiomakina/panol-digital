@@ -1,5 +1,5 @@
 """
-Pañol v2.0 — FastAPI Application Entry Point
+Pañol 360 — FastAPI Application Entry Point
 Equipo: Alex (Arquitecto), Marco (Backend), Luna (UX/UI)
 """
 from contextlib import asynccontextmanager
@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Pañol v2.0 API",
+    title="Pañol 360 API",
     description="Sistema de Gestión de Herramientas con Branding Dinámico",
     version="2.0.0",
     lifespan=lifespan,

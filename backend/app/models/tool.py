@@ -27,6 +27,11 @@ class Tool(Base):
     __tablename__ = "tools"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
+    # Código de producto — identifica el MODELO/producto (no la unidad
+    # física). A propósito no es único: varias unidades del mismo producto
+    # comparten el mismo product_code pero cada una tiene su propio
+    # serial_number (ver "Duplicar herramienta" en la API de herramientas).
+    product_code: Mapped[str] = mapped_column(String(100), nullable=True, index=True)
     brand: Mapped[str] = mapped_column(String(100), nullable=True)
     model: Mapped[str] = mapped_column(String(100), nullable=True)
     serial_number: Mapped[str] = mapped_column(String(100), unique=True, nullable=True)
@@ -42,6 +47,11 @@ class Tool(Base):
     photo_url: Mapped[str] = mapped_column(String(500), nullable=True)
     qr_code_url: Mapped[str] = mapped_column(String(500), nullable=True)
     supplier: Mapped[str] = mapped_column(String(255), nullable=True)
+    # Folio del documento de compra (boleta/factura) + el comprobante
+    # escaneado (imagen o PDF) — igual que MaintenanceDocument, pero acá
+    # es uno solo por herramienta, no una lista.
+    purchase_document_folio: Mapped[str] = mapped_column(String(100), nullable=True)
+    purchase_document_url: Mapped[str] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

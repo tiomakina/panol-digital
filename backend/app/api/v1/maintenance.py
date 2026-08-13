@@ -6,7 +6,7 @@ Endpoint: /api/v1/maintenance/
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +16,7 @@ from app.core.security import get_current_user, require_role
 from app.models.maintenance import MaintenanceDocument, MaintenanceRecord, MaintenanceStatus
 from app.models.tool import Tool, ToolStatus
 from app.models.user import User
-from app.schemas.maintenance import MaintenanceCreate, MaintenanceOut, MaintenanceResolve
+from app.schemas.maintenance import MaintenanceCreate, MaintenanceDocumentUpdate, MaintenanceOut, MaintenanceResolve
 from app.services.audit_service import log_action
 from app.services.brand_service import validate_document_magic_bytes
 from app.services.maintenance_service import send_tool_to_maintenance
@@ -89,13 +89,17 @@ async def send_to_maintenance(
 async def upload_maintenance_document(
     record_id: int,
     file: UploadFile = File(...),
+    title: str | None = Form(None),
+    note: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("encargado")),
 ):
     """
     Suma un comprobante al registro (orden de trabajo, cotización, factura)
     — no reemplaza los anteriores, un mismo mantenimiento puede tener
-    varios. Acepta imagen (PNG/JPG/WebP) o PDF.
+    varios. Acepta imagen (PNG/JPG/WebP) o PDF, con un título y una
+    observación opcionales para poder distinguirlos de un vistazo cuando
+    hay varios (si no, son solo nombres de archivo sueltos).
     """
     record = await _get_record_or_404(db, record_id)
 
@@ -108,7 +112,7 @@ async def upload_maintenance_document(
 
     document = MaintenanceDocument(
         maintenance_record_id=record_id, file_url="", original_filename=file.filename,
-        mime_type=mime_type, uploaded_by_id=user.id,
+        mime_type=mime_type, title=title, note=note, uploaded_by_id=user.id,
     )
     db.add(document)
     await db.flush()
@@ -119,6 +123,30 @@ async def upload_maintenance_document(
     with open(doc_path, "wb") as f:
         f.write(file_bytes)
     document.file_url = f"/static/uploads/maintenance/maintenance_{record_id}_{document.id}.{ext}"
+
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+@router.put("/{record_id}/document/{document_id}", response_model=MaintenanceOut)
+async def update_maintenance_document(
+    record_id: int,
+    document_id: int,
+    payload: MaintenanceDocumentUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("encargado")),
+):
+    """Corrige el título/observación de un comprobante ya subido (no toca el archivo)."""
+    record = await _get_record_or_404(db, record_id)
+    document = await db.get(MaintenanceDocument, document_id)
+    if not document or document.maintenance_record_id != record_id:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    if payload.title is not None:
+        document.title = payload.title
+    if payload.note is not None:
+        document.note = payload.note
 
     await db.commit()
     await db.refresh(record)
