@@ -10,14 +10,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from app.core.config import settings
-from app.core.database import create_tables
 from app.core.branding import get_brand_css_vars, load_brand_config
 from app.api.v1.router import api_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await create_tables()
+    # OJO: acá NO se crean las tablas (Base.metadata.create_all). El único
+    # dueño del esquema es Alembic — lo corre `docker-entrypoint.sh` antes
+    # de arrancar Uvicorn (o `alembic upgrade head` a mano en desarrollo
+    # local sin Docker). Crearlas también acá generaba una carrera: el
+    # arranque del backend armaba el esquema completo por su cuenta antes
+    # de que alguien llegara a correr Alembic, y entonces Alembic fallaba
+    # con "already exists" porque no tenía registrado en alembic_version
+    # que esas tablas ya existían.
     yield
 
 
