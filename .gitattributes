@@ -1,0 +1,6 @@
+# Fuerza finales de línea LF para todo el repo, sin importar el SO/config
+# de git de quien clona. Sin esto, Windows convierte los .sh a CRLF al
+# hacer checkout, y eso rompe el shebang (#!/bin/sh) de docker-entrypoint.sh
+# dentro del contenedor Linux — el backend queda en bucle de reinicio.
+* text=auto eol=lf
+*.sh text eol=lf

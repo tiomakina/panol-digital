@@ -23,7 +23,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 RUN mkdir -p app/static/uploads/tools app/static/uploads/qr app/static/uploads/vouchers
-RUN chmod +x docker-entrypoint.sh
+# sed -i 's/\r$//' por las dudas: si este proyecto se clona en Windows sin
+# el .gitattributes aplicado (checkout viejo, o simplemente porque git lo
+# convirtió a CRLF), el shebang de docker-entrypoint.sh queda roto dentro
+# del contenedor Linux y el backend entra en bucle de reinicio. Con esto
+# el build deja el script sano sin importar de qué SO vino el checkout.
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
 EXPOSE 8000
 ENTRYPOINT ["./docker-entrypoint.sh"]
