@@ -6,16 +6,17 @@ ejemplo, código de producto, y documento de compra (folio + adjunto).
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
 from app.models.user import User, UserRole
+from rut_test_helper import fake_rut
 
 
 async def _create_user(email: str, password: str, role: UserRole) -> None:
     async with AsyncSessionLocal() as db:
-        db.add(User(email=email, full_name="Test", role=role, hashed_password=hash_password(password)))
+        db.add(User(email=email, rut=fake_rut(email), full_name="Test", role=role, hashed_password=hash_password(password)))
         await db.commit()
 
 
 async def _login(client, email, password) -> str:
-    res = await client.post("/api/v1/auth/login", data={"username": email, "password": password})
+    res = await client.post("/api/v1/auth/login", data={"username": fake_rut(email), "password": password})
     assert res.status_code == 200, res.text
     return res.json()["access_token"]
 

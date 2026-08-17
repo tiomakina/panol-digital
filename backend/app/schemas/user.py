@@ -1,14 +1,23 @@
 """Schemas Pydantic v2 para usuarios."""
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from app.core.rut import format_rut, is_valid_rut
 from app.models.user import UserRole
 
 
 class UserBase(BaseModel):
     email: EmailStr
+    rut: str
     full_name: str
     role: UserRole = UserRole.mecanico
     phone: str | None = None
+
+    @field_validator("rut")
+    @classmethod
+    def rut_valido(cls, v: str) -> str:
+        if not is_valid_rut(v):
+            raise ValueError("RUT inválido — verificá el número y el dígito verificador")
+        return format_rut(v)
 
 
 class UserCreate(UserBase):
@@ -35,11 +44,22 @@ class UserOut(UserBase):
 
 class UserUpdate(BaseModel):
     """Campos editables de un usuario. role/is_active solo los puede tocar un jefe (ver users.py)."""
+    email: EmailStr | None = None
+    rut: str | None = None
     full_name: str | None = None
     phone: str | None = None
     avatar_url: str | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+
+    @field_validator("rut")
+    @classmethod
+    def rut_valido(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not is_valid_rut(v):
+            raise ValueError("RUT inválido — verificá el número y el dígito verificador")
+        return format_rut(v)
 
 
 class PasswordChange(BaseModel):

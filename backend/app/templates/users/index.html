@@ -14,7 +14,7 @@
   </div>
 
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
-    <input type="text" x-model="search" @input.debounce.400ms="loadUsers()" placeholder="Buscar por nombre o email..." x-show="canList()"
+    <input type="text" x-model="search" @input.debounce.400ms="loadUsers()" placeholder="Buscar por nombre, email o RUT..." x-show="canList()"
            style="flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
     <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openEdit(user)">Mi perfil</button>
     <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openPasswordModal()">Cambiar mi contraseña</button>
@@ -42,12 +42,12 @@
     <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
       <thead>
         <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
-          <th style="padding:0.75rem 1rem;">Nombre</th><th style="padding:0.75rem 1rem;">Email</th>
+          <th style="padding:0.75rem 1rem;">Nombre</th><th style="padding:0.75rem 1rem;">RUT</th><th style="padding:0.75rem 1rem;">Email</th>
           <th style="padding:0.75rem 1rem;">Rol</th><th style="padding:0.75rem 1rem;">Estado</th><th style="padding:0.75rem 1rem;"></th>
         </tr>
       </thead>
       <tbody>
-        <template x-if="loading"><tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-if="loading"><tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
         <template x-for="u in users" :key="u.id">
           <tr style="border-bottom:1px solid #f1f5f9;">
             <td style="padding:0.65rem 1rem;font-weight:600;">
@@ -61,13 +61,14 @@
                 <span x-text="u.full_name"></span>
               </div>
             </td>
+            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="u.rut"></td>
             <td style="padding:0.65rem 1rem;color:#64748b;" x-text="u.email"></td>
             <td style="padding:0.65rem 1rem;"><span class="badge badge-info" x-text="roleLabel(u.role)"></span></td>
             <td style="padding:0.65rem 1rem;">
               <span class="badge" :class="u.is_active ? 'badge-success' : 'badge-danger'" x-text="u.is_active ? 'Activo' : 'Inactivo'"></span>
             </td>
             <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;">
-              <button @click="openEdit(u)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Editar</button>
+              <button @click="openEdit(u)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;" x-text="isJefe() ? 'Editar' : 'Ver'"></button>
               <template x-if="isJefe() && u.id !== user.id">
                 <button @click="toggleActive(u)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;"
                         x-text="u.is_active ? 'Desactivar' : 'Reactivar'"></button>
@@ -85,6 +86,8 @@
       <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Nuevo usuario</h2>
       <label class="field-label">Nombre completo *</label>
       <input type="text" x-model="createForm.full_name" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">RUT * (identificador único, se usa para iniciar sesión)</label>
+      <input type="text" x-model="createForm.rut" class="field-input" style="margin-bottom:0.75rem;" placeholder="12345678-9">
       <label class="field-label">Email *</label>
       <input type="email" x-model="createForm.email" class="field-input" style="margin-bottom:0.75rem;">
       <label class="field-label">Teléfono</label>
@@ -104,10 +107,11 @@
     </div>
   </div>
 
-  <!-- Modal editar (o solo ver, si es el propio perfil de un Mecánico) -->
+  <!-- Modal editar (o solo ver, para quien no sea Jefe — Encargado y Mecánico
+       ven la ficha completa pero de solo lectura) -->
   <div x-show="showEditModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showEditModal = false">
     <div class="card" style="max-width:420px;width:100%;">
-      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;" x-text="isMecanico() ? 'Mi perfil' : 'Editar usuario'"></h2>
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;" x-text="isJefe() ? 'Editar usuario' : (editingId === user.id ? 'Mi perfil' : 'Ver usuario')"></h2>
 
       <div style="display:flex;align-items:center;gap:0.9rem;margin-bottom:1rem;">
         <template x-if="editForm.avatar_url">
@@ -116,16 +120,20 @@
         <template x-if="!editForm.avatar_url">
           <div style="width:56px;height:56px;border-radius:50%;background:var(--brand-light,#e0e7ff);color:var(--brand-primary,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:600;flex-shrink:0;" x-text="initials(editForm.full_name)"></div>
         </template>
-        <label x-show="!isMecanico()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">
+        <label x-show="isJefe()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">
           Cambiar foto
           <input type="file" accept="image/*" style="display:none;" @change="uploadPhoto($event.target.files[0])">
         </label>
       </div>
 
       <label class="field-label">Nombre completo</label>
-      <input type="text" x-model="editForm.full_name" :disabled="isMecanico()" class="field-input" style="margin-bottom:0.75rem;">
+      <input type="text" x-model="editForm.full_name" :disabled="!isJefe()" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">RUT (identificador único, se usa para iniciar sesión)</label>
+      <input type="text" x-model="editForm.rut" :disabled="!isJefe()" class="field-input" style="margin-bottom:0.75rem;" placeholder="12345678-9">
+      <label class="field-label">Email</label>
+      <input type="email" x-model="editForm.email" :disabled="!isJefe()" class="field-input" style="margin-bottom:0.75rem;">
       <label class="field-label">Teléfono</label>
-      <input type="text" x-model="editForm.phone" :disabled="isMecanico()" class="field-input" style="margin-bottom:0.75rem;">
+      <input type="text" x-model="editForm.phone" :disabled="!isJefe()" class="field-input" style="margin-bottom:0.75rem;">
       <template x-if="isJefe()">
         <div>
           <label class="field-label">Rol</label>
@@ -136,15 +144,12 @@
           </select>
         </div>
       </template>
-      <template x-if="!isJefe() && !isMecanico()">
-        <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 0.75rem;">Solo un Jefe puede cambiar el rol o el estado de la cuenta.</p>
-      </template>
-      <template x-if="isMecanico()">
-        <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 0.75rem;">Un Mecánico no puede editar su perfil — pedíselo a un Encargado o Jefe.</p>
+      <template x-if="!isJefe()">
+        <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 0.75rem;">Solo un Jefe puede editar usuarios (datos, rol o estado de la cuenta) — pedíselo a un Jefe.</p>
       </template>
       <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
-        <button @click="showEditModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;" x-text="isMecanico() ? 'Cerrar' : 'Cancelar'"></button>
-        <button x-show="!isMecanico()" @click="saveEdit()" class="btn-primary">Guardar</button>
+        <button @click="showEditModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;" x-text="isJefe() ? 'Cancelar' : 'Cerrar'"></button>
+        <button x-show="isJefe()" @click="saveEdit()" class="btn-primary">Guardar</button>
       </div>
     </div>
   </div>
@@ -283,13 +288,13 @@ function usersPage() {
     },
 
     openCreate() {
-      this.createForm = { full_name: '', email: '', phone: '', role: 'mecanico', password: '' };
+      this.createForm = { full_name: '', rut: '', email: '', phone: '', role: 'mecanico', password: '' };
       this.showCreateModal = true;
     },
 
     async createUser() {
-      if (!this.createForm.full_name || !this.createForm.email || !this.createForm.password) {
-        this.showMessage('Completá nombre, email y contraseña', 'error');
+      if (!this.createForm.full_name || !this.createForm.rut || !this.createForm.email || !this.createForm.password) {
+        this.showMessage('Completá nombre, RUT, email y contraseña', 'error');
         return;
       }
       const res = await authFetch('/api/v1/users', {
@@ -307,7 +312,7 @@ function usersPage() {
 
     openEdit(u) {
       this.editingId = u.id;
-      this.editForm = { full_name: u.full_name, phone: u.phone || '', role: u.role, avatar_url: u.avatar_url || '' };
+      this.editForm = { full_name: u.full_name, rut: u.rut || '', email: u.email || '', phone: u.phone || '', role: u.role, avatar_url: u.avatar_url || '' };
       this.showEditModal = true;
     },
 
@@ -338,7 +343,11 @@ function usersPage() {
 
     async saveEdit() {
       const payload = { full_name: this.editForm.full_name, phone: this.editForm.phone };
-      if (this.isJefe()) payload.role = this.editForm.role;
+      if (this.isJefe()) {
+        payload.role = this.editForm.role;
+        payload.rut = this.editForm.rut;
+        payload.email = this.editForm.email;
+      }
 
       const res = await authFetch(`/api/v1/users/${this.editingId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),

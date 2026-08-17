@@ -31,11 +31,13 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("encargado")),
 ):
-    """Lista los usuarios del sistema, con búsqueda opcional por nombre o email."""
+    """Lista los usuarios del sistema, con búsqueda opcional por nombre, email o RUT."""
     stmt = select(User)
     if search:
         like = f"%{search}%"
-        stmt = stmt.where((User.full_name.ilike(like)) | (User.email.ilike(like)))
+        stmt = stmt.where(
+            (User.full_name.ilike(like)) | (User.email.ilike(like)) | (User.rut.ilike(like))
+        )
     stmt = stmt.order_by(User.full_name)
 
     result = await db.execute(stmt)
@@ -64,8 +66,13 @@ async def create_user(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email")
 
+    existing_rut = await db.execute(select(User).where(User.rut == payload.rut))
+    if existing_rut.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Ya existe un usuario con ese RUT")
+
     new_user = User(
         email=payload.email,
+        rut=payload.rut,
         full_name=payload.full_name,
         role=payload.role,
         phone=payload.phone,
@@ -98,29 +105,35 @@ async def update_user(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Actualiza un usuario. Encargado y Jefe pueden editar sus propios datos
-    de contacto; un Mecánico puede VER su perfil (vía /auth/me) pero no
-    editarlo — tiene que pedírselo a un Encargado o Jefe. Cambiar rol o
-    estado activo/inactivo requiere ser Jefe (incluso para el propio
-    perfil, así nadie se auto-asciende).
+    Actualiza un usuario. Solo un Jefe puede editar datos de usuarios —
+    Encargado y Mecánico pueden VER (el Encargado ve el listado completo,
+    el Mecánico solo su propio perfil vía /auth/me) pero no modificar
+    nada, ni siquiera su propio nombre/teléfono: tienen que pedírselo a
+    un Jefe. Esto es a propósito más estricto que "cualquiera edita lo
+    suyo": la administración de la ficha de cada usuario (incluida su
+    propia) queda centralizada en un solo rol.
     """
     target = await db.get(User, user_id)
     if not target:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    is_self = current_user.id == target.id
     is_jefe = current_user.role.value == "jefe"
-
-    if not is_self and not is_jefe:
-        raise HTTPException(status_code=403, detail="Sin permisos suficientes")
-    if is_self and not is_jefe and current_user.role.value == "mecanico":
+    if not is_jefe:
         raise HTTPException(
-            status_code=403, detail="Los mecánicos no pueden editar su perfil — pedíselo a un Encargado o Jefe"
+            status_code=403, detail="Solo un Jefe puede editar usuarios — Encargado y Mecánico solo pueden verlos"
         )
 
     updates = payload.model_dump(exclude_unset=True)
-    if ("role" in updates or "is_active" in updates) and not is_jefe:
-        raise HTTPException(status_code=403, detail="Solo un Jefe puede cambiar rol o estado de la cuenta")
+
+    if "email" in updates and updates["email"] != target.email:
+        dup = await db.execute(select(User).where(User.email == updates["email"], User.id != target.id))
+        if dup.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email")
+
+    if "rut" in updates and updates["rut"] != target.rut:
+        dup = await db.execute(select(User).where(User.rut == updates["rut"], User.id != target.id))
+        if dup.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Ya existe un usuario con ese RUT")
 
     changed_fields = list(updates.keys())
     for field, value in updates.items():
@@ -150,23 +163,14 @@ async def upload_user_photo(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Sube o reemplaza la foto de perfil de un usuario — Encargado/Jefe para
-    la propia, o un Jefe para la de cualquiera. Un Mecánico no puede tocar
-    ni su propia foto (ver update_user: no edita su perfil, esto es parte
-    de lo mismo).
-    """
+    """Sube o reemplaza la foto de perfil de un usuario — solo un Jefe, para cualquiera (ver update_user)."""
     target = await db.get(User, user_id)
     if not target:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    is_self = current_user.id == target.id
-    is_jefe = current_user.role.value == "jefe"
-    if not is_self and not is_jefe:
-        raise HTTPException(status_code=403, detail="Sin permisos suficientes")
-    if is_self and not is_jefe and current_user.role.value == "mecanico":
+    if current_user.role.value != "jefe":
         raise HTTPException(
-            status_code=403, detail="Los mecánicos no pueden editar su perfil — pedíselo a un Encargado o Jefe"
+            status_code=403, detail="Solo un Jefe puede editar usuarios — Encargado y Mecánico solo pueden verlos"
         )
 
     file_bytes = await file.read()

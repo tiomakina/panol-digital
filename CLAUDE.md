@@ -190,8 +190,9 @@ make build-installer  # Genera .exe + .dmg + .run con PyInstaller
 - El usuario ve el cambio de color instantáneamente
 
 ## Credenciales de prueba
+El login es con **RUT** + contraseña (no email — el RUT es el identificador único, ver `app/core/rut.py`). El email sigue existiendo pero ahora es editable y no sirve para iniciar sesión.
 ```
-Admin (Jefe):       admin@panol.com / Admin123!
-Encargado:          encargado@panol.com / Admin123!
-Mecánico:           mecanico@panol.com / Admin123!
+Admin (Jefe):       RUT 1-9  (admin@panol.com) / Admin123!
+Encargado:          RUT 2-7  (encargado@panol.com) / Admin123!
+Mecánico:           RUT 3-5  (mecanico@panol.com) / Admin123!
 ```

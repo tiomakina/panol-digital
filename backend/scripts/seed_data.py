@@ -14,10 +14,13 @@ from app.core.database import AsyncSessionLocal, create_tables
 from app.core.security import hash_password
 from app.models.user import User, UserRole
 
+# RUTs ficticios (pero válidos, con dígito verificador real) para los
+# usuarios de prueba — el RUT es ahora el identificador único de login
+# (ver app/core/rut.py), así que cada cuenta necesita uno.
 SEED_USERS = [
-    {"email": "admin@panol.com", "full_name": "Administrador", "role": UserRole.jefe, "password": "Admin123!"},
-    {"email": "encargado@panol.com", "full_name": "Encargado de Pañol", "role": UserRole.encargado, "password": "Admin123!"},
-    {"email": "mecanico@panol.com", "full_name": "Mecánico", "role": UserRole.mecanico, "password": "Admin123!"},
+    {"email": "admin@panol.com", "rut": "1-9", "full_name": "Administrador", "role": UserRole.jefe, "password": "Admin123!"},
+    {"email": "encargado@panol.com", "rut": "2-7", "full_name": "Encargado de Pañol", "role": UserRole.encargado, "password": "Admin123!"},
+    {"email": "mecanico@panol.com", "rut": "3-5", "full_name": "Mecánico", "role": UserRole.mecanico, "password": "Admin123!"},
 ]
 
 
@@ -32,12 +35,13 @@ async def seed() -> None:
 
             user = User(
                 email=data["email"],
+                rut=data["rut"],
                 full_name=data["full_name"],
                 role=data["role"],
                 hashed_password=hash_password(data["password"]),
             )
             db.add(user)
-            print(f"✅ Usuario creado: {data['email']} ({data['role'].value})")
+            print(f"✅ Usuario creado: {data['email']} (RUT {data['rut']}, {data['role'].value})")
 
         await db.commit()
 

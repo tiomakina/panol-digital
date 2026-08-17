@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import rate_limiter
+from app.core.rut import format_rut
 from app.core.security import (
     create_2fa_pending_token,
     create_access_token,
@@ -61,11 +62,18 @@ async def login(
     ),
 ):
     """
-    Autentica con email + contraseña (campo `username` del form OAuth2).
+    Autentica con RUT + contraseña (campo `username` del form OAuth2 — el
+    RUT es el identificador único del usuario, no el email, que puede
+    cambiar con el tiempo). Acepta el RUT con o sin puntos/guión.
     Si el usuario tiene 2FA activo, todavía no emite tokens: devuelve
     requires_2fa + un temp_token de 5 minutos para completar en /2fa/verify.
     """
-    result = await db.execute(select(User).where(User.email == form_data.username))
+    try:
+        rut = format_rut(form_data.username)
+    except IndexError:
+        rut = form_data.username  # RUT vacío o mal formado: no matchea nada, cae al 401 de abajo
+
+    result = await db.execute(select(User).where(User.rut == rut))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -78,7 +86,7 @@ async def login(
             ip_address=_client_ip(request),
         )
         await db.commit()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email o contraseña incorrectos")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="RUT o contraseña incorrectos")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo, contacte al administrador")
 

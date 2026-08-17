@@ -14,6 +14,10 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    # Identificador único real: el email puede cambiar con el tiempo, el RUT
+    # no. Es la credencial de login (reemplaza al email en /auth/login).
+    # Formato canónico "NNNNNNNN-D" sin puntos (ver app/core/rut.py).
+    rut: Mapped[str] = mapped_column(String(12), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(255))
     hashed_password: Mapped[str] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.mecanico)
