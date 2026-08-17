@@ -29,6 +29,7 @@ class ToolboxResponsibleOut(BaseModel):
     id: int
     full_name: str
     email: str
+    identifying_color: str | None = None
 
 
 class ToolboxItemOut(BaseModel):

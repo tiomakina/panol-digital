@@ -14,11 +14,12 @@ from app.core.security import get_current_user, hash_password, require_role, ver
 from app.models.user import User
 from app.schemas.user import PasswordChange, UserCreate, UserOut, UserUpdate
 from app.services.audit_service import log_action
-from app.services.brand_service import validate_image_magic_bytes
+from app.services.brand_service import extract_dominant_colors, validate_image_magic_bytes
 
 router = APIRouter(prefix="/users", tags=["Usuarios"])
 
 AVATAR_DIR = Path(settings.UPLOAD_DIR) / "avatars"
+COLOR_PHOTO_DIR = Path(settings.UPLOAD_DIR) / "color_photos"
 
 
 def _client_ip(request: Request) -> str | None:
@@ -193,6 +194,70 @@ async def upload_user_photo(
         action="user.photo_update",
         entity_type="user",
         entity_id=target.id,
+        ip_address=_client_ip(request),
+    )
+    await db.commit()
+    await db.refresh(target)
+    return target
+
+
+@router.post("/{user_id}/color-photo", response_model=UserOut)
+async def upload_color_photo(
+    user_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Sube una foto de la pintura/spray con la que se marcan físicamente las
+    herramientas y la caja de un Mecánico, y extrae de ahí un color
+    identificador automáticamente (mismo motor que usa el logo de la
+    empresa para armar la paleta de branding — ver
+    brand_service.extract_dominant_colors). El color queda precargado
+    en identifying_color; si la foto salió con mala luz y el color no
+    quedó bien, se puede ajustar a mano después con PUT /users/{id}
+    (campo identifying_color). Solo un Jefe puede hacer esto, para
+    cualquier usuario — mismo permiso que la foto de perfil.
+    """
+    target = await db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if current_user.role.value != "jefe":
+        raise HTTPException(
+            status_code=403, detail="Solo un Jefe puede editar usuarios — Encargado y Mecánico solo pueden verlos"
+        )
+
+    file_bytes = await file.read()
+    valid, mime_type = validate_image_magic_bytes(file_bytes)
+    if not valid or mime_type == "image/svg+xml":
+        raise HTTPException(status_code=400, detail="Archivo inválido (solo PNG, JPG o WebP)")
+    if len(file_bytes) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"El archivo supera los {settings.MAX_UPLOAD_SIZE_MB}MB permitidos")
+
+    dominant = extract_dominant_colors(file_bytes)
+    if not dominant:
+        raise HTTPException(
+            status_code=400,
+            detail="No se pudo detectar un color en esa foto — probá con más luz y encuadrando bien la pintura",
+        )
+
+    ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
+    COLOR_PHOTO_DIR.mkdir(parents=True, exist_ok=True)
+    photo_path = COLOR_PHOTO_DIR / f"user_{user_id}.{ext}"
+    with open(photo_path, "wb") as f:
+        f.write(file_bytes)
+
+    target.identifying_color_photo_url = f"/static/uploads/color_photos/user_{user_id}.{ext}"
+    target.identifying_color = dominant[0]
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="user.color_photo_update",
+        entity_type="user",
+        entity_id=target.id,
+        detail=f"Color extraído: {dominant[0]}",
         ip_address=_client_ip(request),
     )
     await db.commit()

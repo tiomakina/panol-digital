@@ -59,6 +59,7 @@
                   <div style="width:30px;height:30px;border-radius:50%;background:var(--brand-light,#e0e7ff);color:var(--brand-primary,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:600;flex-shrink:0;" x-text="initials(u.full_name)"></div>
                 </template>
                 <span x-text="u.full_name"></span>
+                <span x-show="u.identifying_color" :style="'width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);flex-shrink:0;background:' + u.identifying_color" :title="'Color identificador: ' + u.identifying_color"></span>
               </div>
             </td>
             <td style="padding:0.65rem 1rem;color:#64748b;" x-text="u.rut"></td>
@@ -144,6 +145,30 @@
           </select>
         </div>
       </template>
+
+      <template x-if="editForm.role === 'mecanico'">
+        <div style="margin-bottom:0.75rem;">
+          <label class="field-label">Color identificador (para marcar sus herramientas y su caja)</label>
+          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+            <input type="color" x-model="editForm.identifying_color" :disabled="!isJefe()"
+                   style="width:38px;height:32px;border:1px solid #e2e8f0;border-radius:6px;padding:2px;cursor:pointer;">
+            <span style="font-size:0.78rem;color:#64748b;" x-text="editForm.identifying_color || 'Sin color asignado'"></span>
+            <template x-if="editForm.identifying_color_photo_url">
+              <img :src="editForm.identifying_color_photo_url" title="Foto de referencia de la pintura"
+                   style="width:32px;height:32px;border-radius:6px;object-fit:cover;border:1px solid #e2e8f0;">
+            </template>
+            <label x-show="isJefe()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.7rem;cursor:pointer;font-size:0.75rem;">
+              Sacar/subir foto de la pintura
+              <input type="file" accept="image/*" style="display:none;" @change="uploadColorPhoto($event.target.files[0])">
+            </label>
+          </div>
+          <p x-show="isJefe()" style="font-size:0.7rem;color:#94a3b8;margin:0.35rem 0 0;">
+            Sacale una foto a la pintura/spray con la que se marcan sus herramientas — el color se detecta solo; si no quedó
+            exacto por la luz, se puede ajustar con la ruedita de arriba.
+          </p>
+        </div>
+      </template>
+
       <template x-if="!isJefe()">
         <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 0.75rem;">Solo un Jefe puede editar usuarios (datos, rol o estado de la cuenta) — pedíselo a un Jefe.</p>
       </template>
@@ -312,7 +337,11 @@ function usersPage() {
 
     openEdit(u) {
       this.editingId = u.id;
-      this.editForm = { full_name: u.full_name, rut: u.rut || '', email: u.email || '', phone: u.phone || '', role: u.role, avatar_url: u.avatar_url || '' };
+      this.editForm = {
+        full_name: u.full_name, rut: u.rut || '', email: u.email || '', phone: u.phone || '', role: u.role,
+        avatar_url: u.avatar_url || '', identifying_color: u.identifying_color || '',
+        identifying_color_photo_url: u.identifying_color_photo_url || '',
+      };
       this.showEditModal = true;
     },
 
@@ -336,6 +365,23 @@ function usersPage() {
       }
     },
 
+    async uploadColorPhoto(file) {
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await authFetch(`/api/v1/users/${this.editingId}/color-photo`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo procesar la foto', 'error');
+        return;
+      }
+      const updated = await res.json();
+      this.editForm.identifying_color = updated.identifying_color;
+      this.editForm.identifying_color_photo_url = updated.identifying_color_photo_url;
+      this.showMessage('Color detectado: ' + updated.identifying_color);
+      if (this.canList()) await this.loadUsers();
+    },
+
     initials(fullName) {
       if (!fullName) return '·';
       return fullName.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
@@ -347,6 +393,7 @@ function usersPage() {
         payload.role = this.editForm.role;
         payload.rut = this.editForm.rut;
         payload.email = this.editForm.email;
+        if (this.editForm.role === 'mecanico') payload.identifying_color = this.editForm.identifying_color || null;
       }
 
       const res = await authFetch(`/api/v1/users/${this.editingId}`, {

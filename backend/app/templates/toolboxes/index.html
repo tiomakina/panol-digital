@@ -34,6 +34,9 @@
         <p style="font-size:0.78rem;color:#475569;margin:0 0 0.35rem;display:flex;align-items:center;gap:0.3rem;">
           <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:#94a3b8;"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
           <span x-text="box.responsible ? box.responsible.full_name : 'Sin responsable asignado'" :style="box.responsible ? '' : 'color:#94a3b8;font-style:italic;'"></span>
+          <span x-show="box.responsible && box.responsible.identifying_color"
+                :style="'width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);flex-shrink:0;background:' + (box.responsible ? box.responsible.identifying_color : '')"
+                :title="'Caja marcada con este color: ' + (box.responsible ? box.responsible.identifying_color : '')"></span>
         </p>
         <p style="font-size:0.75rem;color:#94a3b8;margin:0;" x-text="box.description || ''"></p>
       </div>
@@ -79,15 +82,24 @@
 
       <label class="field-label">Mecánico responsable</label>
       <template x-if="canManage()">
-        <select x-model="responsibleEdit" @change="updateResponsible()" class="field-input" style="margin-bottom:1rem;">
-          <option value="">Sin asignar</option>
-          <template x-for="u in users" :key="u.id">
-            <option :value="u.id" x-text="u.full_name + ' (' + u.email + ')'"></option>
-          </template>
-        </select>
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+          <select x-model="responsibleEdit" @change="updateResponsible()" class="field-input" style="flex:1;">
+            <option value="">Sin asignar</option>
+            <template x-for="u in users" :key="u.id">
+              <option :value="u.id" x-text="u.full_name + ' (' + u.email + ')'"></option>
+            </template>
+          </select>
+          <span x-show="detail && detail.responsible && detail.responsible.identifying_color"
+                :style="'width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);flex-shrink:0;background:' + (detail && detail.responsible ? detail.responsible.identifying_color : '')"
+                title="Color con el que está marcada esta caja"></span>
+        </div>
       </template>
       <template x-if="!canManage()">
-        <p style="font-size:0.85rem;color:#334155;margin:0 0 1rem;" x-text="detail && detail.responsible ? detail.responsible.full_name : 'Sin responsable asignado'"></p>
+        <p style="font-size:0.85rem;color:#334155;margin:0 0 1rem;display:flex;align-items:center;gap:0.4rem;">
+          <span x-text="detail && detail.responsible ? detail.responsible.full_name : 'Sin responsable asignado'"></span>
+          <span x-show="detail && detail.responsible && detail.responsible.identifying_color"
+                :style="'width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);flex-shrink:0;background:' + (detail && detail.responsible ? detail.responsible.identifying_color : '')"></span>
+        </p>
       </template>
 
       <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">Herramientas en esta caja</h3>

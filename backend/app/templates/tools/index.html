@@ -88,6 +88,9 @@
             <td style="padding:0.65rem 1rem;">
               <div class="status-tooltip-wrap" style="position:relative;display:inline-block;">
                 <span class="badge" :class="statusBadgeClass(tool.status)" x-text="statusLabel(tool.status)"></span>
+                <span x-show="toolMechanicColor(tool)"
+                      :style="'display:inline-block;width:9px;height:9px;border-radius:50%;margin-left:0.3rem;vertical-align:middle;border:1px solid rgba(0,0,0,0.15);background:' + (toolMechanicColor(tool) || '')"
+                      title="Marcada físicamente con este color"></span>
                 <template x-if="statusDetail(tool)">
                   <div class="status-tooltip" :style="'color:' + loanUrgencyColor(tool)" x-text="statusDetail(tool)"></div>
                 </template>
@@ -501,6 +504,15 @@ function toolsPage() {
         return `Prestado a: ${borrower} · Vence: ${this.formatDate(loan.due_date)} (${dueLabel})`;
       }
       return null;
+    },
+
+    // Color con el que el mecánico responsable de la caja marca físicamente
+    // sus herramientas (ver Usuarios) — para poder cotejar a simple vista
+    // en la app la misma marca que tiene la herramienta en la mano.
+    toolMechanicColor(tool) {
+      if (tool.status !== 'en_caja') return null;
+      const box = this.toolboxes.find((b) => b.items.some((i) => i.tool_id === tool.id));
+      return box && box.responsible ? box.responsible.identifying_color : null;
     },
 
     _activeLoanFor(tool) {

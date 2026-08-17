@@ -288,3 +288,90 @@ async def test_photo_upload_rejects_non_image_file(client):
         headers=_auth(token),
     )
     assert res.status_code == 400
+
+
+def _color_png(hex_color: str = "#3B82F6") -> bytes:
+    """PNG real (a diferencia de _fake_png) de un color sólido, para poder
+    probar la extracción real de color dominante."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    img = Image.new("RGB", (20, 20), hex_color)
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+async def test_jefe_can_set_identifying_color_manually(client):
+    await _create_user("jefe_color@test.com", "Clave123!", UserRole.jefe)
+    await _create_user("meca_color@test.com", "Clave123!", UserRole.mecanico)
+    jefe_token = await _login(client, "jefe_color@test.com", "Clave123!")
+    meca_id = (
+        await client.get("/api/v1/users", params={"search": "meca_color"}, headers=_auth(jefe_token))
+    ).json()[0]["id"]
+
+    ok = await client.put(
+        f"/api/v1/users/{meca_id}", json={"identifying_color": "#3b82f6"}, headers=_auth(jefe_token)
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["identifying_color"] == "#3B82F6"  # normalizado a mayúsculas
+
+
+async def test_identifying_color_rejects_invalid_hex(client):
+    await _create_user("jefe_color2@test.com", "Clave123!", UserRole.jefe)
+    token = await _login(client, "jefe_color2@test.com", "Clave123!")
+    me = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()
+
+    res = await client.put(f"/api/v1/users/{me['id']}", json={"identifying_color": "azulito"}, headers=_auth(token))
+    assert res.status_code == 422
+
+
+async def test_color_photo_upload_extracts_dominant_color(client):
+    """
+    Sube una foto sólida de un color conocido y verifica que el color
+    quedó guardado (extracción vía brand_service.extract_dominant_colors,
+    el mismo motor que usa el logo de la empresa).
+    """
+    await _create_user("jefe_colorfoto@test.com", "Clave123!", UserRole.jefe)
+    await _create_user("meca_colorfoto@test.com", "Clave123!", UserRole.mecanico)
+    jefe_token = await _login(client, "jefe_colorfoto@test.com", "Clave123!")
+    meca_id = (
+        await client.get("/api/v1/users", params={"search": "meca_colorfoto"}, headers=_auth(jefe_token))
+    ).json()[0]["id"]
+
+    res = await client.post(
+        f"/api/v1/users/{meca_id}/color-photo",
+        files={"file": ("pintura.png", _color_png("#3B82F6"), "image/png")},
+        headers=_auth(jefe_token),
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["identifying_color"].lower() == "#3b82f6"
+    assert body["identifying_color_photo_url"].startswith("/static/uploads/color_photos/")
+
+
+async def test_color_photo_upload_rejects_non_image_file(client):
+    await _create_user("jefe_colorfoto2@test.com", "Clave123!", UserRole.jefe)
+    token = await _login(client, "jefe_colorfoto2@test.com", "Clave123!")
+    user_id = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()["id"]
+
+    res = await client.post(
+        f"/api/v1/users/{user_id}/color-photo",
+        files={"file": ("archivo.txt", b"esto no es una imagen", "text/plain")},
+        headers=_auth(token),
+    )
+    assert res.status_code == 400
+
+
+async def test_non_jefe_cannot_upload_color_photo(client):
+    await _create_user("encargado_colorfoto@test.com", "Clave123!", UserRole.encargado)
+    token = await _login(client, "encargado_colorfoto@test.com", "Clave123!")
+    me = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()
+
+    res = await client.post(
+        f"/api/v1/users/{me['id']}/color-photo",
+        files={"file": ("pintura.png", _color_png(), "image/png")},
+        headers=_auth(token),
+    )
+    assert res.status_code == 403

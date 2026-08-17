@@ -34,3 +34,14 @@ class User(Base):
     # nunca llegó a escanear.
     totp_secret: Mapped[str] = mapped_column(String(64), nullable=True)
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Color identificador (pensado para Mecánico): así se marca físicamente
+    # sus herramientas y su caja con pintura/spray de ese color, y la app
+    # muestra el mismo color junto a su nombre para poder cotejarlo a
+    # simple vista. identifying_color_photo_url guarda una foto de la
+    # pintura real como referencia (ver POST /users/{id}/color-photo, que
+    # extrae identifying_color automáticamente de esa foto como punto de
+    # partida — un Jefe puede después ajustarlo a mano si la foto salió
+    # con mala luz).
+    identifying_color: Mapped[str] = mapped_column(String(7), nullable=True)
+    identifying_color_photo_url: Mapped[str] = mapped_column(String(500), nullable=True)
