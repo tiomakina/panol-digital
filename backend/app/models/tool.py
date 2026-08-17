@@ -15,6 +15,11 @@ class ToolStatus(str, enum.Enum):
     disponible = "disponible"
     prestado = "prestado"
     mantenimiento = "mantenimiento"
+    # Un Mecánico pidió mantención desde su caja asignada, pero todavía no
+    # la confirmó un Encargado/Jefe (eso recién crea el MaintenanceRecord y
+    # pasa a "mantenimiento" — ver send_tool_to_maintenance). Es un estado
+    # intermedio, no un mantenimiento en curso todavía.
+    mantenimiento_solicitada = "mantenimiento_solicitada"
     baja = "baja"
     en_caja = "en_caja"  # dentro de una caja de herramientas (toolbox)
 
@@ -63,4 +68,18 @@ class Tool(Base):
     decommission_authorized_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     decommission_date: Mapped[date] = mapped_column(Date, nullable=True)
 
-    decommission_authorized_by: Mapped["User | None"] = relationship(lazy="joined")
+    # Solicitud de mantención hecha por un Mecánico desde su caja asignada
+    # (status pasa a mantenimiento_solicitada) — quién y cuándo, para que
+    # el popup en Cajas/Herramientas lo pueda mostrar. Se limpia cuando un
+    # Encargado/Jefe la confirma (pasa a MaintenanceRecord real) o la
+    # descarta.
+    maintenance_requested_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    maintenance_requested_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    maintenance_requested_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    decommission_authorized_by: Mapped["User | None"] = relationship(
+        lazy="joined", foreign_keys=[decommission_authorized_by_id]
+    )
+    maintenance_requested_by: Mapped["User | None"] = relationship(
+        lazy="joined", foreign_keys=[maintenance_requested_by_id]
+    )

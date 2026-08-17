@@ -50,14 +50,14 @@
         <template x-if="!loading && loans.length === 0"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">No hay préstamos con ese filtro</td></tr></template>
         <template x-for="loan in loans" :key="loan.id">
           <tr style="border-bottom:1px solid #f1f5f9;">
-            <td style="padding:0.65rem 1rem;font-weight:600;" x-text="toolName(loan.tool_id)"></td>
-            <td style="padding:0.65rem 1rem;" x-text="userName(loan.borrower_id)"></td>
+            <td style="padding:0.65rem 1rem;font-weight:600;" x-text="loan.tool ? loan.tool.name : toolName(loan.tool_id)"></td>
+            <td style="padding:0.65rem 1rem;" x-text="loan.borrower ? loan.borrower.full_name : userName(loan.borrower_id)"></td>
             <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatDate(loan.loan_date)"></td>
             <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatDate(loan.due_date)"></td>
             <td style="padding:0.65rem 1rem;"><span class="badge" :class="statusBadgeClass(loan.status)" x-text="statusLabel(loan.status)"></span></td>
             <td style="padding:0.65rem 1rem;color:#64748b;white-space:nowrap;" x-text="loan.return_date ? formatDateTime(loan.return_date) : '—'"></td>
             <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;">
-              <button @click="viewVoucher(loan)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Vale PDF</button>
+              <button x-show="canManage() || loan.borrower_id === user.id" @click="viewVoucher(loan)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Vale PDF</button>
               <button x-show="(loan.status === 'activo' || loan.status === 'vencido') && canManage()" @click="openReturn(loan)" class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.75rem;">Devolver</button>
             </td>
           </tr>

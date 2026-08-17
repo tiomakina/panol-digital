@@ -52,8 +52,11 @@ async def test_only_jefe_can_create_users(client):
 
 
 async def test_user_can_edit_own_profile_but_not_own_role(client):
-    await _create_user("mecanico2@test.com", "Clave123!", UserRole.mecanico)
-    token = await _login(client, "mecanico2@test.com", "Clave123!")
+    # Encargado (y Jefe) pueden editar sus propios datos de contacto, pero
+    # no su propio rol/estado — un Mecánico ya no puede ni lo primero, ver
+    # test_mecanico_cannot_edit_own_profile.
+    await _create_user("encargado2@test.com", "Clave123!", UserRole.encargado)
+    token = await _login(client, "encargado2@test.com", "Clave123!")
     me = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()
 
     ok = await client.put(f"/api/v1/users/{me['id']}", json={"phone": "555-1234"}, headers=_auth(token))
@@ -62,6 +65,20 @@ async def test_user_can_edit_own_profile_but_not_own_role(client):
 
     escalate = await client.put(f"/api/v1/users/{me['id']}", json={"role": "jefe"}, headers=_auth(token))
     assert escalate.status_code == 403
+
+
+async def test_mecanico_cannot_edit_own_profile(client):
+    """
+    Pedido del cliente: un Mecánico puede VER su perfil (vía /auth/me) pero
+    no editarlo — a diferencia de Encargado/Jefe. Antes cualquier rol podía
+    editar sus propios datos de contacto.
+    """
+    await _create_user("meca_noedit@test.com", "Clave123!", UserRole.mecanico)
+    token = await _login(client, "meca_noedit@test.com", "Clave123!")
+    me = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()
+
+    blocked = await client.put(f"/api/v1/users/{me['id']}", json={"phone": "555-9999"}, headers=_auth(token))
+    assert blocked.status_code == 403
 
 
 async def test_jefe_can_change_role_and_deactivate(client):
@@ -132,28 +149,47 @@ def _fake_png() -> bytes:
 
 
 async def test_upload_own_photo_and_jefe_can_upload_for_others(client):
+    # Encargado sí puede subir su propia foto (a diferencia de Mecánico,
+    # ver test_mecanico_cannot_upload_own_photo).
+    await _create_user("enc_foto@test.com", "Clave123!", UserRole.encargado)
     await _create_user("meca_foto@test.com", "Clave123!", UserRole.mecanico)
     await _create_user("jefe_foto@test.com", "Clave123!", UserRole.jefe)
-    mecanico_token = await _login(client, "meca_foto@test.com", "Clave123!")
+    encargado_token = await _login(client, "enc_foto@test.com", "Clave123!")
     jefe_token = await _login(client, "jefe_foto@test.com", "Clave123!")
+    meca_token = await _login(client, "meca_foto@test.com", "Clave123!")
 
-    meca_id = (await client.get("/api/v1/auth/me", headers=_auth(mecanico_token))).json()["id"]
+    enc_id = (await client.get("/api/v1/auth/me", headers=_auth(encargado_token))).json()["id"]
+    meca_id = (await client.get("/api/v1/auth/me", headers=_auth(meca_token))).json()["id"]
 
     own_upload = await client.post(
-        f"/api/v1/users/{meca_id}/photo",
+        f"/api/v1/users/{enc_id}/photo",
         files={"file": ("foto.png", _fake_png(), "image/png")},
-        headers=_auth(mecanico_token),
+        headers=_auth(encargado_token),
     )
     assert own_upload.status_code == 200, own_upload.text
     assert own_upload.json()["avatar_url"].startswith("/static/uploads/avatars/")
 
-    # Un jefe puede subirle la foto a otro usuario
+    # Un jefe puede subirle la foto a otro usuario (incluso un Mecánico,
+    # que no puede subir la suya propia)
     jefe_uploads_for_meca = await client.post(
         f"/api/v1/users/{meca_id}/photo",
         files={"file": ("foto2.png", _fake_png(), "image/png")},
         headers=_auth(jefe_token),
     )
     assert jefe_uploads_for_meca.status_code == 200
+
+
+async def test_mecanico_cannot_upload_own_photo(client):
+    await _create_user("meca_foto2@test.com", "Clave123!", UserRole.mecanico)
+    token = await _login(client, "meca_foto2@test.com", "Clave123!")
+    meca_id = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()["id"]
+
+    blocked = await client.post(
+        f"/api/v1/users/{meca_id}/photo",
+        files={"file": ("foto.png", _fake_png(), "image/png")},
+        headers=_auth(token),
+    )
+    assert blocked.status_code == 403
 
 
 async def test_cannot_upload_photo_for_another_user_without_being_jefe(client):
@@ -171,21 +207,19 @@ async def test_cannot_upload_photo_for_another_user_without_being_jefe(client):
     assert forbidden.status_code == 403
 
 
-async def test_mecanico_cannot_list_but_can_still_edit_own_profile(client):
+async def test_mecanico_cannot_list_and_cannot_edit_own_profile(client):
     """
     Documenta el contrato a propósito: un Mecánico NO puede ver el listado
-    completo de usuarios (GET /users requiere Encargado+, es intencional —
-    no debería ver el directorio de todo el equipo), pero SÍ tiene que
-    poder editar sus propios datos y subir su propia foto sin importar el
-    rol. Antes el frontend llamaba a loadUsers() sin importar el rol, y
-    como devolvía 403 la tabla quedaba vacía sin explicación — parecía que
-    el sistema no dejaba subir la foto, cuando el problema real era no
-    poder LISTAR. La UI ahora usa GET /auth/me para el propio perfil en
-    vez de depender del listado.
+    completo de usuarios (GET /users requiere Encargado+, no debería ver el
+    directorio de todo el equipo) NI editar su propio perfil (a diferencia
+    de Encargado/Jefe) — solo puede VERLO vía GET /auth/me. Para editar
+    algo (nombre, teléfono, foto) tiene que pedírselo a un Encargado o
+    Jefe.
     """
     await _create_user("meca_perfil@test.com", "Clave123!", UserRole.mecanico)
     token = await _login(client, "meca_perfil@test.com", "Clave123!")
     me = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()
+    assert me["full_name"] == "Seed"
 
     listing = await client.get("/api/v1/users", headers=_auth(token))
     assert listing.status_code == 403
@@ -195,18 +229,19 @@ async def test_mecanico_cannot_list_but_can_still_edit_own_profile(client):
         files={"file": ("foto.png", _fake_png(), "image/png")},
         headers=_auth(token),
     )
-    assert own_upload.status_code == 200, own_upload.text
+    assert own_upload.status_code == 403
 
     own_edit = await client.put(
         f"/api/v1/users/{me['id']}", json={"full_name": "Mecánico Actualizado"}, headers=_auth(token)
     )
-    assert own_edit.status_code == 200, own_edit.text
-    assert own_edit.json()["full_name"] == "Mecánico Actualizado"
+    assert own_edit.status_code == 403
 
 
 async def test_photo_upload_rejects_non_image_file(client):
-    await _create_user("meca_bad@test.com", "Clave123!", UserRole.mecanico)
-    token = await _login(client, "meca_bad@test.com", "Clave123!")
+    # Encargado (no Mecánico, que ya ni llega a la validación de archivo —
+    # ver test_mecanico_cannot_upload_own_photo) subiendo su propia foto.
+    await _create_user("enc_bad@test.com", "Clave123!", UserRole.encargado)
+    token = await _login(client, "enc_bad@test.com", "Clave123!")
     user_id = (await client.get("/api/v1/auth/me", headers=_auth(token))).json()["id"]
 
     res = await client.post(

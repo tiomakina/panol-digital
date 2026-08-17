@@ -45,14 +45,20 @@ async def get_kpis(db: AsyncSession = Depends(get_db), user: User = Depends(get_
         await db.execute(select(func.count(Tool.id)).where(Tool.status == ToolStatus.mantenimiento))
     ).scalar_one()
 
-    tools = (await db.execute(select(Tool))).scalars().all()
-    inventory_value = sum((calculate_current_value(t) or 0) for t in tools)
+    # El valor del inventario es información económica — igual que en
+    # Herramientas (ver tools.py::_to_out), solo el Jefe la ve. No alcanza
+    # con ocultarla en el frontend: se calcula igual acá abajo, pero no se
+    # manda en la respuesta si quien pregunta no es Jefe.
+    inventory_value = None
+    if user.role.value == "jefe":
+        tools = (await db.execute(select(Tool))).scalars().all()
+        inventory_value = float(sum((calculate_current_value(t) or 0) for t in tools))
 
     return {
         "total_tools": total_tools,
         "active_loans": active_loans,
         "overdue_loans": overdue_loans,
-        "inventory_value": float(inventory_value),
+        "inventory_value": inventory_value,
         "maintenance_count": maintenance_count,
     }
 

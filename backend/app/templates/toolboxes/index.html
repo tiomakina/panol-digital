@@ -97,8 +97,19 @@
         </template>
         <template x-for="item in (detail ? detail.items : [])" :key="item.tool_id">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:6px;">
-            <span style="font-size:0.85rem;" x-text="item.tool ? item.tool.name : ('Herramienta #' + item.tool_id)"></span>
-            <button x-show="canManage()" @click="removeTool(item.tool_id)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;">Quitar</button>
+            <span style="font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;">
+              <span x-text="item.tool ? item.tool.name : ('Herramienta #' + item.tool_id)"></span>
+              <span class="status-tooltip-wrap" style="position:relative;display:inline-block;" x-show="item.tool && item.tool.status !== 'en_caja'">
+                <span class="badge" :class="toolStatusBadge(item.tool ? item.tool.status : '')" x-text="toolStatusLabel(item.tool ? item.tool.status : '')"></span>
+                <template x-if="item.tool && item.tool.status === 'mantenimiento_solicitada'">
+                  <div class="status-tooltip" x-text="requestTooltip(item.tool)"></div>
+                </template>
+              </span>
+            </span>
+            <span style="white-space:nowrap;">
+              <button x-show="!canManage() && item.tool && item.tool.status === 'en_caja'" @click="openRequestMaintenance(item)" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.72rem;margin-right:0.35rem;">Solicitar mantención</button>
+              <button x-show="canManage()" @click="removeTool(item.tool_id)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;">Quitar</button>
+            </span>
           </div>
         </template>
       </div>
@@ -117,7 +128,7 @@
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin:1rem 0 0.5rem;">
         <h3 style="font-size:0.85rem;font-weight:600;">Auditoría / inventario</h3>
-        <button @click="startNewAudit()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.35rem 0.7rem;cursor:pointer;font-size:0.75rem;">+ Nueva auditoría</button>
+        <button x-show="canManage()" @click="startNewAudit()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.35rem 0.7rem;cursor:pointer;font-size:0.75rem;">+ Nueva auditoría</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:0.35rem;margin-bottom:1rem;">
         <template x-if="audits.length === 0">
@@ -162,7 +173,7 @@
             <span class="badge" x-show="item.condition" :class="auditConditionBadge(item.condition)" x-text="auditConditionLabel(item.condition)"></span>
           </div>
 
-          <template x-if="activeAudit.status === 'en_progreso' && !item.sent_to_maintenance">
+          <template x-if="canManage() && activeAudit.status === 'en_progreso' && !item.sent_to_maintenance">
             <div>
               <select x-model="itemDrafts[item.id].condition" class="field-input" style="margin-bottom:0.5rem;">
                 <option value="bueno">Bueno</option>
@@ -176,10 +187,13 @@
               </div>
             </div>
           </template>
+          <template x-if="!canManage() && activeAudit.status === 'en_progreso' && !item.sent_to_maintenance && !item.condition">
+            <p style="font-size:0.78rem;color:#94a3b8;margin:0;">Pendiente de revisión.</p>
+          </template>
           <template x-if="item.sent_to_maintenance">
             <p style="font-size:0.75rem;color:#92400e;margin:0;">✓ Enviada a mantenimiento</p>
           </template>
-          <template x-if="activeAudit.status === 'completado' && item.observation">
+          <template x-if="(!canManage() || activeAudit.status === 'completado') && item.observation && !item.sent_to_maintenance">
             <p style="font-size:0.78rem;color:#64748b;margin:0;" x-text="item.observation"></p>
           </template>
         </div>
@@ -187,7 +201,24 @@
 
       <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.5rem;">
         <button @click="showAuditModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cerrar</button>
-        <button x-show="activeAudit && activeAudit.status === 'en_progreso'" @click="completeAudit()" class="btn-primary">Finalizar auditoría</button>
+        <button x-show="canManage() && activeAudit && activeAudit.status === 'en_progreso'" @click="completeAudit()" class="btn-primary">Finalizar auditoría</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Mecánico solicita mantención de una herramienta de su caja -->
+  <div x-show="showRequestModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.6);display:flex;align-items:center;justify-content:center;z-index:70;padding:1rem;" @click.self="showRequestModal = false">
+    <div class="card" style="max-width:400px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;">Solicitar mantención</h2>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="requestTarget && requestTarget.tool ? requestTarget.tool.name : ''"></p>
+
+      <label class="field-label">Motivo (opcional)</label>
+      <textarea x-model="requestForm.reason" class="field-input" rows="3" placeholder="Ej: no enciende, hace ruido raro..."></textarea>
+      <p style="font-size:0.75rem;color:#94a3b8;margin:0.5rem 0 0;">Se va a avisar por email a Encargado y Jefe.</p>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showRequestModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmRequestMaintenance()" class="btn-primary">Solicitar</button>
       </div>
     </div>
   </div>
@@ -197,6 +228,27 @@
 .field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
 .field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
 [x-cloak] { display:none !important; }
+
+/* Popup con quién y cuándo pidió mantención — mismo patrón que el
+   tooltip de estado de Herramientas (CSS-only, sin estado de Alpine). */
+.status-tooltip-wrap .status-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #fff;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+}
+.status-tooltip-wrap:hover .status-tooltip { display: block; }
+.badge-request { background: #cffafe; color: #155e75; }
 </style>
 {% endblock %}
 
@@ -219,6 +271,9 @@ function toolboxesPage() {
     showAuditModal: false,
     activeAudit: null,
     itemDrafts: {},
+    showRequestModal: false,
+    requestTarget: null,
+    requestForm: {},
     message: '',
     messageType: 'success',
 
@@ -377,6 +432,46 @@ function toolboxesPage() {
     formatDate(value) {
       if (!value) return '—';
       return new Date(value).toLocaleDateString('es-AR');
+    },
+    formatDateTime(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleString('es-AR');
+    },
+
+    // Solo se muestran acá los estados que no son "en_caja" (el normal
+    // dentro de una caja) — mantenimiento_solicitada es el que más
+    // importa distinguir, con su propio color y tooltip.
+    toolStatusLabel(status) {
+      return { mantenimiento_solicitada: 'Mantención solicitada', mantenimiento: 'En mantenimiento' }[status] || status;
+    },
+    toolStatusBadge(status) {
+      return { mantenimiento_solicitada: 'badge-request', mantenimiento: 'badge-danger' }[status] || 'badge-info';
+    },
+    requestTooltip(tool) {
+      const who = tool.maintenance_requested_by ? tool.maintenance_requested_by.full_name : 'alguien';
+      const when = tool.maintenance_requested_at ? this.formatDateTime(tool.maintenance_requested_at) : '';
+      return `Solicitada por: ${who}${when ? ' · ' + when : ''}`;
+    },
+
+    openRequestMaintenance(item) {
+      this.requestTarget = item;
+      this.requestForm = { reason: '' };
+      this.showRequestModal = true;
+    },
+
+    async confirmRequestMaintenance() {
+      const res = await authFetch(
+        `/api/v1/toolboxes/${this.detail.id}/tools/${this.requestTarget.tool_id}/request-maintenance`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.requestForm) },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo solicitar la mantención', 'error');
+        return;
+      }
+      this.showRequestModal = false;
+      this.showMessage('Mantención solicitada — se avisó a Encargado y Jefe');
+      await this.refreshDetail();
     },
 
     async updateResponsible() {

@@ -24,13 +24,14 @@
       <option value="prestado">Prestado</option>
       <option value="en_caja">En caja de herramientas</option>
       <option value="mantenimiento">Mantenimiento</option>
+      <option value="mantenimiento_solicitada">Mantención solicitada</option>
       <option value="baja">Baja</option>
     </select>
     <button @click="openScanModal()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h4V2H2v6h2V4zm0 16v-4H2v6h6v-2H4zM20 4h-4V2h6v6h-2V4zm0 16v-4h2v6h-6v-2h4zM9 9h1v1H9V9zm5 0h1v1h-1V9zM9 14h1v1H9v-1zm5 0h1v1h-1v-1z"/></svg>
       Escanear QR
     </button>
-    <button @click="exportTools()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
+    <button x-show="canManage()" @click="exportTools()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
       Exportar CSV
     </button>
@@ -70,7 +71,7 @@
           <tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">No se encontraron herramientas</td></tr>
         </template>
         <template x-for="tool in tools" :key="tool.id">
-          <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;" @click="openEdit(tool)">
+          <tr style="border-bottom:1px solid #f1f5f9;" :style="canManage() ? 'cursor:pointer;' : ''" @click="canManage() && openEdit(tool)">
             <td style="padding:0.65rem 1rem;">
               <div style="display:flex;align-items:center;gap:0.6rem;">
                 <template x-if="tool.photo_url">
@@ -94,7 +95,7 @@
             </td>
             <td style="padding:0.65rem 1rem;color:#475569;" x-show="isJefe()" x-text="tool.current_value != null ? '$' + Number(tool.current_value).toLocaleString() : '—'"></td>
             <td style="padding:0.65rem 1rem;text-align:right;">
-              <button @click.stop="openEdit(tool)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Ver / editar</button>
+              <button x-show="canManage()" @click.stop="openEdit(tool)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Ver / editar</button>
             </td>
           </tr>
         </template>
@@ -249,7 +250,9 @@
         <div style="display:flex;gap:0.5rem;">
           <button x-show="editing && canDelete()" @click="deleteTool(editing)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Eliminar</button>
           <button x-show="editing && canManage()" @click="duplicateTool()" style="background:#e0e7ff;color:#3730a3;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Duplicar herramienta</button>
-          <button x-show="editing && canManage() && (editing.status === 'disponible' || editing.status === 'en_caja')" @click="openMaintenanceQuick()" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Enviar a mantenimiento</button>
+          <button x-show="editing && canManage() && ['disponible', 'en_caja', 'mantenimiento_solicitada'].includes(editing.status)" @click="openMaintenanceQuick()" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
+            <span x-text="editing && editing.status === 'mantenimiento_solicitada' ? 'Confirmar mantención solicitada' : 'Enviar a mantenimiento'"></span>
+          </button>
         </div>
         <div style="display:flex;gap:0.5rem;margin-left:auto;">
           <button @click="closeModal()" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
@@ -340,6 +343,12 @@
   box-shadow: 0 4px 12px rgba(0,0,0,0.18);
 }
 .status-tooltip-wrap:hover .status-tooltip { display: block; }
+
+/* Color propio para "mantención solicitada" — distinto de disponible
+   (verde), prestado (amarillo), en_caja (violeta) y mantenimiento (rojo),
+   para que se distinga de un vistazo que todavía no es un mantenimiento
+   confirmado, solo un aviso pendiente de un Mecánico. */
+.badge-request { background: #cffafe; color: #155e75; }
 </style>
 {% endblock %}
 
@@ -471,6 +480,11 @@ function toolsPage() {
 
     // Texto del popup al pasar el cursor sobre el badge de estado.
     statusDetail(tool) {
+      if (tool.status === 'mantenimiento_solicitada') {
+        const who = tool.maintenance_requested_by ? tool.maintenance_requested_by.full_name : 'alguien';
+        const when = tool.maintenance_requested_at ? this.formatDateTime(tool.maintenance_requested_at) : '';
+        return `Solicitada por: ${who}${when ? ' · ' + when : ''}`;
+      }
       if (tool.status === 'en_caja') {
         const box = this.toolboxes.find((b) => b.items.some((i) => i.tool_id === tool.id));
         if (!box) return 'En una caja de herramientas';
@@ -480,7 +494,7 @@ function toolsPage() {
       if (tool.status === 'prestado') {
         const loan = this._activeLoanFor(tool);
         if (!loan) return null;
-        const borrower = this.userName(loan.borrower_id);
+        const borrower = loan.borrower ? loan.borrower.full_name : this.userName(loan.borrower_id);
         let dueLabel = 'Al día';
         if (loan.status === 'vencido') dueLabel = 'Vencido';
         else if (this._daysUntilDue(loan) <= 2) dueLabel = 'Por vencer';
@@ -520,6 +534,10 @@ function toolsPage() {
     formatDate(value) {
       if (!value) return '—';
       return new Date(value).toLocaleDateString('es-AR');
+    },
+    formatDateTime(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleString('es-AR');
     },
 
     canManage() { return hasRole(this.user, 'encargado'); },
@@ -674,7 +692,12 @@ function toolsPage() {
     },
 
     openMaintenanceQuick() {
-      this.maintenanceForm = { provider: '', reason: '' };
+      // Si viene de una solicitud de un Mecánico, precarga el motivo que
+      // dejó (si lo dejó) para no perder ese contexto al confirmarla.
+      const prefill = this.editing && this.editing.status === 'mantenimiento_solicitada'
+        ? (this.editing.maintenance_requested_reason || '')
+        : '';
+      this.maintenanceForm = { provider: '', reason: prefill };
       this.showMaintenanceModal = true;
     },
 
@@ -741,13 +764,13 @@ function toolsPage() {
     statusLabel(status) {
       return {
         disponible: 'Disponible', prestado: 'Prestado', en_caja: 'En caja de herramientas',
-        mantenimiento: 'Mantenimiento', baja: 'Baja',
+        mantenimiento: 'Mantenimiento', mantenimiento_solicitada: 'Mantención solicitada', baja: 'Baja',
       }[status] || status;
     },
     statusBadgeClass(status) {
       return {
         disponible: 'badge-success', prestado: 'badge-warning', en_caja: 'badge-info',
-        mantenimiento: 'badge-danger', baja: 'badge-info',
+        mantenimiento: 'badge-danger', mantenimiento_solicitada: 'badge-request', baja: 'badge-info',
       }[status] || 'badge-info';
     },
 

@@ -40,8 +40,8 @@
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#059669" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </span>
       </div>
-      <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="'$' + (kpis.inventory_value || 0).toLocaleString()">—</div>
-      <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">valor actual</div>
+      <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="kpis.inventory_value != null ? '$' + kpis.inventory_value.toLocaleString() : '—'">—</div>
+      <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;" x-text="kpis.inventory_value != null ? 'valor actual' : 'solo visible para Jefe'"></div>
     </a>
 
     <a href="/tools?status=mantenimiento" class="kpi-card" style="border-top-color:#ef4444;text-decoration:none;cursor:pointer;">

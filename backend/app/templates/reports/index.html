@@ -9,6 +9,12 @@
 {% block content %}
 <div x-data="reportsPage()" x-init="init()">
 
+  <div class="card" x-show="!canView()" style="color:#64748b;font-size:0.85rem;">
+    Este módulo necesita rol Encargado o Jefe.
+  </div>
+
+  <template x-if="canView()">
+  <div>
   <!-- Tabs -->
   <div style="display:flex;gap:0.5rem;border-bottom:1px solid #e2e8f0;margin-bottom:1.25rem;">
     <button @click="tab = 'inventory'" :style="tab === 'inventory' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Inventario</button>
@@ -200,6 +206,8 @@
       </table>
     </div>
   </div>
+  </div>
+  </template>
 </div>
 
 <style>
@@ -228,12 +236,19 @@ function reportsPage() {
 
     async init() {
       this.user = await getCurrentUser();
+      if (!this.canView()) return;
       await this.loadInventoryReport();
       await this.loadLoansReport();
       if (this.isJefe()) await this.loadAudit();
     },
 
     isJefe() { return hasRole(this.user, 'jefe'); },
+    // Reportes es Encargado+ — un Mecánico no tiene ningún acceso al
+    // módulo (a diferencia de Herramientas/Cajas/Mantenimiento, donde ve
+    // una versión reducida). El backend ya rechaza (403) inventory/loans
+    // para Mecánico; esto evita que la pantalla intente cargar igual y
+    // quede con tablas vacías sin explicación.
+    canView() { return hasRole(this.user, 'encargado'); },
 
     async loadInventoryReport() {
       const res = await authFetch('/api/v1/reports/inventory');

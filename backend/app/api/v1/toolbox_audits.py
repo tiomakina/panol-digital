@@ -3,10 +3,12 @@ API de Auditoría/Inventario de Cajas de Herramientas.
 Endpoint: /api/v1/toolbox-audits/
 
 Flujo: se abre una auditoría para una caja (arma un checklist con las
-herramientas que tenía en ese momento), el mecánico va revisando cada
-una (bueno / dañado / faltante, con observación si no es "bueno"), puede
-mandar directo a mantenimiento la que lo necesite, y al final se cierra
-la auditoría.
+herramientas que tenía en ese momento), un Encargado o Jefe va revisando
+cada una (bueno / dañado / faltante, con observación si no es "bueno"),
+puede mandar directo a mantenimiento la que lo necesite, y al final se
+cierra la auditoría. Un Mecánico no puede auditar (solo un Encargado o
+Jefe puede crear/editar/cerrar auditorías), pero sí ve el historial de
+las ya realizadas — para eso, GET sigue abierto a cualquier rol.
 """
 from datetime import datetime
 
@@ -71,7 +73,7 @@ async def create_audit(
     payload: ToolboxAuditCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_role("mecanico")),
+    user: User = Depends(require_role("encargado")),
 ):
     """Abre una auditoría nueva con un item por cada herramienta que la caja tiene en este momento."""
     toolbox = await db.get(Toolbox, payload.toolbox_id)
@@ -115,7 +117,7 @@ async def update_audit_item(
     item_id: int,
     payload: ToolboxAuditItemUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_role("mecanico")),
+    user: User = Depends(require_role("encargado")),
 ):
     """Registra el resultado de revisar una herramienta del checklist."""
     audit = await _get_audit_or_404(db, audit_id)
@@ -146,7 +148,7 @@ async def send_audit_item_to_maintenance(
     payload: SendItemToMaintenanceInput,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_role("mecanico")),
+    user: User = Depends(require_role("encargado")),
 ):
     """
     Manda directo a mantenimiento una herramienta encontrada dañada durante
@@ -195,7 +197,7 @@ async def complete_audit(
     audit_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_role("mecanico")),
+    user: User = Depends(require_role("encargado")),
 ):
     """Cierra la auditoría — exige que cada herramienta del checklist ya haya sido revisada."""
     audit = await _get_audit_or_404(db, audit_id)

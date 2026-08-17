@@ -33,7 +33,13 @@ CSV_COLUMNS = [
 _IMPORTABLE_STATUSES = {ToolStatus.disponible, ToolStatus.mantenimiento, ToolStatus.baja}
 
 
-def tools_to_csv(tools: list[Tool]) -> bytes:
+def tools_to_csv(tools: list[Tool], mask_costs: bool = False) -> bytes:
+    """
+    mask_costs=True deja vacías las columnas de costo/valor de rescate —
+    lo usa el endpoint de export para que exportar a CSV no sea una forma
+    de esquivar el enmascaramiento de valores económicos que ya aplica la
+    API JSON (ver tools.py::_to_out) para quien no es Jefe.
+    """
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS)
     writer.writeheader()
@@ -49,8 +55,8 @@ def tools_to_csv(tools: list[Tool]) -> bytes:
             "supplier": t.supplier or "",
             "status": t.status.value,
             "purchase_date": t.purchase_date.isoformat() if t.purchase_date else "",
-            "purchase_cost": str(t.purchase_cost) if t.purchase_cost is not None else "",
-            "salvage_value": str(t.salvage_value) if t.salvage_value is not None else "",
+            "purchase_cost": "" if mask_costs else (str(t.purchase_cost) if t.purchase_cost is not None else ""),
+            "salvage_value": "" if mask_costs else (str(t.salvage_value) if t.salvage_value is not None else ""),
             "useful_life_years": t.useful_life_years if t.useful_life_years is not None else "",
             "depreciation_method": t.depreciation_method.value if t.depreciation_method else "",
             "description": t.description or "",

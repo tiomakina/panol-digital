@@ -325,9 +325,9 @@ a.kpi-card:hover {
       Mantenimiento
     </a>
 
-    <p class="nav-section-label">Análisis</p>
+    <p class="nav-section-label" x-show="hasRole(currentUser, 'encargado')">Análisis</p>
 
-    <a href="/reports" class="nav-link {% if '/reports' in request.url.path %}active{% endif %}">
+    <a href="/reports" x-show="hasRole(currentUser, 'encargado')" class="nav-link {% if '/reports' in request.url.path %}active{% endif %}">
       <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
       Reportes
     </a>
@@ -339,12 +339,12 @@ a.kpi-card:hover {
       Usuarios
     </a>
 
-    <a href="/brand" class="nav-link {% if '/brand' in request.url.path %}active{% endif %}" style="margin-top: 2px;">
+    <a href="/brand" x-show="hasRole(currentUser, 'encargado')" class="nav-link {% if '/brand' in request.url.path %}active{% endif %}" style="margin-top: 2px;">
       <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
       Personalización
     </a>
 
-    <a href="/lookups" class="nav-link {% if '/lookups' in request.url.path %}active{% endif %}" style="margin-top: 2px;">
+    <a href="/lookups" x-show="hasRole(currentUser, 'encargado')" class="nav-link {% if '/lookups' in request.url.path %}active{% endif %}" style="margin-top: 2px;">
       <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 6a2 2 0 012-2h12a2 2 0 012 2M4 6v12a2 2 0 002 2h12a2 2 0 002-2V6M9 6v14m0-14a2 2 0 00-2-2H4m5 2a2 2 0 012-2h2a2 2 0 012 2m0 0v14"/></svg>
       Tablas maestras
     </a>
@@ -439,7 +439,7 @@ a.kpi-card:hover {
             <template x-for="loan in overdueLoans" :key="loan.id">
               <a href="/loans" style="display:block;padding:0.65rem 1rem;border-bottom:1px solid #f8fafc;text-decoration:none;">
                 <div style="font-size:0.8rem;font-weight:600;color:#991b1b;">⚠ Préstamo vencido</div>
-                <div style="font-size:0.78rem;color:#475569;" x-text="(loan.tool || '—') + ' · ' + (loan.borrower || '—')"></div>
+                <div style="font-size:0.78rem;color:#475569;" x-text="(loan.tool ? loan.tool.name : '—') + ' · ' + (loan.borrower ? loan.borrower.full_name : '—')"></div>
               </a>
             </template>
           </div>
@@ -509,8 +509,13 @@ function appState() {
     },
 
     async loadNotifications() {
-      const res = await authFetch('/api/v1/reports/loans?status=vencido');
-      if (res.ok) this.overdueLoans = (await res.json()).loans;
+      // Usa /api/v1/loans (abierto a cualquier rol autenticado), no
+      // /api/v1/reports/loans — ese quedó restringido a Encargado+ cuando
+      // se bloqueó el módulo de Reportes para Mecánico, y esta campanita
+      // de notificaciones no tiene nada que ver con Reportes: es un aviso
+      // general que todos los roles deben poder ver.
+      const res = await authFetch('/api/v1/loans?status=vencido');
+      if (res.ok) this.overdueLoans = await res.json();
     },
 
     async loadEconomicIndicators() {

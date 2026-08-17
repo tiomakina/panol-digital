@@ -35,14 +35,19 @@ async def send_tool_to_maintenance(
     sumar sus propios cambios a la misma transacción, ej. marcar el item
     de una auditoría de caja).
     """
-    if tool.status not in (ToolStatus.disponible, ToolStatus.en_caja):
+    # mantenimiento_solicitada: el caso de una herramienta con una solicitud
+    # de un Mecánico (ver POST .../request-maintenance) que un Encargado/Jefe
+    # está confirmando recién ahora — tiene que poder convertirse en un
+    # MaintenanceRecord real igual que si viniera "disponible" o "en_caja".
+    if tool.status not in (ToolStatus.disponible, ToolStatus.en_caja, ToolStatus.mantenimiento_solicitada):
         raise HTTPException(
             status_code=400,
-            detail="Solo se puede enviar a mantenimiento una herramienta disponible o en una caja de herramientas",
+            detail="Solo se puede enviar a mantenimiento una herramienta disponible, en una caja de "
+            "herramientas, o con una mantención solicitada",
         )
 
     removed_from_toolbox = False
-    if tool.status == ToolStatus.en_caja:
+    if tool.status in (ToolStatus.en_caja, ToolStatus.mantenimiento_solicitada):
         item_result = await db.execute(select(ToolboxItem).where(ToolboxItem.tool_id == tool.id))
         item = item_result.scalar_one_or_none()
         if item:

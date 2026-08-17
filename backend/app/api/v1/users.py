@@ -98,9 +98,11 @@ async def update_user(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Actualiza un usuario. Cualquier usuario puede editar sus propios datos de
-    contacto; cambiar rol o estado activo/inactivo requiere ser Jefe (incluso
-    para el propio perfil, así nadie se auto-asciende).
+    Actualiza un usuario. Encargado y Jefe pueden editar sus propios datos
+    de contacto; un Mecánico puede VER su perfil (vía /auth/me) pero no
+    editarlo — tiene que pedírselo a un Encargado o Jefe. Cambiar rol o
+    estado activo/inactivo requiere ser Jefe (incluso para el propio
+    perfil, así nadie se auto-asciende).
     """
     target = await db.get(User, user_id)
     if not target:
@@ -111,6 +113,10 @@ async def update_user(
 
     if not is_self and not is_jefe:
         raise HTTPException(status_code=403, detail="Sin permisos suficientes")
+    if is_self and not is_jefe and current_user.role.value == "mecanico":
+        raise HTTPException(
+            status_code=403, detail="Los mecánicos no pueden editar su perfil — pedíselo a un Encargado o Jefe"
+        )
 
     updates = payload.model_dump(exclude_unset=True)
     if ("role" in updates or "is_active" in updates) and not is_jefe:
@@ -144,7 +150,12 @@ async def upload_user_photo(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Sube o reemplaza la foto de perfil de un usuario — el propio dueño o un Jefe."""
+    """
+    Sube o reemplaza la foto de perfil de un usuario — Encargado/Jefe para
+    la propia, o un Jefe para la de cualquiera. Un Mecánico no puede tocar
+    ni su propia foto (ver update_user: no edita su perfil, esto es parte
+    de lo mismo).
+    """
     target = await db.get(User, user_id)
     if not target:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -153,6 +164,10 @@ async def upload_user_photo(
     is_jefe = current_user.role.value == "jefe"
     if not is_self and not is_jefe:
         raise HTTPException(status_code=403, detail="Sin permisos suficientes")
+    if is_self and not is_jefe and current_user.role.value == "mecanico":
+        raise HTTPException(
+            status_code=403, detail="Los mecánicos no pueden editar su perfil — pedíselo a un Encargado o Jefe"
+        )
 
     file_bytes = await file.read()
     valid, mime_type = validate_image_magic_bytes(file_bytes)

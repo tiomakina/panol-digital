@@ -166,6 +166,13 @@ async def download_voucher(loan_id: int, db: AsyncSession = Depends(get_db), use
     if not loan:
         raise HTTPException(status_code=404, detail="Préstamo no encontrado")
 
+    # Un Mecánico solo puede ver el vale de sus propios préstamos — Encargado
+    # y Jefe ven cualquiera. No alcanza con ocultar el botón en la UI: si no
+    # se valida acá, cualquiera podía pedir el PDF de otro solo cambiando el
+    # id en la URL.
+    if user.role.value == "mecanico" and loan.borrower_id != user.id:
+        raise HTTPException(status_code=403, detail="Solo podés ver el vale de tus propios préstamos")
+
     tool = await db.get(Tool, loan.tool_id)
     borrower = await db.get(User, loan.borrower_id)
     issued_by = await db.get(User, loan.issued_by_id)

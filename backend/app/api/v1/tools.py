@@ -84,10 +84,17 @@ async def scan_qr(payload: str, db: AsyncSession = Depends(get_db), user: User =
 
 
 @router.get("/export")
-async def export_tools(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
-    """Descarga el inventario completo como CSV (compatible con Excel)."""
+async def export_tools(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("encargado"))):
+    """
+    Descarga el inventario completo como CSV (compatible con Excel). Un
+    Mecánico no puede exportar (ni la opción se muestra en la UI). Para
+    quien sí puede pero no es Jefe (Encargado), el CSV enmascara costo de
+    compra y valor de rescate — igual que la API JSON (_to_out) — porque
+    si no, exportar era una forma de esquivar esa restricción y ver los
+    valores económicos igual.
+    """
     result = await db.execute(select(Tool).order_by(Tool.name))
-    csv_bytes = tools_to_csv(result.scalars().all())
+    csv_bytes = tools_to_csv(result.scalars().all(), mask_costs=user.role.value != "jefe")
     filename = f"herramientas_{date.today().isoformat()}.csv"
     return Response(
         content=csv_bytes,

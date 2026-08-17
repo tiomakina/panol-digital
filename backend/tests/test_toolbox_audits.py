@@ -38,8 +38,11 @@ async def _seed_toolbox_with_two_tools() -> tuple[int, int, int]:
 
 
 async def test_audit_lifecycle_bueno_and_faltante(client):
-    await _create_user("meca_aud@test.com", "Clave123!", UserRole.mecanico)
-    token = await _login(client, "meca_aud@test.com", "Clave123!")
+    # Auditar es Encargado+ desde el pedido del cliente de restringir Cajas —
+    # un Mecánico ya no puede crear/editar auditorías (ver
+    # test_mecanico_cannot_audit_but_can_view_completed_ones más abajo).
+    await _create_user("enc_aud@test.com", "Clave123!", UserRole.encargado)
+    token = await _login(client, "enc_aud@test.com", "Clave123!")
     toolbox_id, tool_a_id, tool_b_id = await _seed_toolbox_with_two_tools()
 
     created = await client.post("/api/v1/toolbox-audits", json={"toolbox_id": toolbox_id}, headers=_auth(token))
@@ -97,8 +100,8 @@ async def test_audit_lifecycle_bueno_and_faltante(client):
 
 
 async def test_send_audit_item_to_maintenance_removes_from_toolbox(client):
-    await _create_user("meca_aud2@test.com", "Clave123!", UserRole.mecanico)
-    token = await _login(client, "meca_aud2@test.com", "Clave123!")
+    await _create_user("enc_aud2@test.com", "Clave123!", UserRole.encargado)
+    token = await _login(client, "enc_aud2@test.com", "Clave123!")
     toolbox_id, tool_a_id, tool_b_id = await _seed_toolbox_with_two_tools()
 
     created = await client.post("/api/v1/toolbox-audits", json={"toolbox_id": toolbox_id}, headers=_auth(token))
@@ -146,3 +149,49 @@ async def test_send_audit_item_to_maintenance_removes_from_toolbox(client):
     )
     closed = await client.post(f"/api/v1/toolbox-audits/{audit['id']}/complete", headers=_auth(token))
     assert closed.status_code == 200
+
+
+async def test_mecanico_cannot_audit_but_can_view_completed_ones(client):
+    """
+    Pedido del cliente: un Mecánico ya no puede auditar cajas (eso quedó en
+    Encargado+), pero sí tiene que poder ver el historial de auditorías ya
+    hechas — la lista/detalle sigue abierta a cualquier rol autenticado.
+    """
+    await _create_user("enc_aud3@test.com", "Clave123!", UserRole.encargado)
+    await _create_user("meca_aud3@test.com", "Clave123!", UserRole.mecanico)
+    encargado_token = await _login(client, "enc_aud3@test.com", "Clave123!")
+    mecanico_token = await _login(client, "meca_aud3@test.com", "Clave123!")
+    toolbox_id, tool_a_id, tool_b_id = await _seed_toolbox_with_two_tools()
+
+    forbidden_create = await client.post(
+        "/api/v1/toolbox-audits", json={"toolbox_id": toolbox_id}, headers=_auth(mecanico_token)
+    )
+    assert forbidden_create.status_code == 403
+
+    created = await client.post(
+        "/api/v1/toolbox-audits", json={"toolbox_id": toolbox_id}, headers=_auth(encargado_token)
+    )
+    audit = created.json()
+    item_a = next(i for i in audit["items"] if i["tool_id"] == tool_a_id)
+
+    forbidden_update = await client.put(
+        f"/api/v1/toolbox-audits/{audit['id']}/items/{item_a['id']}",
+        json={"condition": "bueno"},
+        headers=_auth(mecanico_token),
+    )
+    assert forbidden_update.status_code == 403
+
+    forbidden_complete = await client.post(
+        f"/api/v1/toolbox-audits/{audit['id']}/complete", headers=_auth(mecanico_token)
+    )
+    assert forbidden_complete.status_code == 403
+
+    # Pero sí puede ver la lista y el detalle
+    listing = await client.get(
+        f"/api/v1/toolbox-audits?toolbox_id={toolbox_id}", headers=_auth(mecanico_token)
+    )
+    assert listing.status_code == 200
+    assert len(listing.json()) == 1
+
+    detail = await client.get(f"/api/v1/toolbox-audits/{audit['id']}", headers=_auth(mecanico_token))
+    assert detail.status_code == 200

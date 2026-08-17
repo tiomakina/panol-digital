@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_role
+from app.core.security import require_role
 from app.models.audit import AuditLog
 from app.models.loan import Loan, LoanStatus
 from app.models.tool import Tool
@@ -69,7 +69,7 @@ def _inventory_summary(rows: list[dict]) -> list[dict]:
 
 
 @router.get("/inventory")
-async def inventory_report(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+async def inventory_report(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("encargado"))):
     """Inventario valorizado: costo de compra y valor en libros actual de cada herramienta."""
     rows = await _inventory_rows(db)
     total_cost = sum(r["purchase_cost"] or 0 for r in rows)
@@ -83,7 +83,7 @@ async def inventory_report(db: AsyncSession = Depends(get_db), user: User = Depe
 
 
 @router.get("/inventory.csv")
-async def inventory_report_csv(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+async def inventory_report_csv(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("encargado"))):
     """Igual que /reports/inventory pero como CSV descargable."""
     rows = await _inventory_rows(db)
 
@@ -108,7 +108,7 @@ async def loans_report(
     date_to: date | None = None,
     borrower_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("encargado")),
 ):
     """Historial de préstamos, con filtros opcionales de estado, rango de fechas y responsable."""
     stmt = select(Loan)

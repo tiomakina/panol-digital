@@ -33,6 +33,20 @@ async def _get_record_or_404(db: AsyncSession, record_id: int) -> MaintenanceRec
     return record
 
 
+def _to_out(record: MaintenanceRecord, viewer: User) -> MaintenanceOut:
+    """
+    Un Mecánico ve el listado y el estado de cada registro, pero no los
+    comprobantes adjuntos (órdenes de trabajo, cotizaciones, facturas) —
+    igual que con los valores económicos de Herramientas, no alcanza con
+    ocultar el botón "Ver" en el frontend: si el dato sigue viniendo en el
+    JSON, se puede leer igual desde el panel de red del navegador.
+    """
+    data = MaintenanceOut.model_validate(record)
+    if viewer.role.value == "mecanico":
+        data.documents = []
+    return data
+
+
 @router.get("", response_model=list[MaintenanceOut])
 async def list_maintenance(
     status_filter: MaintenanceStatus | None = Query(None, alias="status"),
@@ -46,12 +60,13 @@ async def list_maintenance(
     if tool_id:
         stmt = stmt.where(MaintenanceRecord.tool_id == tool_id)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    return [_to_out(r, user) for r in result.scalars().all()]
 
 
 @router.get("/{record_id}", response_model=MaintenanceOut)
 async def get_maintenance(record_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
-    return await _get_record_or_404(db, record_id)
+    record = await _get_record_or_404(db, record_id)
+    return _to_out(record, user)
 
 
 @router.post("", response_model=MaintenanceOut, status_code=status.HTTP_201_CREATED)

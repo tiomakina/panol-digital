@@ -30,7 +30,12 @@
 
   <div class="card" x-show="!canList()" style="color:#64748b;font-size:0.85rem;">
     Para ver y administrar a todo el equipo se necesita rol Encargado o Jefe.
-    Usá el botón <strong>"Mi perfil"</strong> de arriba para editar tus propios datos y tu foto.
+    <template x-if="!isMecanico()">
+      <span>Usá el botón <strong>"Mi perfil"</strong> de arriba para editar tus propios datos y tu foto.</span>
+    </template>
+    <template x-if="isMecanico()">
+      <span>Usá el botón <strong>"Mi perfil"</strong> de arriba para ver tus datos (para editarlos, pedíselo a un Encargado o Jefe).</span>
+    </template>
   </div>
 
   <div class="card" x-show="canList()" style="padding:0;overflow-x:auto;">
@@ -99,10 +104,10 @@
     </div>
   </div>
 
-  <!-- Modal editar -->
+  <!-- Modal editar (o solo ver, si es el propio perfil de un Mecánico) -->
   <div x-show="showEditModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showEditModal = false">
     <div class="card" style="max-width:420px;width:100%;">
-      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Editar usuario</h2>
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;" x-text="isMecanico() ? 'Mi perfil' : 'Editar usuario'"></h2>
 
       <div style="display:flex;align-items:center;gap:0.9rem;margin-bottom:1rem;">
         <template x-if="editForm.avatar_url">
@@ -111,16 +116,16 @@
         <template x-if="!editForm.avatar_url">
           <div style="width:56px;height:56px;border-radius:50%;background:var(--brand-light,#e0e7ff);color:var(--brand-primary,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:600;flex-shrink:0;" x-text="initials(editForm.full_name)"></div>
         </template>
-        <label style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">
+        <label x-show="!isMecanico()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">
           Cambiar foto
           <input type="file" accept="image/*" style="display:none;" @change="uploadPhoto($event.target.files[0])">
         </label>
       </div>
 
       <label class="field-label">Nombre completo</label>
-      <input type="text" x-model="editForm.full_name" class="field-input" style="margin-bottom:0.75rem;">
+      <input type="text" x-model="editForm.full_name" :disabled="isMecanico()" class="field-input" style="margin-bottom:0.75rem;">
       <label class="field-label">Teléfono</label>
-      <input type="text" x-model="editForm.phone" class="field-input" style="margin-bottom:0.75rem;">
+      <input type="text" x-model="editForm.phone" :disabled="isMecanico()" class="field-input" style="margin-bottom:0.75rem;">
       <template x-if="isJefe()">
         <div>
           <label class="field-label">Rol</label>
@@ -131,12 +136,15 @@
           </select>
         </div>
       </template>
-      <template x-if="!isJefe()">
+      <template x-if="!isJefe() && !isMecanico()">
         <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 0.75rem;">Solo un Jefe puede cambiar el rol o el estado de la cuenta.</p>
       </template>
+      <template x-if="isMecanico()">
+        <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 0.75rem;">Un Mecánico no puede editar su perfil — pedíselo a un Encargado o Jefe.</p>
+      </template>
       <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
-        <button @click="showEditModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
-        <button @click="saveEdit()" class="btn-primary">Guardar</button>
+        <button @click="showEditModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;" x-text="isMecanico() ? 'Cerrar' : 'Cancelar'"></button>
+        <button x-show="!isMecanico()" @click="saveEdit()" class="btn-primary">Guardar</button>
       </div>
     </div>
   </div>
@@ -263,6 +271,7 @@ function usersPage() {
 
     isJefe() { return hasRole(this.user, 'jefe'); },
     canList() { return hasRole(this.user, 'encargado'); },
+    isMecanico() { return this.user && this.user.role === 'mecanico'; },
 
     async loadUsers() {
       this.loading = true;
