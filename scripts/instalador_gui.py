@@ -284,11 +284,15 @@ class PanolInstaller(tk.Tk):
             install_dir.mkdir(parents=True, exist_ok=True)
             self.log(f"Directorio de instalación: {install_dir}")
             
-            # Crear .env con los datos del formulario
+            # Crear .env con los datos del formulario.
+            # Se generan secretos criptográficamente seguros (256 bits de
+            # entropía real) — el hash() de Python tenía solo ~20 bits y
+            # era predecible entre ejecuciones del mismo intérprete.
+            import secrets as _secrets
             env_content = f"""COMPANY_NAME={self.company_name.get()}
-DB_PASSWORD=panol_{hash(self.admin_password.get()) % 99999}
-SECRET_KEY=panol_secret_{hash(self.admin_email.get()) % 999999}
-JWT_SECRET_KEY=panol_jwt_{hash(self.admin_password.get()) % 999999}
+DB_PASSWORD={_secrets.token_hex(16)}
+SECRET_KEY={_secrets.token_hex(32)}
+JWT_SECRET_KEY={_secrets.token_hex(32)}
 DEBUG=false
 """
             (install_dir / ".env").write_text(env_content)

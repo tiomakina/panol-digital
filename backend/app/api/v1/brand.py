@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from app.core.security import require_role
 from app.core.branding import load_brand_config, get_brand_css_vars
-from app.services.brand_service import save_logo, update_brand_from_logo, update_brand_colors
+from app.services.brand_service import save_logo, update_brand_from_logo, update_brand_colors, validate_image_magic_bytes
 
 router = APIRouter(prefix="/brand", tags=["Branding"])
 
@@ -41,9 +41,18 @@ async def upload_logo(
     """
     if not file.content_type or "image" not in file.content_type:
         raise HTTPException(status_code=400, detail="Solo se permiten imágenes (PNG, JPG, SVG, WebP)")
-    
+
     file_bytes = await file.read()
-    
+
+    # Validar el tipo real del archivo por magic bytes (no solo el header
+    # Content-Type que el cliente puede falsificar libremente).
+    valid, detected_mime = validate_image_magic_bytes(file_bytes)
+    if not valid:
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo no es una imagen válida. Se aceptan PNG, JPG, WebP y SVG.",
+        )
+
     # Guardar logo
     logo_url = await save_logo(file_bytes, file.filename or "logo.png")
     if not logo_url:

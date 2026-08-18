@@ -45,6 +45,18 @@ RUN mkdir -p app/static/uploads/tools app/static/uploads/qr app/static/uploads/v
 # el build deja el script sano sin importar de qué SO vino el checkout.
 RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
+# ── Usuario no-root ───────────────────────────────────────────────────────
+# El contenedor NO debe correr como root: si un atacante logra salir del
+# proceso de la app, solo obtiene un usuario sin privilegios en el host.
+# El grupo/usuario "appuser" no tiene shell ni home para minimizar la
+# superficie de ataque.
+RUN groupadd --system appuser && useradd --system --gid appuser --no-create-home appuser
+
+# Los directorios de uploads y backups necesitan ser escribibles por appuser.
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
 EXPOSE 8000
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
