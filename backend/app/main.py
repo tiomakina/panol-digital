@@ -172,17 +172,3 @@ async def help_manual_pdf():
     )
 
 
-@app.get("/ayuda/manual.docx")
-async def help_manual_docx():
-    """
-    Manual de usuario en Word, para editar. Por ruta propia igual que el
-    PDF: sin el Content-Type + Content-Disposition correctos, el navegador
-    no reconocía el .docx y lo abría como texto plano (se veía el XML
-    crudo del archivo en vez de ofrecer descargarlo o abrirlo con Word).
-    `FileResponse(..., filename=...)` arma ambos headers solo.
-    """
-    return FileResponse(
-        "app/static/docs/Manual_de_Usuario_Panol360.docx",
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename="Manual de Usuario - Pañol 360.docx",
-    )
