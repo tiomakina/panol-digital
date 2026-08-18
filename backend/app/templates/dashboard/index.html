@@ -10,7 +10,7 @@
 <div x-data="dashboardData()">
 
   <!-- KPIs en tiempo real — cada tarjeta lleva a la vista filtrada correspondiente -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
+  <div id="dashboard-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
     <a href="/tools" class="kpi-card" style="text-decoration:none;cursor:pointer;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
         <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Herramientas</span>
@@ -136,5 +136,10 @@ function dashboardData() {
     }
   }
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#dashboard-kpis', title: 'Tarjetas KPI', text: 'Un resumen del estado del pañol de un vistazo. Son clickeables: tocá cualquiera y te lleva al listado filtrado correspondiente.' },
+  { selector: '#categoryChart', title: 'Uso por categoría', text: 'Qué categorías de herramientas se prestan más, para saber dónde conviene invertir en más stock.' },
+];
 </script>
 {% endblock %}

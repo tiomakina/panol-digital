@@ -16,9 +16,9 @@
 
   <!-- Barra de filtros -->
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
-    <input type="text" x-model="search" @input.debounce.400ms="loadTools()" placeholder="Buscar por nombre, marca o número de serie..."
+    <input id="tools-search" type="text" x-model="search" @input.debounce.400ms="loadTools()" placeholder="Buscar por nombre, marca o número de serie..."
            style="flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
-    <select x-model="statusFilter" @change="loadTools()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+    <select id="tools-status-filter" x-model="statusFilter" @change="loadTools()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
       <option value="">Todos los estados</option>
       <option value="disponible">Disponible</option>
       <option value="prestado">Prestado</option>
@@ -31,7 +31,7 @@
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h4V2H2v6h2V4zm0 16v-4H2v6h6v-2H4zM20 4h-4V2h6v6h-2V4zm0 16v-4h2v6h-6v-2h4zM9 9h1v1H9V9zm5 0h1v1h-1V9zM9 14h1v1H9v-1zm5 0h1v1h-1v-1z"/></svg>
       Escanear QR
     </button>
-    <button x-show="canManage()" @click="exportTools()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
+    <button id="tools-btn-exportar" x-show="canManage()" @click="exportTools()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
       Exportar CSV
     </button>
@@ -44,14 +44,14 @@
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       Descargar ejemplo
     </button>
-    <button class="btn-primary" @click="openCreate()" x-show="canManage()">
+    <button id="tools-btn-nueva" class="btn-primary" @click="openCreate()" x-show="canManage()">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Nueva herramienta
     </button>
   </div>
 
   <!-- Tabla -->
-  <div class="card" style="padding:0;overflow-x:auto;">
+  <div id="tools-table" class="card" style="padding:0;overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
       <thead>
         <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
@@ -793,5 +793,13 @@ function toolsPage() {
     },
   };
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#tools-search', title: 'Buscar herramientas', text: 'Filtrá por nombre, marca o número de serie.' },
+  { selector: '#tools-status-filter', title: 'Filtro por estado', text: 'Mostrá solo las disponibles, prestadas, en mantenimiento, etc.' },
+  { selector: '#tools-btn-nueva', title: 'Nueva herramienta', text: 'Da de alta una herramienta nueva: nombre, marca, número de serie, foto y, si querés, el comprobante de compra.' },
+  { selector: '#tools-btn-exportar', title: 'Exportar / Importar CSV', text: 'Bajá el inventario completo a una planilla, o subí una para cargar varias herramientas de una sola vez.' },
+  { selector: '#tools-table', title: 'Listado', text: 'Tocá cualquier fila para ver el detalle completo y editarla. El color junto al estado "En caja" es la marca física del mecánico responsable.' },
+];
 </script>
 {% endblock %}

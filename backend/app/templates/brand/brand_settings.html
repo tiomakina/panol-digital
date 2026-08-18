@@ -23,7 +23,7 @@
         </h2>
         
         <!-- Zona de drag & drop para logo -->
-        <div 
+        <div id="brand-logo-drop"
           style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s;"
           :style="dragOver ? 'border-color: var(--brand-primary); background: var(--brand-light, #ede9fe);' : ''"
           @dragover.prevent="dragOver = true"
@@ -96,7 +96,7 @@
       </div>
 
       <!-- Sección: Colores -->
-      <div class="card" style="margin-bottom:1rem;">
+      <div id="brand-colors-section" class="card" style="margin-bottom:1rem;">
         <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
           Paleta de colores
@@ -445,5 +445,10 @@ function brandEditor() {
     }
   }
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#brand-logo-drop', title: 'Logo de la empresa', text: 'Arrastrá el archivo o hacé click para elegirlo (PNG, SVG, JPG o WebP, máx. 2MB). Se muestra en el header y en el login.' },
+  { selector: '#brand-colors-section', title: 'Paleta de colores', text: 'Elegí los colores a mano, o marcá "extraer del logo" para que se generen solos a partir del logo subido. El cambio se aplica al instante.' },
+];
 </script>
 {% endblock %}

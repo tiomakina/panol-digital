@@ -148,3 +148,9 @@ async def maintenance_page(request: Request):
 @app.get("/backup")
 async def backup_page(request: Request):
     return await _render(request, "backup/index.html")
+
+
+@app.get("/ayuda")
+async def help_page(request: Request):
+    """Manual de usuario in-app — abierto a los 3 roles, sin restricción de RBAC."""
+    return await _render(request, "help/index.html")

@@ -20,7 +20,7 @@
   </p>
 
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
-    <button @click="createBackup()" class="btn-primary" :disabled="creating">
+    <button id="backup-btn-generar" @click="createBackup()" class="btn-primary" :disabled="creating">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       <span x-text="creating ? 'Generando...' : 'Generar respaldo ahora'"></span>
     </button>
@@ -30,7 +30,7 @@
     </label>
   </div>
 
-  <div class="card" style="padding:0;overflow-x:auto;">
+  <div id="backup-table" class="card" style="padding:0;overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
       <thead>
         <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
@@ -190,5 +190,10 @@ function backupPage() {
     },
   };
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#backup-btn-generar', title: 'Generar respaldo', text: 'Crea un archivo descargable con toda la base de datos y los archivos subidos (fotos, logos, documentos).' },
+  { selector: '#backup-table', title: 'Historial de respaldos', text: 'Descargá cualquiera, o restauralo — te va a pedir confirmar con tu contraseña antes, porque reemplaza los datos actuales.' },
+];
 </script>
 {% endblock %}

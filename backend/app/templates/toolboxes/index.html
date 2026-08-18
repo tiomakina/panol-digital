@@ -14,7 +14,7 @@
   </div>
 
   <div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
-    <button class="btn-primary" @click="openCreate()" x-show="canManage()">
+    <button id="toolboxes-btn-nueva" class="btn-primary" @click="openCreate()" x-show="canManage()">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Nueva caja
     </button>
@@ -23,7 +23,7 @@
   <template x-if="loading"><p style="color:#94a3b8;">Cargando...</p></template>
   <template x-if="!loading && toolboxes.length === 0"><p style="color:#94a3b8;">Todavía no hay cajas de herramientas creadas.</p></template>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:1rem;">
+  <div id="toolboxes-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:1rem;">
     <template x-for="box in toolboxes" :key="box.id">
       <div class="card" style="cursor:pointer;" @click="openDetail(box)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
@@ -537,5 +537,10 @@ function toolboxesPage() {
     },
   };
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#toolboxes-btn-nueva', title: 'Nueva caja', text: 'Creá una caja, ponele un nombre y ubicación, y asignale un mecánico responsable.' },
+  { selector: '#toolboxes-grid', title: 'Tarjetas de caja', text: 'Tocá cualquier caja para ver su contenido, auditarla, o (si sos Mecánico) solicitar mantención de algo que se rompió.' },
+];
 </script>
 {% endblock %}

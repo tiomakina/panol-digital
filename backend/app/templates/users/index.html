@@ -16,13 +16,13 @@
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
     <input type="text" x-model="search" @input.debounce.400ms="loadUsers()" placeholder="Buscar por nombre, email o RUT..." x-show="canList()"
            style="flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
-    <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openEdit(user)">Mi perfil</button>
+    <button id="users-btn-perfil" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openEdit(user)">Mi perfil</button>
     <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openPasswordModal()">Cambiar mi contraseña</button>
-    <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="open2faModal()">
+    <button id="users-btn-2fa" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="open2faModal()">
       Verificación en dos pasos
       <span x-show="user && user.totp_enabled" class="badge badge-success" style="margin-left:0.35rem;">Activa</span>
     </button>
-    <button class="btn-primary" @click="openCreate()" x-show="isJefe()">
+    <button id="users-btn-nuevo" class="btn-primary" @click="openCreate()" x-show="isJefe()">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Nuevo usuario
     </button>
@@ -38,7 +38,7 @@
     </template>
   </div>
 
-  <div class="card" x-show="canList()" style="padding:0;overflow-x:auto;">
+  <div id="users-table" class="card" x-show="canList()" style="padding:0;overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
       <thead>
         <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
@@ -159,7 +159,7 @@
             </template>
             <label x-show="isJefe()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.7rem;cursor:pointer;font-size:0.75rem;">
               Sacar/subir foto de la pintura
-              <input type="file" accept="image/*" style="display:none;" @change="uploadColorPhoto($event.target.files[0])">
+              <input id="color-photo-input" type="file" accept="image/*" style="display:none;" @change="uploadColorPhoto($event.target.files[0])">
             </label>
           </div>
           <p x-show="isJefe()" style="font-size:0.7rem;color:#94a3b8;margin:0.35rem 0 0;">
@@ -497,5 +497,12 @@ function usersPage() {
     },
   };
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#users-btn-perfil', title: 'Mi perfil', text: 'Todos pueden ver sus propios datos acá. Solo un Jefe puede editarlos (los tuyos y los de cualquiera).' },
+  { selector: '#users-btn-2fa', title: 'Verificación en dos pasos', text: 'Activá un código extra de una app autenticadora, además de tu contraseña. Muy recomendado para el Jefe.' },
+  { selector: '#users-btn-nuevo', title: 'Nuevo usuario', text: 'Solo el Jefe da de alta cuentas: nombre, RUT, email, rol y contraseña inicial.' },
+  { selector: '#users-table', title: 'Listado', text: 'Un Encargado ve todo esto pero de solo lectura. Tocá "Editar" (o "Ver") en cualquier fila para abrir la ficha completa, incluido el color identificador de un Mecánico.' },
+];
 </script>
 {% endblock %}

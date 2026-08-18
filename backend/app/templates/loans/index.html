@@ -14,7 +14,7 @@
   </div>
 
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
-    <select x-model="statusFilter" @change="loadLoans()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+    <select id="loans-status-filter" x-model="statusFilter" @change="loadLoans()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
       <option value="">Todos los estados</option>
       <option value="en_curso">En préstamo (activo + vencido)</option>
       <option value="activo">Activo</option>
@@ -22,17 +22,17 @@
       <option value="devuelto">Devuelto</option>
       <option value="extraviado">Extraviado</option>
     </select>
-    <button @click="openBulkCreate()" x-show="canManage()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
+    <button id="loans-btn-masiva" @click="openBulkCreate()" x-show="canManage()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
       Carga masiva
     </button>
-    <button class="btn-primary" @click="openCreate()" x-show="canManage()">
+    <button id="loans-btn-nuevo" class="btn-primary" @click="openCreate()" x-show="canManage()">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Nuevo préstamo
     </button>
   </div>
 
-  <div class="card" style="padding:0;overflow-x:auto;">
+  <div id="loans-table" class="card" style="padding:0;overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
       <thead>
         <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
@@ -474,5 +474,12 @@ function loansPage() {
     },
   };
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#loans-status-filter', title: 'Filtro por estado', text: 'Mostrá solo los préstamos activos, vencidos, devueltos o extraviados.' },
+  { selector: '#loans-btn-nuevo', title: 'Nuevo préstamo', text: 'Elegís la herramienta (solo aparecen las disponibles), quién la retira y la fecha de devolución esperada. Genera un vale en PDF.' },
+  { selector: '#loans-btn-masiva', title: 'Carga masiva', text: 'Para registrar varios préstamos de una sola vez, tipo planilla — útil al entregar herramientas a todo un equipo.' },
+  { selector: '#loans-table', title: 'Listado', text: 'El tooltip del estado muestra colores de urgencia: verde al día, naranjo por vencer, rojo vencido. Cada fila tiene su botón para devolver.' },
+];
 </script>
 {% endblock %}

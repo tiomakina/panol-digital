@@ -24,6 +24,9 @@
 <!-- Sesión JWT (localStorage) — adjunta el token a fetch/htmx y protege la página -->
 <script src="/static/js/auth.js"></script>
 
+<!-- Tour guiado — cada página define window.PANOL_TOUR_STEPS (ver templates/help/) -->
+<script src="/static/js/tour.js"></script>
+
 <!-- CSS Variables de Branding — generadas dinámicamente desde el servidor -->
 <style>
 {{ brand_css | safe }}
@@ -263,6 +266,41 @@ a.kpi-card:hover {
   .sidebar.open { transform: translateX(0); }
   .main-content { margin-left: 0; }
 }
+
+/* Tour guiado (ver static/js/tour.js) — overlay oscuro con un "hueco"
+   (spotlight) recortado con box-shadow sobre el elemento resaltado, más
+   un globo con el texto del paso. Sin librerías externas. */
+.panol-tour-overlay {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+  z-index: 9998; cursor: pointer;
+}
+.panol-tour-spotlight {
+  position: fixed; z-index: 9999; border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.55);
+  pointer-events: none;
+  outline: 2px solid var(--brand-primary, #4f46e5);
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+.panol-tour-popover {
+  position: fixed; z-index: 10000; max-width: 320px;
+  background: #fff; color: #1e293b; border-radius: 10px;
+  box-shadow: 0 20px 45px rgba(0,0,0,0.3); padding: 1rem 1.1rem;
+  font-size: 0.85rem; transition: top 0.2s ease, left 0.2s ease;
+}
+[data-theme="dark"] .panol-tour-popover { background: #1e293b; color: #e2e8f0; }
+.panol-tour-popover-step { font-size: 0.7rem; font-weight: 600; color: var(--brand-primary, #4f46e5); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+.panol-tour-popover-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.35rem; }
+.panol-tour-popover-text { color: #64748b; line-height: 1.4; margin-bottom: 0.85rem; }
+[data-theme="dark"] .panol-tour-popover-text { color: #94a3b8; }
+.panol-tour-popover-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.panol-tour-popover-actions button {
+  border: 1px solid #e2e8f0; background: none; border-radius: 6px;
+  padding: 0.35rem 0.7rem; font-size: 0.78rem; cursor: pointer; color: inherit;
+}
+.panol-tour-popover-actions button[data-action="next"] {
+  background: var(--brand-primary, #4f46e5); color: var(--brand-text-on-primary, #fff); border: none; margin-left: 0.4rem;
+}
+.panol-tour-popover-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 </head>
 
@@ -353,6 +391,13 @@ a.kpi-card:hover {
       <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8m-8 5h8m-8 5h5M4 4h16v16H4V4z"/></svg>
       Respaldo
     </a>
+
+    <p class="nav-section-label">Ayuda</p>
+
+    <a href="/ayuda" class="nav-link {% if '/ayuda' in request.url.path %}active{% endif %}">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Manual y ayuda
+    </a>
   </nav>
 
   <!-- User info en el fondo -->
@@ -414,6 +459,12 @@ a.kpi-card:hover {
           <span title="Unidad Tributaria Mensual"><strong>UTM</strong><span x-text="formatIndicator(economicIndicators.utm.valor)"></span></span>
         </template>
       </div>
+      <!-- Tour guiado de esta página (solo si tiene pasos definidos) -->
+      <button @click="panolTour.start(window.PANOL_TOUR_STEPS || [])" x-show="(window.PANOL_TOUR_STEPS || []).length > 0"
+              title="¿Cómo uso esto?" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.6rem;cursor:pointer;font-size:0.78rem;font-weight:600;color:var(--brand-primary,#4f46e5);display:flex;align-items:center;gap:0.3rem;">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        ¿Cómo uso esto?
+      </button>
       <!-- Toggle dark mode -->
       <button @click="toggleTheme()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem;cursor:pointer;">
         <template x-if="theme === 'light'">

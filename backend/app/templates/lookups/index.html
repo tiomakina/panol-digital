@@ -18,7 +18,7 @@
     al cargar o editar una herramienta.
   </p>
 
-  <div style="border-bottom:1px solid #e2e8f0;margin-bottom:1rem;">
+  <div id="lookups-tabs" style="border-bottom:1px solid #e2e8f0;margin-bottom:1rem;">
     <button @click="tab = 'brands'" :style="tab === 'brands' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="lookup-tab">Marcas</button>
     <button @click="tab = 'categories'" :style="tab === 'categories' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="lookup-tab">Categorías</button>
     <button @click="tab = 'locations'" :style="tab === 'locations' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="lookup-tab">Ubicaciones</button>
@@ -217,5 +217,9 @@ function lookupsPage() {
     },
   };
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#lookups-tabs', title: 'Marcas, categorías, ubicaciones y proveedores', text: 'Son las listas que después aparecen como desplegable al cargar una herramienta — mantenerlas ordenadas evita que cada uno escriba el mismo dato distinto.' },
+];
 </script>
 {% endblock %}

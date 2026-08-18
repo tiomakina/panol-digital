@@ -14,19 +14,19 @@
   </div>
 
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
-    <select x-model="statusFilter" @change="loadRecords()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+    <select id="maintenance-status-filter" x-model="statusFilter" @change="loadRecords()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
       <option value="en_proceso">En proceso</option>
       <option value="">Todos los estados</option>
       <option value="resuelto">Resuelto</option>
       <option value="sin_solucion">Sin solución</option>
     </select>
-    <button class="btn-primary" @click="openSend()" x-show="canManage()" style="margin-left:auto;">
+    <button id="maintenance-btn-enviar" class="btn-primary" @click="openSend()" x-show="canManage()" style="margin-left:auto;">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Enviar herramienta a mantenimiento
     </button>
   </div>
 
-  <div class="card" style="padding:0;overflow-x:auto;">
+  <div id="maintenance-table" class="card" style="padding:0;overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
       <thead>
         <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
@@ -461,5 +461,11 @@ function maintenancePage() {
     },
   };
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#maintenance-status-filter', title: 'Filtro por estado', text: 'Ver lo que está en proceso, resuelto, o sin solución (dado de baja).' },
+  { selector: '#maintenance-btn-enviar', title: 'Enviar a mantenimiento', text: 'Mandá una herramienta a reparar: proveedor, motivo y fecha de envío.' },
+  { selector: '#maintenance-table', title: 'Historial', text: 'Cada registro puede tener varios comprobantes adjuntos (fotos o PDF). Un Mecánico no ve estos documentos.' },
+];
 </script>
 {% endblock %}

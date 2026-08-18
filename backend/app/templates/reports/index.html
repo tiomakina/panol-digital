@@ -16,7 +16,7 @@
   <template x-if="canView()">
   <div>
   <!-- Tabs -->
-  <div style="display:flex;gap:0.5rem;border-bottom:1px solid #e2e8f0;margin-bottom:1.25rem;">
+  <div id="reports-tabs" style="display:flex;gap:0.5rem;border-bottom:1px solid #e2e8f0;margin-bottom:1.25rem;">
     <button @click="tab = 'inventory'" :style="tab === 'inventory' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Inventario</button>
     <button @click="tab = 'loans'" :style="tab === 'loans' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Préstamos</button>
     <button @click="tab = 'maintenance'; loadMaintenanceReport()" :style="tab === 'maintenance' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Mantenimiento</button>
@@ -311,5 +311,9 @@ function reportsPage() {
     },
   };
 }
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#reports-tabs', title: 'Pestañas de reportes', text: 'Inventario, Préstamos, Mantenimiento y (solo Jefe) Auditoría — cada una con su información consolidada y filtros propios.' },
+];
 </script>
 {% endblock %}
