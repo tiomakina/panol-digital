@@ -20,6 +20,7 @@ class AuditLogOut(BaseModel):
     action: str
     entity_type: str | None = None
     entity_id: int | None = None
+    entity_label: str | None = None
     detail: str | None = None
     ip_address: str | None = None
     created_at: datetime

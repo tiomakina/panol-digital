@@ -197,7 +197,7 @@
               <td style="padding:0.6rem 1rem;color:#64748b;white-space:nowrap;" x-text="formatDateTime(entry.created_at)"></td>
               <td style="padding:0.6rem 1rem;color:#475569;" x-text="entry.user ? entry.user.full_name : '—'"></td>
               <td style="padding:0.6rem 1rem;font-weight:600;" x-text="entry.action"></td>
-              <td style="padding:0.6rem 1rem;" x-text="[entry.entity_type, entry.entity_id].filter(Boolean).join(' #')"></td>
+              <td style="padding:0.6rem 1rem;" x-text="entityLabel(entry)"></td>
               <td style="padding:0.6rem 1rem;color:#64748b;" x-text="entry.detail || '—'"></td>
               <td style="padding:0.6rem 1rem;color:#94a3b8;" x-text="entry.ip_address || '—'"></td>
             </tr>
@@ -304,6 +304,10 @@ function reportsPage() {
       this.auditLog = res.ok ? await res.json() : [];
     },
 
+    entityLabel(entry) {
+      const idPart = [entry.entity_type, entry.entity_id].filter(Boolean).join(' #');
+      return entry.entity_label ? `${entry.entity_label} (${idPart})` : (idPart || '—');
+    },
     formatDate(value) { return value ? new Date(value).toLocaleDateString('es-AR') : '—'; },
     formatDateTime(value) { return value ? new Date(value).toLocaleString('es-AR') : '—'; },
     statusBadgeClass(status) {

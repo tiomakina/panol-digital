@@ -150,3 +150,29 @@ async def test_audit_report_requires_jefe_and_records_actions(client):
     login_entry = next(e for e in entries if e["action"] == "auth.login")
     assert login_entry["user"] is not None
     assert login_entry["user"]["full_name"]
+
+
+async def test_audit_report_resolves_entity_label_for_user_photo_update(client):
+    """
+    Bug reportado: la columna Entidad del reporte de auditoría mostraba
+    solo "user #1" — sin nombre, no servía para saber de quién era la
+    foto que se cambió. Ahora el reporte resuelve un nombre legible para
+    las entidades que sí se auditan (user/tool/toolbox).
+    """
+    await _create_user("jefe4@test.com", "Clave123!", UserRole.jefe)
+    jefe_token = await _login(client, "jefe4@test.com", "Clave123!")
+    jefe_id = (await client.get("/api/v1/auth/me", headers=_auth(jefe_token))).json()["id"]
+
+    photo = await client.post(
+        f"/api/v1/users/{jefe_id}/photo",
+        files={"file": ("foto.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 32, "image/png")},
+        headers=_auth(jefe_token),
+    )
+    assert photo.status_code == 200, photo.text
+
+    audit = await client.get("/api/v1/reports/audit", headers=_auth(jefe_token))
+    assert audit.status_code == 200
+    entry = next(e for e in audit.json() if e["action"] == "user.photo_update")
+    assert entry["entity_type"] == "user"
+    assert entry["entity_id"] == jefe_id
+    assert entry["entity_label"] == "Seed"  # full_name del usuario creado por _create_user

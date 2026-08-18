@@ -154,3 +154,35 @@ async def backup_page(request: Request):
 async def help_page(request: Request):
     """Manual de usuario in-app — abierto a los 3 roles, sin restricción de RBAC."""
     return await _render(request, "help/index.html")
+
+
+@app.get("/ayuda/manual.pdf")
+async def help_manual_pdf():
+    """
+    Manual de usuario en PDF. Se sirve por una ruta propia (no el link
+    directo a /static/docs/...) para poder fijar el Content-Type real —
+    servido tal cual por StaticFiles, algunos navegadores no lo detectaban
+    bien y mostraban una descarga corrupta en vez de abrir el PDF.
+    """
+    return FileResponse(
+        "app/static/docs/Manual_de_Usuario_Panol360.pdf",
+        media_type="application/pdf",
+        filename="Manual de Usuario - Pañol 360.pdf",
+        content_disposition_type="inline",  # se abre en el visor de PDF del navegador, no fuerza descarga
+    )
+
+
+@app.get("/ayuda/manual.docx")
+async def help_manual_docx():
+    """
+    Manual de usuario en Word, para editar. Por ruta propia igual que el
+    PDF: sin el Content-Type + Content-Disposition correctos, el navegador
+    no reconocía el .docx y lo abría como texto plano (se veía el XML
+    crudo del archivo en vez de ofrecer descargarlo o abrirlo con Word).
+    `FileResponse(..., filename=...)` arma ambos headers solo.
+    """
+    return FileResponse(
+        "app/static/docs/Manual_de_Usuario_Panol360.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename="Manual de Usuario - Pañol 360.docx",
+    )

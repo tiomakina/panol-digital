@@ -16,6 +16,7 @@ from app.core.security import require_role
 from app.models.audit import AuditLog
 from app.models.loan import Loan, LoanStatus
 from app.models.tool import Tool
+from app.models.toolbox import Toolbox
 from app.models.user import User
 from app.schemas.audit import AuditLogOut
 from app.services.depreciation import calculate_current_value
@@ -172,4 +173,32 @@ async def audit_report(
     stmt = stmt.order_by(AuditLog.created_at.desc()).offset(skip).limit(limit)
 
     result = await db.execute(stmt)
-    return result.scalars().all()
+    logs = result.scalars().all()
+
+    # La columna "Entidad" del reporte mostraba solo "user #1" (tipo + id),
+    # sin nada legible — acá se resuelve un nombre para los tipos de
+    # entidad que realmente se auditan (ver entity_type= en el código:
+    # solo son "user", "tool" y "toolbox"; "backup" no tiene un id de fila
+    # asociado). No es un JOIN porque AuditLog.entity_type/entity_id son
+    # genéricos (un mismo log audita cualquier tabla), así que se resuelve
+    # en un par de queries en batch en vez de una FK real.
+    ids_by_type: dict[str, set[int]] = {"user": set(), "tool": set(), "toolbox": set()}
+    for log in logs:
+        if log.entity_type in ids_by_type and log.entity_id:
+            ids_by_type[log.entity_type].add(log.entity_id)
+
+    labels_by_type: dict[str, dict[int, str]] = {"user": {}, "tool": {}, "toolbox": {}}
+    if ids_by_type["user"]:
+        rows = (await db.execute(select(User).where(User.id.in_(ids_by_type["user"])))).scalars().all()
+        labels_by_type["user"] = {u.id: u.full_name for u in rows}
+    if ids_by_type["tool"]:
+        rows = (await db.execute(select(Tool).where(Tool.id.in_(ids_by_type["tool"])))).scalars().all()
+        labels_by_type["tool"] = {t.id: t.name for t in rows}
+    if ids_by_type["toolbox"]:
+        rows = (await db.execute(select(Toolbox).where(Toolbox.id.in_(ids_by_type["toolbox"])))).scalars().all()
+        labels_by_type["toolbox"] = {tb.id: tb.name for tb in rows}
+
+    for log in logs:
+        log.entity_label = labels_by_type.get(log.entity_type, {}).get(log.entity_id)
+
+    return logs
