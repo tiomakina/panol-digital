@@ -50,6 +50,15 @@ templates = Jinja2Templates(directory="app/templates")
 app.include_router(api_router, prefix="/api/v1")
 
 
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    """
+    Bloquea el rastreo de toda la app por motores de búsqueda.
+    Pañol 360 es una aplicación empresarial privada — no debe indexarse.
+    """
+    return FileResponse("app/static/robots.txt", media_type="text/plain")
+
+
 async def _render(request: Request, template_name: str):
     """Arma el contexto común (branding) que necesita cada pantalla server-rendered."""
     brand_css = await get_brand_css_vars()
