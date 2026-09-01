@@ -56,14 +56,12 @@ app.include_router(api_router, prefix="/api/v1")
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """
     Handler centralizado de errores HTTP.
-    - 404: devuelve la página de error personalizada (HTML o JSON según Accept).
-    - Resto: comportamiento por defecto de Starlette (JSON).
-    Las rutas de API (/api/...) siempre reciben JSON aunque el cliente acepte HTML.
+    - 404 en rutas de navegación: devuelve la página de error personalizada (HTML).
+    - Rutas /api/... y otros códigos: siempre JSON.
     """
     is_api = request.url.path.startswith("/api/")
-    wants_html = "text/html" in request.headers.get("accept", "")
 
-    if exc.status_code == 404 and wants_html and not is_api:
+    if exc.status_code == 404 and not is_api:
         brand_css = await get_brand_css_vars()
         config = load_brand_config()
         return templates.TemplateResponse(
@@ -77,7 +75,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             status_code=404,
         )
 
-    # Para el resto (o peticiones de API) → JSON estándar
+    # Rutas API o códigos distintos de 404 → JSON estándar
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
