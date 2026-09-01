@@ -8,7 +8,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.exceptions import HTTPException as FastAPIHTTPException
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import settings
 from app.core.branding import get_brand_css_vars, load_brand_config
 from app.api.v1.router import api_router
@@ -48,6 +50,38 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 app.include_router(api_router, prefix="/api/v1")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """
+    Handler centralizado de errores HTTP.
+    - 404: devuelve la página de error personalizada (HTML o JSON según Accept).
+    - Resto: comportamiento por defecto de Starlette (JSON).
+    Las rutas de API (/api/...) siempre reciben JSON aunque el cliente acepte HTML.
+    """
+    is_api = request.url.path.startswith("/api/")
+    wants_html = "text/html" in request.headers.get("accept", "")
+
+    if exc.status_code == 404 and wants_html and not is_api:
+        brand_css = await get_brand_css_vars()
+        config = load_brand_config()
+        return templates.TemplateResponse(
+            "errors/404.html",
+            {
+                "request": request,
+                "brand_css": brand_css,
+                "brand": config,
+                "app_name": settings.APP_NAME,
+            },
+            status_code=404,
+        )
+
+    # Para el resto (o peticiones de API) → JSON estándar
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
 
 
 @app.get("/robots.txt", include_in_schema=False)
