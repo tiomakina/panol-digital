@@ -116,6 +116,10 @@ services:
   portainer:
     image: portainer/portainer-ce:latest
     restart: unless-stopped
+    # --no-setup-token: deshabilita el token de configuración inicial.
+    # Solo recomendado en redes privadas controladas (que es nuestro caso:
+    # el puerto 9000 solo es accesible vía túnel SSH desde localhost).
+    command: --no-setup-token
     ports:
       # Solo accesible desde localhost: para usar Portainer hay que abrir
       # un túnel SSH primero (ssh -L 9000:localhost:9000 ubuntu@servidor).
