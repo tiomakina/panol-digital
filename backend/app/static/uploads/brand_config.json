@@ -1,0 +1,15 @@
+{
+  "company_name": "VMS Ingeniería",
+  "primary_color": "#1d4ed8",
+  "secondary_color": "#0ea5e9",
+  "accent_color": "#f97316",
+  "dark_color": "#1e3a5f",
+  "light_color": "#dbeafe",
+  "sidebar_bg": "#1e2d4a",
+  "sidebar_text": "#e2e8f0",
+  "logo_url": "/static/img/logo_vms.svg",
+  "font_heading": "Inter",
+  "font_body": "Inter",
+  "border_radius": "6px",
+  "text_on_primary": "#ffffff"
+}

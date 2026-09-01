@@ -18,6 +18,8 @@ dump.rdb
 # Uploads de usuario (logos, fotos, QR, vales) — se conservan los directorios via .gitkeep
 backend/app/static/uploads/*
 !backend/app/static/uploads/.gitkeep
+# Configuración de branding: se versiona para que el demo/cliente quede baked-in
+!backend/app/static/uploads/brand_config.json
 !backend/app/static/uploads/tools/
 backend/app/static/uploads/tools/*
 !backend/app/static/uploads/tools/.gitkeep
