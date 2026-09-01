@@ -1,0 +1,5 @@
+# Pañol 360 — Sistema de gestión privado
+# No indexar ninguna ruta: esta es una aplicación empresarial interna,
+# no debe aparecer en resultados de búsqueda ni ser rastreada por bots.
+User-agent: *
+Disallow: /

@@ -1,0 +1,508 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block page_title %}Usuarios{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Cuentas, roles y accesos del equipo</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="usersPage()" x-init="init()">
+
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+    <input type="text" x-model="search" @input.debounce.400ms="loadUsers()" placeholder="Buscar por nombre, email o RUT..." x-show="canList()"
+           style="flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+    <button id="users-btn-perfil" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openEdit(user)">Mi perfil</button>
+    <button style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="openPasswordModal()">Cambiar mi contraseña</button>
+    <button id="users-btn-2fa" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;" @click="open2faModal()">
+      Verificación en dos pasos
+      <span x-show="user && user.totp_enabled" class="badge badge-success" style="margin-left:0.35rem;">Activa</span>
+    </button>
+    <button id="users-btn-nuevo" class="btn-primary" @click="openCreate()" x-show="isJefe()">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Nuevo usuario
+    </button>
+  </div>
+
+  <div class="card" x-show="!canList()" style="color:#64748b;font-size:0.85rem;">
+    Para ver y administrar a todo el equipo se necesita rol Encargado o Jefe.
+    <template x-if="!isMecanico()">
+      <span>Usá el botón <strong>"Mi perfil"</strong> de arriba para editar tus propios datos y tu foto.</span>
+    </template>
+    <template x-if="isMecanico()">
+      <span>Usá el botón <strong>"Mi perfil"</strong> de arriba para ver tus datos (para editarlos, pedíselo a un Encargado o Jefe).</span>
+    </template>
+  </div>
+
+  <div id="users-table" class="card" x-show="canList()" style="padding:0;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.75rem 1rem;">Nombre</th><th style="padding:0.75rem 1rem;">RUT</th><th style="padding:0.75rem 1rem;">Email</th>
+          <th style="padding:0.75rem 1rem;">Rol</th><th style="padding:0.75rem 1rem;">Estado</th><th style="padding:0.75rem 1rem;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="loading"><tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-for="u in users" :key="u.id">
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:0.65rem 1rem;font-weight:600;">
+              <div style="display:flex;align-items:center;gap:0.6rem;">
+                <template x-if="u.avatar_url">
+                  <img :src="u.avatar_url" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+                </template>
+                <template x-if="!u.avatar_url">
+                  <div style="width:30px;height:30px;border-radius:50%;background:var(--brand-light,#e0e7ff);color:var(--brand-primary,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:600;flex-shrink:0;" x-text="initials(u.full_name)"></div>
+                </template>
+                <span x-text="u.full_name"></span>
+                <span x-show="u.identifying_color" :style="'width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);flex-shrink:0;background:' + u.identifying_color" :title="'Color identificador: ' + u.identifying_color"></span>
+              </div>
+            </td>
+            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="u.rut"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="u.email"></td>
+            <td style="padding:0.65rem 1rem;"><span class="badge badge-info" x-text="roleLabel(u.role)"></span></td>
+            <td style="padding:0.65rem 1rem;">
+              <span class="badge" :class="u.is_active ? 'badge-success' : 'badge-danger'" x-text="u.is_active ? 'Activo' : 'Inactivo'"></span>
+            </td>
+            <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;">
+              <button @click="openEdit(u)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;" x-text="isJefe() ? 'Editar' : 'Ver'"></button>
+              <template x-if="isJefe() && u.id !== user.id">
+                <button @click="toggleActive(u)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;"
+                        x-text="u.is_active ? 'Desactivar' : 'Reactivar'"></button>
+              </template>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal crear -->
+  <div x-show="showCreateModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showCreateModal = false">
+    <div class="card" style="max-width:420px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Nuevo usuario</h2>
+      <label class="field-label">Nombre completo *</label>
+      <input type="text" x-model="createForm.full_name" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">RUT * (identificador único, se usa para iniciar sesión)</label>
+      <input type="text" x-model="createForm.rut" class="field-input" style="margin-bottom:0.75rem;" placeholder="12345678-9">
+      <label class="field-label">Email *</label>
+      <input type="email" x-model="createForm.email" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Teléfono</label>
+      <input type="text" x-model="createForm.phone" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Rol *</label>
+      <select x-model="createForm.role" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="mecanico">Mecánico</option>
+        <option value="encargado">Encargado</option>
+        <option value="jefe">Jefe</option>
+      </select>
+      <label class="field-label">Contraseña inicial * (mín. 8 caracteres)</label>
+      <input type="password" x-model="createForm.password" class="field-input" style="margin-bottom:1rem;">
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showCreateModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="createUser()" class="btn-primary">Crear usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal editar (o solo ver, para quien no sea Jefe — Encargado y Mecánico
+       ven la ficha completa pero de solo lectura) -->
+  <div x-show="showEditModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showEditModal = false">
+    <div class="card" style="max-width:420px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;" x-text="isJefe() ? 'Editar usuario' : (editingId === user.id ? 'Mi perfil' : 'Ver usuario')"></h2>
+
+      <div style="display:flex;align-items:center;gap:0.9rem;margin-bottom:1rem;">
+        <template x-if="editForm.avatar_url">
+          <img :src="editForm.avatar_url" style="width:56px;height:56px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+        </template>
+        <template x-if="!editForm.avatar_url">
+          <div style="width:56px;height:56px;border-radius:50%;background:var(--brand-light,#e0e7ff);color:var(--brand-primary,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:600;flex-shrink:0;" x-text="initials(editForm.full_name)"></div>
+        </template>
+        <label x-show="isJefe()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">
+          Cambiar foto
+          <input type="file" accept="image/*" style="display:none;" @change="uploadPhoto($event.target.files[0])">
+        </label>
+      </div>
+
+      <label class="field-label">Nombre completo</label>
+      <input type="text" x-model="editForm.full_name" :disabled="!isJefe()" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">RUT (identificador único, se usa para iniciar sesión)</label>
+      <input type="text" x-model="editForm.rut" :disabled="!isJefe()" class="field-input" style="margin-bottom:0.75rem;" placeholder="12345678-9">
+      <label class="field-label">Email</label>
+      <input type="email" x-model="editForm.email" :disabled="!isJefe()" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Teléfono</label>
+      <input type="text" x-model="editForm.phone" :disabled="!isJefe()" class="field-input" style="margin-bottom:0.75rem;">
+      <template x-if="isJefe()">
+        <div>
+          <label class="field-label">Rol</label>
+          <select x-model="editForm.role" class="field-input" style="margin-bottom:0.75rem;">
+            <option value="mecanico">Mecánico</option>
+            <option value="encargado">Encargado</option>
+            <option value="jefe">Jefe</option>
+          </select>
+        </div>
+      </template>
+
+      <template x-if="editForm.role === 'mecanico'">
+        <div style="margin-bottom:0.75rem;">
+          <label class="field-label">Color identificador (para marcar sus herramientas y su caja)</label>
+          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+            <input type="color" x-model="editForm.identifying_color" :disabled="!isJefe()"
+                   style="width:38px;height:32px;border:1px solid #e2e8f0;border-radius:6px;padding:2px;cursor:pointer;">
+            <span style="font-size:0.78rem;color:#64748b;" x-text="editForm.identifying_color || 'Sin color asignado'"></span>
+            <template x-if="editForm.identifying_color_photo_url">
+              <img :src="editForm.identifying_color_photo_url" title="Foto de referencia de la pintura"
+                   style="width:32px;height:32px;border-radius:6px;object-fit:cover;border:1px solid #e2e8f0;">
+            </template>
+            <label x-show="isJefe()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.7rem;cursor:pointer;font-size:0.75rem;">
+              Sacar/subir foto de la pintura
+              <input id="color-photo-input" type="file" accept="image/*" style="display:none;" @change="uploadColorPhoto($event.target.files[0])">
+            </label>
+          </div>
+          <p x-show="isJefe()" style="font-size:0.7rem;color:#94a3b8;margin:0.35rem 0 0;">
+            Sacale una foto a la pintura/spray con la que se marcan sus herramientas — el color se detecta solo; si no quedó
+            exacto por la luz, se puede ajustar con la ruedita de arriba.
+          </p>
+        </div>
+      </template>
+
+      <template x-if="!isJefe()">
+        <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 0.75rem;">Solo un Jefe puede editar usuarios (datos, rol o estado de la cuenta) — pedíselo a un Jefe.</p>
+      </template>
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showEditModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;" x-text="isJefe() ? 'Cancelar' : 'Cerrar'"></button>
+        <button x-show="isJefe()" @click="saveEdit()" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal cambiar contraseña -->
+  <div x-show="showPasswordModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showPasswordModal = false">
+    <div class="card" style="max-width:380px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Cambiar mi contraseña</h2>
+      <label class="field-label">Contraseña actual</label>
+      <input type="password" x-model="passwordForm.current_password" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Contraseña nueva (mín. 8 caracteres)</label>
+      <input type="password" x-model="passwordForm.new_password" class="field-input" style="margin-bottom:1rem;">
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showPasswordModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="changePassword()" class="btn-primary">Guardar contraseña</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2FA -->
+  <div x-show="show2faModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="show2faModal = false">
+    <div class="card" style="max-width:400px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Verificación en dos pasos</h2>
+
+      <!-- Estado: ya activa -->
+      <template x-if="twoFaStep === 'status' && user && user.totp_enabled">
+        <div>
+          <p style="font-size:0.85rem;color:#475569;margin-bottom:1rem;">
+            La verificación en dos pasos está <strong>activa</strong> en tu cuenta. Cada vez que inicies sesión
+            vas a necesitar un código de tu app autenticadora además de tu contraseña.
+          </p>
+          <label class="field-label">Ingresá tu contraseña para desactivarla</label>
+          <input type="password" x-model="disableForm.password" class="field-input" style="margin-bottom:1rem;">
+          <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+            <button @click="show2faModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cerrar</button>
+            <button @click="disable2fa()" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Desactivar</button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Estado: no activa, invitación a activarla -->
+      <template x-if="twoFaStep === 'status' && user && !user.totp_enabled">
+        <div>
+          <p style="font-size:0.85rem;color:#475569;margin-bottom:1rem;">
+            Agregá una capa extra de seguridad: además de tu contraseña, vas a necesitar un código de 6 dígitos
+            generado por una app como Google Authenticator o Authy. Muy recomendado para el Jefe.
+          </p>
+          <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+            <button @click="show2faModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Ahora no</button>
+            <button @click="startSetup2fa()" class="btn-primary">Activar</button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Setup: mostrar QR y pedir el primer código -->
+      <template x-if="twoFaStep === 'setup'">
+        <div>
+          <p style="font-size:0.8rem;color:#64748b;margin-bottom:0.75rem;">
+            Escaneá este código con tu app autenticadora y después ingresá el código de 6 dígitos que te muestre.
+          </p>
+          <div style="text-align:center;margin-bottom:0.75rem;">
+            <img :src="'data:image/png;base64,' + qrCodeBase64" style="width:180px;height:180px;">
+          </div>
+          <p style="font-size:0.7rem;color:#94a3b8;text-align:center;margin-bottom:1rem;word-break:break-all;" x-text="'Clave manual: ' + twoFaSecret"></p>
+          <label class="field-label">Código de 6 dígitos</label>
+          <input type="text" inputmode="numeric" x-model="enableCode" maxlength="6" class="field-input" style="text-align:center;letter-spacing:0.3em;margin-bottom:1rem;">
+          <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+            <button @click="twoFaStep = 'status'" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+            <button @click="confirmEnable2fa()" class="btn-primary">Confirmar y activar</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function usersPage() {
+  return {
+    user: null,
+    users: [],
+    loading: true,
+    search: '',
+    showCreateModal: false,
+    showEditModal: false,
+    showPasswordModal: false,
+    show2faModal: false,
+    createForm: {},
+    editForm: {},
+    editingId: null,
+    passwordForm: {},
+    twoFaStep: 'status',
+    qrCodeBase64: '',
+    twoFaSecret: '',
+    enableCode: '',
+    disableForm: {},
+    message: '',
+    messageType: 'success',
+
+    async init() {
+      this.user = await getCurrentUser();
+      // Ver/administrar el listado completo requiere Encargado o Jefe —
+      // un Mecánico igual puede editar su propio perfil (botón "Mi
+      // perfil", arriba), simplemente no ve el directorio del resto del
+      // equipo. Antes se llamaba a loadUsers() sin importar el rol, y
+      // como el endpoint devuelve 403 para Mecánico, la tabla quedaba
+      // vacía sin ninguna explicación — parecía que el sistema no
+      // dejaba editar nada, cuando en realidad el problema era no poder
+      // LISTAR, no poder EDITAR la propia cuenta.
+      if (this.canList()) {
+        await this.loadUsers();
+      } else {
+        this.loading = false;
+      }
+    },
+
+    isJefe() { return hasRole(this.user, 'jefe'); },
+    canList() { return hasRole(this.user, 'encargado'); },
+    isMecanico() { return this.user && this.user.role === 'mecanico'; },
+
+    async loadUsers() {
+      this.loading = true;
+      const params = new URLSearchParams();
+      if (this.search) params.set('search', this.search);
+      const res = await authFetch('/api/v1/users?' + params.toString());
+      this.users = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    openCreate() {
+      this.createForm = { full_name: '', rut: '', email: '', phone: '', role: 'mecanico', password: '' };
+      this.showCreateModal = true;
+    },
+
+    async createUser() {
+      if (!this.createForm.full_name || !this.createForm.rut || !this.createForm.email || !this.createForm.password) {
+        this.showMessage('Completá nombre, RUT, email y contraseña', 'error');
+        return;
+      }
+      const res = await authFetch('/api/v1/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.createForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al crear el usuario', 'error');
+        return;
+      }
+      this.showCreateModal = false;
+      this.showMessage('Usuario creado correctamente');
+      await this.loadUsers();
+    },
+
+    openEdit(u) {
+      this.editingId = u.id;
+      this.editForm = {
+        full_name: u.full_name, rut: u.rut || '', email: u.email || '', phone: u.phone || '', role: u.role,
+        avatar_url: u.avatar_url || '', identifying_color: u.identifying_color || '',
+        identifying_color_photo_url: u.identifying_color_photo_url || '',
+      };
+      this.showEditModal = true;
+    },
+
+    async uploadPhoto(file) {
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await authFetch(`/api/v1/users/${this.editingId}/photo`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo subir la foto', 'error');
+        return;
+      }
+      const updated = await res.json();
+      this.editForm.avatar_url = updated.avatar_url;
+      this.showMessage('Foto actualizada');
+      if (this.canList()) await this.loadUsers();
+      if (this.editingId === this.user.id) {
+        this.user.avatar_url = updated.avatar_url;
+        window.dispatchEvent(new CustomEvent('panol-avatar-updated', { detail: updated.avatar_url }));
+      }
+    },
+
+    async uploadColorPhoto(file) {
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await authFetch(`/api/v1/users/${this.editingId}/color-photo`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo procesar la foto', 'error');
+        return;
+      }
+      const updated = await res.json();
+      this.editForm.identifying_color = updated.identifying_color;
+      this.editForm.identifying_color_photo_url = updated.identifying_color_photo_url;
+      this.showMessage('Color detectado: ' + updated.identifying_color);
+      if (this.canList()) await this.loadUsers();
+    },
+
+    initials(fullName) {
+      if (!fullName) return '·';
+      return fullName.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+    },
+
+    async saveEdit() {
+      const payload = { full_name: this.editForm.full_name, phone: this.editForm.phone };
+      if (this.isJefe()) {
+        payload.role = this.editForm.role;
+        payload.rut = this.editForm.rut;
+        payload.email = this.editForm.email;
+        if (this.editForm.role === 'mecanico') payload.identifying_color = this.editForm.identifying_color || null;
+      }
+
+      const res = await authFetch(`/api/v1/users/${this.editingId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al guardar', 'error');
+        return;
+      }
+      this.showEditModal = false;
+      this.showMessage('Usuario actualizado');
+      if (this.editingId === this.user.id) {
+        this.user.full_name = this.editForm.full_name;
+      }
+      if (this.canList()) await this.loadUsers();
+    },
+
+    async toggleActive(u) {
+      const action = u.is_active ? 'deactivate' : 'reactivate';
+      if (u.is_active && !confirm(`¿Desactivar a ${u.full_name}? No podrá volver a iniciar sesión.`)) return;
+      const res = await authFetch(`/api/v1/users/${u.id}/${action}`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo actualizar el estado', 'error');
+        return;
+      }
+      await this.loadUsers();
+    },
+
+    openPasswordModal() {
+      this.passwordForm = { current_password: '', new_password: '' };
+      this.showPasswordModal = true;
+    },
+
+    async changePassword() {
+      const res = await authFetch('/api/v1/users/me/password', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.passwordForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al cambiar la contraseña', 'error');
+        return;
+      }
+      this.showPasswordModal = false;
+      this.showMessage('Contraseña actualizada correctamente');
+    },
+
+    open2faModal() {
+      this.twoFaStep = 'status';
+      this.disableForm = { password: '' };
+      this.show2faModal = true;
+    },
+
+    async startSetup2fa() {
+      const res = await authFetch('/api/v1/auth/2fa/setup', { method: 'POST' });
+      if (!res.ok) { this.showMessage('No se pudo iniciar la activación', 'error'); return; }
+      const data = await res.json();
+      this.qrCodeBase64 = data.qr_code_base64;
+      this.twoFaSecret = data.secret;
+      this.enableCode = '';
+      this.twoFaStep = 'setup';
+    },
+
+    async confirmEnable2fa() {
+      const res = await authFetch('/api/v1/auth/2fa/enable', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: this.enableCode }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Código incorrecto', 'error');
+        return;
+      }
+      this.user.totp_enabled = true;
+      this.show2faModal = false;
+      this.showMessage('Verificación en dos pasos activada');
+    },
+
+    async disable2fa() {
+      const res = await authFetch('/api/v1/auth/2fa/disable', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.disableForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo desactivar', 'error');
+        return;
+      }
+      this.user.totp_enabled = false;
+      this.show2faModal = false;
+      this.showMessage('Verificación en dos pasos desactivada');
+    },
+
+    roleLabel(role) {
+      return { jefe: 'Jefe', encargado: 'Encargado', mecanico: 'Mecánico' }[role] || role;
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#users-btn-perfil', title: 'Mi perfil', text: 'Todos pueden ver sus propios datos acá. Solo un Jefe puede editarlos (los tuyos y los de cualquiera).' },
+  { selector: '#users-btn-2fa', title: 'Verificación en dos pasos', text: 'Activá un código extra de una app autenticadora, además de tu contraseña. Muy recomendado para el Jefe.' },
+  { selector: '#users-btn-nuevo', title: 'Nuevo usuario', text: 'Solo el Jefe da de alta cuentas: nombre, RUT, email, rol y contraseña inicial.' },
+  { selector: '#users-table', title: 'Listado', text: 'Un Encargado ve todo esto pero de solo lectura. Tocá "Editar" (o "Ver") en cualquier fila para abrir la ficha completa, incluido el color identificador de un Mecánico.' },
+];
+</script>
+{% endblock %}

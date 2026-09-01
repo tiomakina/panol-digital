@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}Tablas maestras{% endblock %}
+{% block page_title %}Tablas maestras{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Marcas, categorías, ubicaciones y proveedores</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="lookupsPage()" x-init="init()">
+
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <p style="font-size:0.82rem;color:#64748b;margin:0 0 1rem;">
+    Estos valores alimentan los desplegables de Marca, Categoría, Ubicación y Proveedor
+    al cargar o editar una herramienta.
+  </p>
+
+  <div id="lookups-tabs" style="border-bottom:1px solid #e2e8f0;margin-bottom:1rem;">
+    <button @click="tab = 'brands'" :style="tab === 'brands' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="lookup-tab">Marcas</button>
+    <button @click="tab = 'categories'" :style="tab === 'categories' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="lookup-tab">Categorías</button>
+    <button @click="tab = 'locations'" :style="tab === 'locations' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="lookup-tab">Ubicaciones</button>
+    <button @click="tab = 'providers'" :style="tab === 'providers' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="lookup-tab">Proveedores</button>
+  </div>
+
+  <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;" x-show="canManage()">
+    <input type="text" x-model="newName" @keydown.enter.prevent="addItem()" class="field-input" style="flex:1;min-width:220px;" :placeholder="addPlaceholder()">
+    <template x-for="f in providerFields" :key="f.key">
+      <input type="text" x-model="newProvider[f.key]" x-show="tab === 'providers'" @keydown.enter.prevent="addItem()" class="field-input" style="flex:1;min-width:180px;" :placeholder="f.label + ' — opcional'">
+    </template>
+    <button class="btn-primary" @click="addItem()">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Agregar
+    </button>
+  </div>
+
+  <div class="card" style="padding:0;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.75rem 1rem;font-weight:600;" x-text="tabLabel()"></th>
+          <template x-for="f in providerFields" :key="f.key">
+            <th style="padding:0.75rem 1rem;font-weight:600;" x-show="tab === 'providers'" x-text="f.label"></th>
+          </template>
+          <th style="padding:0.75rem 1rem;font-weight:600;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="loading"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-if="!loading && items.length === 0"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">Todavía no hay nada cargado acá.</td></tr></template>
+        <template x-for="item in items" :key="item.id">
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:0.65rem 1rem;">
+              <template x-if="editingId !== item.id">
+                <span x-text="item.name"></span>
+              </template>
+              <template x-if="editingId === item.id">
+                <input type="text" x-model="editName" class="field-input" @keydown.enter.prevent="saveEdit(item)">
+              </template>
+            </td>
+            <template x-for="f in providerFields" :key="f.key">
+              <td style="padding:0.65rem 1rem;color:#64748b;" x-show="tab === 'providers'">
+                <template x-if="editingId !== item.id">
+                  <span x-text="item[f.key] || '—'"></span>
+                </template>
+                <template x-if="editingId === item.id">
+                  <input type="text" x-model="editProvider[f.key]" class="field-input" @keydown.enter.prevent="saveEdit(item)">
+                </template>
+              </td>
+            </template>
+            <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;" x-show="canManage()">
+              <template x-if="editingId !== item.id">
+                <span>
+                  <button @click="startEdit(item)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Editar</button>
+                  <button @click="deleteItem(item)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Eliminar</button>
+                </span>
+              </template>
+              <template x-if="editingId === item.id">
+                <span>
+                  <button @click="saveEdit(item)" class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.75rem;margin-right:0.35rem;">Guardar</button>
+                  <button @click="editingId = null" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Cancelar</button>
+                </span>
+              </template>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.lookup-tab { background:none;border:none;border-bottom:2px solid transparent;padding:0.6rem 0.25rem;margin-right:1.25rem;cursor:pointer;font-size:0.875rem;font-weight:500; }
+.field-input { border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function lookupsPage() {
+  return {
+    user: null,
+    tab: 'brands',
+    items: [],
+    loading: true,
+    newName: '',
+    newProvider: { rut: '', contact_name: '', phone: '', email: '', address: '' },
+    editingId: null,
+    editName: '',
+    editProvider: { rut: '', contact_name: '', phone: '', email: '', address: '' },
+    providerFields: [
+      { key: 'rut', label: 'RUT' },
+      { key: 'contact_name', label: 'Contacto' },
+      { key: 'phone', label: 'Teléfono' },
+      { key: 'email', label: 'Email' },
+      { key: 'address', label: 'Dirección' },
+    ],
+    message: '',
+    messageType: 'success',
+
+    async init() {
+      this.user = await getCurrentUser();
+      await this.loadItems();
+      this.$watch('tab', () => {
+        this.editingId = null;
+        this.newName = '';
+        this.newProvider = { rut: '', contact_name: '', phone: '', email: '', address: '' };
+        this.loadItems();
+      });
+    },
+
+    canManage() { return hasRole(this.user, 'encargado'); },
+
+    pathForTab() {
+      return { brands: 'brands', categories: 'categories', locations: 'locations', providers: 'providers' }[this.tab];
+    },
+    tabLabel() {
+      return { brands: 'Marca', categories: 'Categoría', locations: 'Ubicación', providers: 'Proveedor' }[this.tab];
+    },
+    addPlaceholder() {
+      return { brands: 'Nombre de la marca', categories: 'Nombre de la categoría', locations: 'Nombre de la ubicación', providers: 'Nombre del proveedor' }[this.tab];
+    },
+
+    async loadItems() {
+      this.loading = true;
+      const res = await authFetch(`/api/v1/lookups/${this.pathForTab()}`);
+      this.items = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    async addItem() {
+      const name = this.newName.trim();
+      if (!name) return;
+      const payload = this.tab === 'providers'
+        ? { name, ...this.trimmedProvider(this.newProvider) }
+        : { name };
+      const res = await authFetch(`/api/v1/lookups/${this.pathForTab()}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo agregar', 'error');
+        return;
+      }
+      this.newName = '';
+      this.newProvider = { rut: '', contact_name: '', phone: '', email: '', address: '' };
+      this.showMessage('Agregado correctamente');
+      await this.loadItems();
+    },
+
+    trimmedProvider(source) {
+      const out = {};
+      for (const f of this.providerFields) out[f.key] = (source[f.key] || '').trim() || null;
+      return out;
+    },
+
+    startEdit(item) {
+      this.editingId = item.id;
+      this.editName = item.name;
+      this.editProvider = {
+        contact_name: item.contact_name || '', phone: item.phone || '',
+        email: item.email || '', address: item.address || '',
+      };
+    },
+
+    async saveEdit(item) {
+      const payload = this.tab === 'providers'
+        ? { name: this.editName.trim(), ...this.trimmedProvider(this.editProvider) }
+        : { name: this.editName.trim() };
+      const res = await authFetch(`/api/v1/lookups/${this.pathForTab()}/${item.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo guardar', 'error');
+        return;
+      }
+      this.editingId = null;
+      this.showMessage('Guardado correctamente');
+      await this.loadItems();
+    },
+
+    async deleteItem(item) {
+      if (!confirm(`¿Eliminar "${item.name}"? Las herramientas que ya tengan este valor cargado no se modifican.`)) return;
+      const res = await authFetch(`/api/v1/lookups/${this.pathForTab()}/${item.id}`, { method: 'DELETE' });
+      if (res.status !== 204) { this.showMessage('No se pudo eliminar', 'error'); return; }
+      this.showMessage('Eliminado');
+      await this.loadItems();
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#lookups-tabs', title: 'Marcas, categorías, ubicaciones y proveedores', text: 'Son las listas que después aparecen como desplegable al cargar una herramienta — mantenerlas ordenadas evita que cada uno escriba el mismo dato distinto.' },
+];
+</script>
+{% endblock %}

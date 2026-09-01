@@ -1,0 +1,805 @@
+{% extends "base.html" %}
+{% block title %}Herramientas{% endblock %}
+{% block page_title %}Herramientas{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Inventario completo de herramientas y equipos</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="toolsPage()" x-init="init()">
+
+  <!-- Mensaje de éxito/error -->
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <!-- Barra de filtros -->
+  <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+    <input id="tools-search" type="text" x-model="search" @input.debounce.400ms="loadTools()" placeholder="Buscar por nombre, marca o número de serie..."
+           style="flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+    <select id="tools-status-filter" x-model="statusFilter" @change="loadTools()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+      <option value="">Todos los estados</option>
+      <option value="disponible">Disponible</option>
+      <option value="prestado">Prestado</option>
+      <option value="en_caja">En caja de herramientas</option>
+      <option value="mantenimiento">Mantenimiento</option>
+      <option value="mantenimiento_solicitada">Mantención solicitada</option>
+      <option value="baja">Baja</option>
+    </select>
+    <button @click="openScanModal()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h4V2H2v6h2V4zm0 16v-4H2v6h6v-2H4zM20 4h-4V2h6v6h-2V4zm0 16v-4h2v6h-6v-2h4zM9 9h1v1H9V9zm5 0h1v1h-1V9zM9 14h1v1H9v-1zm5 0h1v1h-1v-1z"/></svg>
+      Escanear QR
+    </button>
+    <button id="tools-btn-exportar" x-show="canManage()" @click="exportTools()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+      Exportar CSV
+    </button>
+    <label x-show="canManage()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M17 8l-5-5-5 5M12 3v12"/></svg>
+      Importar CSV
+      <input type="file" accept=".csv" style="display:none;" @change="importTools($event.target.files[0]); $event.target.value = ''">
+    </label>
+    <button x-show="canManage()" @click="downloadExampleCsv()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;color:#64748b;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Descargar ejemplo
+    </button>
+    <button id="tools-btn-nueva" class="btn-primary" @click="openCreate()" x-show="canManage()">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Nueva herramienta
+    </button>
+  </div>
+
+  <!-- Tabla -->
+  <div id="tools-table" class="card" style="padding:0;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.75rem 1rem;font-weight:600;">Herramienta</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Categoría</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">N° de serie</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Estado</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;" x-show="isJefe()">Valor actual</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="loading">
+          <tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr>
+        </template>
+        <template x-if="!loading && tools.length === 0">
+          <tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">No se encontraron herramientas</td></tr>
+        </template>
+        <template x-for="tool in tools" :key="tool.id">
+          <tr style="border-bottom:1px solid #f1f5f9;" :style="canManage() ? 'cursor:pointer;' : ''" @click="canManage() && openEdit(tool)">
+            <td style="padding:0.65rem 1rem;">
+              <div style="display:flex;align-items:center;gap:0.6rem;">
+                <template x-if="tool.photo_url">
+                  <img :src="tool.photo_url" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">
+                </template>
+                <div>
+                  <div style="font-weight:600;color:#1e293b;" x-text="tool.name"></div>
+                  <div style="color:#94a3b8;font-size:0.75rem;" x-text="[tool.brand, tool.model].filter(Boolean).join(' · ')"></div>
+                </div>
+              </div>
+            </td>
+            <td style="padding:0.65rem 1rem;color:#475569;" x-text="tool.category || '—'"></td>
+            <td style="padding:0.65rem 1rem;color:#475569;" x-text="tool.serial_number || '—'"></td>
+            <td style="padding:0.65rem 1rem;">
+              <div class="status-tooltip-wrap" style="position:relative;display:inline-block;">
+                <span class="badge" :class="statusBadgeClass(tool.status)" x-text="statusLabel(tool.status)"></span>
+                <span x-show="toolMechanicColor(tool)"
+                      :style="'display:inline-block;width:9px;height:9px;border-radius:50%;margin-left:0.3rem;vertical-align:middle;border:1px solid rgba(0,0,0,0.15);background:' + (toolMechanicColor(tool) || '')"
+                      title="Marcada físicamente con este color"></span>
+                <template x-if="statusDetail(tool)">
+                  <div class="status-tooltip" :style="'color:' + loanUrgencyColor(tool)" x-text="statusDetail(tool)"></div>
+                </template>
+              </div>
+            </td>
+            <td style="padding:0.65rem 1rem;color:#475569;" x-show="isJefe()" x-text="tool.current_value != null ? '$' + Number(tool.current_value).toLocaleString() : '—'"></td>
+            <td style="padding:0.65rem 1rem;text-align:right;">
+              <button x-show="canManage()" @click.stop="openEdit(tool)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Ver / editar</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal escanear QR — con x-if (no x-show) para que la cámara solo se
+       inicialice cuando el div realmente existe en el DOM con tamaño real -->
+  <template x-if="showScanModal">
+    <div style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="closeScanModal()">
+      <div class="card" style="max-width:420px;width:100%;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+          <h2 style="font-size:1.05rem;font-weight:600;">Escanear código QR</h2>
+          <button @click="closeScanModal()" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+        </div>
+        <div id="qr-reader" x-init="startScanner()" style="width:100%;"></div>
+        <p x-show="scanError" style="color:#dc2626;font-size:0.8rem;margin-top:0.5rem;" x-text="scanError"></p>
+        <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.75rem;">Apuntá la cámara al código QR pegado en la herramienta.</p>
+      </div>
+    </div>
+  </template>
+
+  <!-- Modal crear/editar -->
+  <div x-show="showModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="closeModal()">
+    <div class="card" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h2 style="font-size:1.05rem;font-weight:600;" x-text="editing ? 'Editar herramienta' : 'Nueva herramienta'"></h2>
+        <button @click="closeModal()" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Nombre *</label>
+          <input type="text" x-model="form.name" class="field-input" required>
+        </div>
+        <div>
+          <label class="field-label">Código de producto</label>
+          <input type="text" x-model="form.product_code" class="field-input" placeholder="Identifica el modelo — puede repetirse entre unidades">
+        </div>
+        <div>
+          <label class="field-label">Marca</label>
+          <!-- x-show (no x-if): el <select> tiene que seguir siendo el MISMO
+               nodo del DOM todo el tiempo. Con x-if, Alpine destruye y vuelve
+               a montar el <select> cada vez que se alterna con el input de
+               "agregar" — y al remontar, el efecto de x-model corre ANTES
+               de que el x-for hijo termine de crear las <option>, así que
+               el valor recién agregado queda sin seleccionar (el <select>
+               no encuentra todavía la opción que coincide). -->
+          <select x-show="addingField !== 'brand'" x-model="form.brand" @change="if ($event.target.value === '__new__') startAddLookup('brand')" class="field-input">
+            <option value="">Sin especificar</option>
+            <template x-for="opt in lookupOptions('brand')" :key="opt"><option :value="opt" x-text="opt"></option></template>
+            <option value="__new__">+ Agregar marca nueva...</option>
+          </select>
+          <template x-if="addingField === 'brand'">
+            <div style="display:flex;gap:0.35rem;">
+              <input type="text" x-model="newLookupName" @keydown.enter.prevent="confirmAddLookup('brand')" class="field-input" placeholder="Nombre de la marca" autofocus>
+              <button @click="confirmAddLookup('brand')" class="btn-primary" style="white-space:nowrap;padding:0.5rem 0.7rem;">OK</button>
+              <button @click="cancelAddLookup()" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 0.6rem;cursor:pointer;">✕</button>
+            </div>
+          </template>
+        </div>
+        <div><label class="field-label">Modelo</label><input type="text" x-model="form.model" class="field-input"></div>
+        <div><label class="field-label">N° de serie</label><input type="text" x-model="form.serial_number" class="field-input"></div>
+        <div>
+          <label class="field-label">Categoría</label>
+          <select x-show="addingField !== 'category'" x-model="form.category" @change="if ($event.target.value === '__new__') startAddLookup('category')" class="field-input">
+            <option value="">Sin especificar</option>
+            <template x-for="opt in lookupOptions('category')" :key="opt"><option :value="opt" x-text="opt"></option></template>
+            <option value="__new__">+ Agregar categoría nueva...</option>
+          </select>
+          <template x-if="addingField === 'category'">
+            <div style="display:flex;gap:0.35rem;">
+              <input type="text" x-model="newLookupName" @keydown.enter.prevent="confirmAddLookup('category')" class="field-input" placeholder="Nombre de la categoría" autofocus>
+              <button @click="confirmAddLookup('category')" class="btn-primary" style="white-space:nowrap;padding:0.5rem 0.7rem;">OK</button>
+              <button @click="cancelAddLookup()" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 0.6rem;cursor:pointer;">✕</button>
+            </div>
+          </template>
+        </div>
+        <div>
+          <label class="field-label">Ubicación</label>
+          <select x-show="addingField !== 'location'" x-model="form.location" @change="if ($event.target.value === '__new__') startAddLookup('location')" class="field-input">
+            <option value="">Sin especificar</option>
+            <template x-for="opt in lookupOptions('location')" :key="opt"><option :value="opt" x-text="opt"></option></template>
+            <option value="__new__">+ Agregar ubicación nueva...</option>
+          </select>
+          <template x-if="addingField === 'location'">
+            <div style="display:flex;gap:0.35rem;">
+              <input type="text" x-model="newLookupName" @keydown.enter.prevent="confirmAddLookup('location')" class="field-input" placeholder="Nombre de la ubicación" autofocus>
+              <button @click="confirmAddLookup('location')" class="btn-primary" style="white-space:nowrap;padding:0.5rem 0.7rem;">OK</button>
+              <button @click="cancelAddLookup()" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 0.6rem;cursor:pointer;">✕</button>
+            </div>
+          </template>
+        </div>
+        <div>
+          <label class="field-label">Proveedor</label>
+          <select x-show="addingField !== 'supplier'" x-model="form.supplier" @change="if ($event.target.value === '__new__') startAddLookup('supplier')" class="field-input">
+            <option value="">Sin especificar</option>
+            <template x-for="opt in lookupOptions('supplier')" :key="opt"><option :value="opt" x-text="opt"></option></template>
+            <option value="__new__">+ Agregar proveedor nuevo...</option>
+          </select>
+          <template x-if="addingField === 'supplier'">
+            <div style="display:flex;gap:0.35rem;">
+              <input type="text" x-model="newLookupName" @keydown.enter.prevent="confirmAddLookup('supplier')" class="field-input" placeholder="Nombre del proveedor" autofocus>
+              <button @click="confirmAddLookup('supplier')" class="btn-primary" style="white-space:nowrap;padding:0.5rem 0.7rem;">OK</button>
+              <button @click="cancelAddLookup()" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 0.6rem;cursor:pointer;">✕</button>
+            </div>
+          </template>
+        </div>
+        <div><label class="field-label">Fecha de compra</label><input type="date" x-model="form.purchase_date" class="field-input"></div>
+        <template x-if="isJefe()">
+          <div><label class="field-label">Costo de compra</label><input type="number" step="0.01" x-model="form.purchase_cost" class="field-input"></div>
+        </template>
+        <template x-if="isJefe()">
+          <div><label class="field-label">Valor de rescate</label><input type="number" step="0.01" x-model="form.salvage_value" class="field-input"></div>
+        </template>
+        <div><label class="field-label">Vida útil (años)</label><input type="number" x-model="form.useful_life_years" class="field-input"></div>
+        <div>
+          <label class="field-label">Método de depreciación</label>
+          <select x-model="form.depreciation_method" class="field-input">
+            <option value="lineal">Lineal</option>
+            <option value="doble_saldo">Doble saldo decreciente</option>
+            <option value="uop">Unidades de producción</option>
+          </select>
+        </div>
+        <div><label class="field-label">Folio documento de compra</label><input type="text" x-model="form.purchase_document_folio" class="field-input" placeholder="N° de boleta/factura"></div>
+        <div>
+          <label class="field-label">Comprobante de compra</label>
+          <input type="file" accept="image/*,application/pdf" @change="purchaseDocFile = $event.target.files[0]" class="field-input">
+          <template x-if="editing && editing.purchase_document_url">
+            <a :href="editing.purchase_document_url" target="_blank" style="font-size:0.72rem;display:inline-block;margin-top:0.25rem;">Ver comprobante actual</a>
+          </template>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Descripción</label>
+          <textarea x-model="form.description" class="field-input" rows="2"></textarea>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Foto</label>
+          <input type="file" accept="image/*" @change="photoFile = $event.target.files[0]" class="field-input">
+        </div>
+      </div>
+
+      <template x-if="editing && editing.qr_code_url">
+        <div style="margin-top:1rem;display:flex;align-items:center;gap:0.75rem;">
+          <img :src="editing.qr_code_url" style="width:64px;height:64px;">
+          <span style="font-size:0.8rem;color:#64748b;">Código QR de esta herramienta</span>
+        </div>
+      </template>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;">
+        <div style="display:flex;gap:0.5rem;">
+          <button x-show="editing && canDelete()" @click="deleteTool(editing)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Eliminar</button>
+          <button x-show="editing && canManage()" @click="duplicateTool()" style="background:#e0e7ff;color:#3730a3;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Duplicar herramienta</button>
+          <button x-show="editing && canManage() && ['disponible', 'en_caja', 'mantenimiento_solicitada'].includes(editing.status)" @click="openMaintenanceQuick()" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
+            <span x-text="editing && editing.status === 'mantenimiento_solicitada' ? 'Confirmar mantención solicitada' : 'Enviar a mantenimiento'"></span>
+          </button>
+        </div>
+        <div style="display:flex;gap:0.5rem;margin-left:auto;">
+          <button @click="closeModal()" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+          <button @click="save()" class="btn-primary">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal rápido: enviar a mantenimiento (mismo endpoint que la pantalla dedicada) -->
+  <div x-show="showMaintenanceModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="showMaintenanceModal = false">
+    <div class="card" style="max-width:420px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;">Enviar a mantenimiento</h2>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="editing ? editing.name : ''"></p>
+
+      <label class="field-label">Proveedor</label>
+      <select x-model="maintenanceForm.provider" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Sin especificar</option>
+        <template x-for="p in providers" :key="p.id"><option :value="p.name" x-text="p.name"></option></template>
+      </select>
+
+      <label class="field-label">Motivo *</label>
+      <textarea x-model="maintenanceForm.reason" class="field-input" rows="3" placeholder="Ej: no enciende, ruido en el motor..."></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showMaintenanceModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmMaintenanceQuick()" class="btn-primary">Enviar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: resumen de la importación CSV -->
+  <div x-show="showImportResult" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="showImportResult = false">
+    <div class="card" style="max-width:480px;width:100%;max-height:85vh;overflow-y:auto;" x-show="importResult">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.75rem;">Resultado de la importación</h2>
+      <div style="display:flex;gap:0.75rem;margin-bottom:1rem;">
+        <div style="flex:1;background:#dcfce7;border-radius:8px;padding:0.6rem;text-align:center;">
+          <div style="font-size:1.3rem;font-weight:700;color:#166534;" x-text="importResult ? importResult.created : 0"></div>
+          <div style="font-size:0.72rem;color:#166534;">creadas</div>
+        </div>
+        <div style="flex:1;background:#dbeafe;border-radius:8px;padding:0.6rem;text-align:center;">
+          <div style="font-size:1.3rem;font-weight:700;color:#1e40af;" x-text="importResult ? importResult.updated : 0"></div>
+          <div style="font-size:0.72rem;color:#1e40af;">actualizadas</div>
+        </div>
+        <div style="flex:1;background:#fee2e2;border-radius:8px;padding:0.6rem;text-align:center;">
+          <div style="font-size:1.3rem;font-weight:700;color:#991b1b;" x-text="importResult ? importResult.errors.length : 0"></div>
+          <div style="font-size:0.72rem;color:#991b1b;">con error</div>
+        </div>
+      </div>
+      <template x-if="importResult && importResult.errors.length > 0">
+        <div style="border:1px solid #fecaca;border-radius:8px;padding:0.6rem;margin-bottom:0.5rem;max-height:220px;overflow-y:auto;">
+          <template x-for="err in (importResult ? importResult.errors : [])" :key="err.row + err.detail">
+            <p style="font-size:0.78rem;color:#991b1b;margin:0 0 0.3rem;">
+              <strong x-text="'Fila ' + err.row + ':'"></strong> <span x-text="err.detail"></span>
+            </p>
+          </template>
+        </div>
+      </template>
+      <div style="display:flex;justify-content:flex-end;">
+        <button @click="showImportResult = false" class="btn-primary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+
+/* Popup al pasar el cursor sobre el estado: en qué caja/mecánico está o a
+   quién está prestado y si vence a tiempo. CSS-only (:hover), sin estado
+   de Alpine por fila. */
+.status-tooltip-wrap .status-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #fff;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+}
+.status-tooltip-wrap:hover .status-tooltip { display: block; }
+
+/* Color propio para "mantención solicitada" — distinto de disponible
+   (verde), prestado (amarillo), en_caja (violeta) y mantenimiento (rojo),
+   para que se distinga de un vistazo que todavía no es un mantenimiento
+   confirmado, solo un aviso pendiente de un Mecánico. */
+.badge-request { background: #cffafe; color: #155e75; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<!-- Solo en esta página (375KB) — escaneo de QR por cámara -->
+<script src="/static/vendor/html5-qrcode.min.js"></script>
+<script>
+function toolsPage() {
+  return {
+    user: null,
+    tools: [],
+    toolboxes: [],
+    loans: [],
+    users: [],
+    brands: [],
+    categories: [],
+    locations: [],
+    providers: [],
+    addingField: null,
+    newLookupName: '',
+    loading: true,
+    search: '',
+    statusFilter: '',
+    showModal: false,
+    editing: null,
+    form: {},
+    photoFile: null,
+    purchaseDocFile: null,
+    showScanModal: false,
+    scanError: '',
+    _scanner: null,
+    showMaintenanceModal: false,
+    maintenanceForm: {},
+    showImportResult: false,
+    importResult: null,
+    message: '',
+    messageType: 'success',
+
+    async init() {
+      this.user = await getCurrentUser();
+      // Si llegamos desde una tarjeta del dashboard (?status=...), pre-filtramos.
+      const urlParams = new URLSearchParams(window.location.search);
+      const statusFromUrl = urlParams.get('status');
+      if (statusFromUrl) this.statusFilter = statusFromUrl;
+      // Cajas, préstamos, usuarios y tablas maestras se cargan una sola vez
+      // (no dependen del filtro de búsqueda).
+      await Promise.all([
+        this.loadTools(), this.loadToolboxes(), this.loadLoans(), this.loadUsers(), this.loadLookups(),
+      ]);
+    },
+
+    async loadLookups() {
+      const [b, c, l, p] = await Promise.all([
+        authFetch('/api/v1/lookups/brands'),
+        authFetch('/api/v1/lookups/categories'),
+        authFetch('/api/v1/lookups/locations'),
+        authFetch('/api/v1/lookups/providers'),
+      ]);
+      this.brands = b.ok ? await b.json() : [];
+      this.categories = c.ok ? await c.json() : [];
+      this.locations = l.ok ? await l.json() : [];
+      this.providers = p.ok ? await p.json() : [];
+    },
+
+    // Nombres para el <select> de un campo — incluye el valor actual del
+    // formulario aunque no esté (todavía) en la tabla maestra, para no
+    // "perder" datos viejos que se cargaron como texto libre antes de esta
+    // pantalla o que quedaron fuera del backfill inicial.
+    lookupOptions(field) {
+      const listByField = { brand: this.brands, category: this.categories, location: this.locations, supplier: this.providers };
+      const names = listByField[field].map((o) => o.name);
+      const current = this.form[field];
+      if (current && !names.includes(current)) names.unshift(current);
+      return names;
+    },
+
+    startAddLookup(field) {
+      // El <select> ya quedó en "__new__" (x-model lo pisa antes de que
+      // corra este @change) — lo limpiamos para no dejar ese valor
+      // fantasma dando vueltas mientras se muestra el input de "agregar".
+      this.form[field] = '';
+      this.addingField = field;
+      this.newLookupName = '';
+    },
+
+    cancelAddLookup() {
+      this.addingField = null;
+      this.newLookupName = '';
+    },
+
+    async confirmAddLookup(field) {
+      const name = this.newLookupName.trim();
+      if (!name) { this.cancelAddLookup(); return; }
+      const pathByField = { brand: 'brands', category: 'categories', location: 'locations', supplier: 'providers' };
+      const res = await authFetch(`/api/v1/lookups/${pathByField[field]}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo agregar', 'error');
+        return;
+      }
+      this.addingField = null;
+      this.newLookupName = '';
+      // Hay que refrescar la lista y dejar que Alpine termine de crear la
+      // <option> nueva ANTES de tocar form[field] — si seteamos form[field]
+      // en el mismo tick, el efecto de x-model (que sincroniza el <select>
+      // con el modelo) corre antes que el x-for que crea la opción, y el
+      // navegador no encuentra ninguna <option> con ese value todavía.
+      await this.loadLookups();
+      await new Promise((resolve) => this.$nextTick(resolve));
+      this.form[field] = name;
+    },
+
+    async loadToolboxes() {
+      const res = await authFetch('/api/v1/toolboxes');
+      this.toolboxes = res.ok ? await res.json() : [];
+    },
+
+    async loadLoans() {
+      const res = await authFetch('/api/v1/loans?limit=500');
+      this.loans = res.ok ? await res.json() : [];
+    },
+
+    async loadUsers() {
+      const res = await authFetch('/api/v1/users');
+      this.users = res.ok ? await res.json() : [];
+    },
+
+    // Texto del popup al pasar el cursor sobre el badge de estado.
+    statusDetail(tool) {
+      if (tool.status === 'mantenimiento_solicitada') {
+        const who = tool.maintenance_requested_by ? tool.maintenance_requested_by.full_name : 'alguien';
+        const when = tool.maintenance_requested_at ? this.formatDateTime(tool.maintenance_requested_at) : '';
+        return `Solicitada por: ${who}${when ? ' · ' + when : ''}`;
+      }
+      if (tool.status === 'en_caja') {
+        const box = this.toolboxes.find((b) => b.items.some((i) => i.tool_id === tool.id));
+        if (!box) return 'En una caja de herramientas';
+        const responsible = box.responsible ? box.responsible.full_name : 'sin responsable asignado';
+        return `Caja: ${box.name} · Responsable: ${responsible}`;
+      }
+      if (tool.status === 'prestado') {
+        const loan = this._activeLoanFor(tool);
+        if (!loan) return null;
+        const borrower = loan.borrower ? loan.borrower.full_name : this.userName(loan.borrower_id);
+        let dueLabel = 'Al día';
+        if (loan.status === 'vencido') dueLabel = 'Vencido';
+        else if (this._daysUntilDue(loan) <= 2) dueLabel = 'Por vencer';
+        return `Prestado a: ${borrower} · Vence: ${this.formatDate(loan.due_date)} (${dueLabel})`;
+      }
+      return null;
+    },
+
+    // Color con el que el mecánico responsable de la caja marca físicamente
+    // sus herramientas (ver Usuarios) — para poder cotejar a simple vista
+    // en la app la misma marca que tiene la herramienta en la mano.
+    toolMechanicColor(tool) {
+      if (tool.status !== 'en_caja') return null;
+      const box = this.toolboxes.find((b) => b.items.some((i) => i.tool_id === tool.id));
+      return box && box.responsible ? box.responsible.identifying_color : null;
+    },
+
+    _activeLoanFor(tool) {
+      return this.loans.find((l) => l.tool_id === tool.id && (l.status === 'activo' || l.status === 'vencido'));
+    },
+
+    _daysUntilDue(loan) {
+      const due = new Date(loan.due_date + 'T00:00:00');
+      const today = new Date(new Date().toDateString());
+      return Math.round((due - today) / 86400000);
+    },
+
+    // Color del texto del tooltip de "Prestado": verde al día, naranjo si
+    // vence en 2 días o menos, rojo si ya venció. El badge en sí se queda
+    // amarillo siempre (statusBadgeClass no cambia) — esto es solo el
+    // texto de adentro del popup.
+    loanUrgencyColor(tool) {
+      if (tool.status !== 'prestado') return '#fff';
+      const loan = this._activeLoanFor(tool);
+      if (!loan) return '#fff';
+      if (loan.status === 'vencido') return '#f87171';
+      if (this._daysUntilDue(loan) <= 2) return '#fb923c';
+      return '#4ade80';
+    },
+
+    userName(userId) {
+      const u = this.users.find((x) => x.id === userId);
+      return u ? u.full_name : `usuario #${userId}`;
+    },
+
+    formatDate(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleDateString('es-AR');
+    },
+    formatDateTime(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleString('es-AR');
+    },
+
+    canManage() { return hasRole(this.user, 'encargado'); },
+    canDelete() { return hasRole(this.user, 'jefe'); },
+    isJefe() { return hasRole(this.user, 'jefe'); },
+
+    async loadTools() {
+      this.loading = true;
+      const params = new URLSearchParams();
+      if (this.search) params.set('search', this.search);
+      if (this.statusFilter) params.set('status', this.statusFilter);
+      const res = await authFetch('/api/v1/tools?' + params.toString());
+      this.tools = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    openCreate() {
+      this.editing = null;
+      this.form = {
+        name: '', product_code: '', brand: '', model: '', serial_number: '', category: '', location: '',
+        supplier: '', purchase_date: '', purchase_cost: '', salvage_value: '0',
+        useful_life_years: 5, depreciation_method: 'lineal', description: '', purchase_document_folio: '',
+      };
+      this.photoFile = null;
+      this.purchaseDocFile = null;
+      this.showModal = true;
+    },
+
+    openEdit(tool) {
+      this.editing = tool;
+      this.form = { ...tool };
+      this.photoFile = null;
+      this.purchaseDocFile = null;
+      this.showModal = true;
+    },
+
+    // "Duplicar" precarga todos los datos del producto (mismo
+    // product_code, marca, categoría, costos, etc.) menos el número de
+    // serie — así se pueden cargar varias unidades del mismo producto sin
+    // reescribir el formulario entero cada vez. Al guardar, como editing
+    // queda en null, save() hace un POST (crea una herramienta nueva) en
+    // vez de un PUT sobre la original.
+    duplicateTool() {
+      this.form = { ...this.form, serial_number: '' };
+      this.editing = null;
+      this.photoFile = null;
+      this.purchaseDocFile = null;
+      this.showMessage('Datos duplicados — completá el número de serie y guardá para crear la copia');
+    },
+
+    closeModal() { this.showModal = false; },
+
+    openScanModal() {
+      this.scanError = '';
+      this.showScanModal = true;
+    },
+
+    async closeScanModal() {
+      await this._stopScanner();
+      this.showScanModal = false;
+    },
+
+    async _stopScanner() {
+      if (this._scanner) {
+        try { await this._scanner.stop(); } catch (e) { /* ya estaba parado */ }
+        this._scanner = null;
+      }
+    },
+
+    async startScanner() {
+      await this.$nextTick(); // esperar a que el <div id="qr-reader"> tenga tamaño real
+      this._scanner = new Html5Qrcode('qr-reader');
+      try {
+        await this._scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: 220 },
+          (decodedText) => this.handleScan(decodedText),
+          () => {}, // errores de lectura de un frame individual — normales mientras enfoca, se ignoran
+        );
+      } catch (err) {
+        this.scanError = 'No se pudo acceder a la cámara: ' + (err.message || err);
+      }
+    },
+
+    async handleScan(decodedText) {
+      await this._stopScanner();
+      this.showScanModal = false;
+
+      const res = await authFetch('/api/v1/tools/scan/' + encodeURIComponent(decodedText));
+      if (!res.ok) {
+        this.showMessage('Ese código QR no corresponde a ninguna herramienta', 'error');
+        return;
+      }
+      this.openEdit(await res.json());
+    },
+
+    async save() {
+      if (!this.form.name) { this.showMessage('El nombre es obligatorio', 'error'); return; }
+
+      const payload = { ...this.form };
+      delete payload.id; delete payload.status; delete payload.photo_url;
+      delete payload.qr_code_url; delete payload.created_at; delete payload.updated_at; delete payload.current_value;
+      delete payload.purchase_document_url;
+      // Un no-Jefe nunca ve purchase_cost/salvage_value (el backend se los
+      // oculta al leer la herramienta — ver _to_out en tools.py), así que
+      // su formulario los tiene en null. Si los mandáramos igual en el
+      // PUT, el backend los interpretaría como "el usuario los puso en
+      // null a propósito" y borraría el costo real cargado por el Jefe
+      // con solo editar cualquier otro campo. Se sacan del todo del
+      // payload para que ese PUT ni los toque.
+      if (!this.isJefe()) { delete payload.purchase_cost; delete payload.salvage_value; }
+      ['purchase_date', 'purchase_cost'].forEach((f) => { if (payload[f] === '') payload[f] = null; });
+
+      const url = this.editing ? `/api/v1/tools/${this.editing.id}` : '/api/v1/tools';
+      const method = this.editing ? 'PUT' : 'POST';
+      const res = await authFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al guardar', 'error');
+        return;
+      }
+      const saved = await res.json();
+
+      if (this.photoFile) {
+        const fd = new FormData();
+        fd.append('file', this.photoFile);
+        await authFetch(`/api/v1/tools/${saved.id}/photo`, { method: 'POST', body: fd });
+      }
+      if (this.purchaseDocFile) {
+        const fd = new FormData();
+        fd.append('file', this.purchaseDocFile);
+        await authFetch(`/api/v1/tools/${saved.id}/purchase-document`, { method: 'POST', body: fd });
+      }
+
+      this.showMessage('Herramienta guardada correctamente');
+      this.showModal = false;
+      await this.loadTools();
+    },
+
+    async deleteTool(tool) {
+      if (!confirm(`¿Eliminar "${tool.name}" del inventario?`)) return;
+      const res = await authFetch(`/api/v1/tools/${tool.id}`, { method: 'DELETE' });
+      if (res.status === 204) {
+        this.showMessage('Herramienta eliminada');
+        this.showModal = false;
+        await this.loadTools();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo eliminar', 'error');
+      }
+    },
+
+    openMaintenanceQuick() {
+      // Si viene de una solicitud de un Mecánico, precarga el motivo que
+      // dejó (si lo dejó) para no perder ese contexto al confirmarla.
+      const prefill = this.editing && this.editing.status === 'mantenimiento_solicitada'
+        ? (this.editing.maintenance_requested_reason || '')
+        : '';
+      this.maintenanceForm = { provider: '', reason: prefill };
+      this.showMaintenanceModal = true;
+    },
+
+    async confirmMaintenanceQuick() {
+      if (!this.maintenanceForm.reason) {
+        this.showMessage('Describí el motivo del envío', 'error');
+        return;
+      }
+      const res = await authFetch('/api/v1/maintenance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool_id: this.editing.id, ...this.maintenanceForm }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo enviar a mantenimiento', 'error');
+        return;
+      }
+      this.showMaintenanceModal = false;
+      this.showModal = false;
+      this.showMessage('Herramienta enviada a mantenimiento');
+      await this.loadTools();
+    },
+
+    async exportTools() {
+      const res = await authFetch('/api/v1/tools/export');
+      if (!res.ok) { this.showMessage('No se pudo exportar', 'error'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `herramientas_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    async downloadExampleCsv() {
+      const res = await authFetch('/api/v1/tools/import/example');
+      if (!res.ok) { this.showMessage('No se pudo descargar el ejemplo', 'error'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'herramientas_ejemplo.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    async importTools(file) {
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await authFetch('/api/v1/tools/import', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo importar el archivo', 'error');
+        return;
+      }
+      this.importResult = await res.json();
+      this.showImportResult = true;
+      await Promise.all([this.loadTools(), this.loadLookups()]);
+    },
+
+    statusLabel(status) {
+      return {
+        disponible: 'Disponible', prestado: 'Prestado', en_caja: 'En caja de herramientas',
+        mantenimiento: 'Mantenimiento', mantenimiento_solicitada: 'Mantención solicitada', baja: 'Baja',
+      }[status] || status;
+    },
+    statusBadgeClass(status) {
+      return {
+        disponible: 'badge-success', prestado: 'badge-warning', en_caja: 'badge-info',
+        mantenimiento: 'badge-danger', mantenimiento_solicitada: 'badge-request', baja: 'badge-info',
+      }[status] || 'badge-info';
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#tools-search', title: 'Buscar herramientas', text: 'Filtrá por nombre, marca o número de serie.' },
+  { selector: '#tools-status-filter', title: 'Filtro por estado', text: 'Mostrá solo las disponibles, prestadas, en mantenimiento, etc.' },
+  { selector: '#tools-btn-nueva', title: 'Nueva herramienta', text: 'Da de alta una herramienta nueva: nombre, marca, número de serie, foto y, si querés, el comprobante de compra.' },
+  { selector: '#tools-btn-exportar', title: 'Exportar / Importar CSV', text: 'Bajá el inventario completo a una planilla, o subí una para cargar varias herramientas de una sola vez.' },
+  { selector: '#tools-table', title: 'Listado', text: 'Tocá cualquier fila para ver el detalle completo y editarla. El color junto al estado "En caja" es la marca física del mecánico responsable.' },
+];
+</script>
+{% endblock %}

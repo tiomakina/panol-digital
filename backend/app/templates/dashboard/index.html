@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Resumen general del inventario y la actividad reciente</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="dashboardData()">
+
+  <!-- KPIs en tiempo real — cada tarjeta lleva a la vista filtrada correspondiente -->
+  <div id="dashboard-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
+    <a href="/tools" class="kpi-card" style="text-decoration:none;cursor:pointer;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Herramientas</span>
+        <span style="width:32px;height:32px;background:var(--brand-light);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--brand-primary)" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        </span>
+      </div>
+      <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="kpis.total_tools">—</div>
+      <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">en inventario</div>
+    </a>
+
+    <a href="/loans?status=en_curso" class="kpi-card" style="border-top-color:var(--brand-accent);text-decoration:none;cursor:pointer;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <span style="font-size:0.8rem;color:#64748b;font-weight:500;">En préstamo</span>
+        <span style="width:32px;height:32px;background:#fef9c3;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#ca8a04" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        </span>
+      </div>
+      <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="kpis.active_loans">—</div>
+      <div style="font-size:0.75rem;" :style="kpis.overdue_loans > 0 ? 'color:#dc2626;' : 'color:#64748b;'" x-text="kpis.overdue_loans > 0 ? `⚠ ${kpis.overdue_loans} vencidos` : 'sin vencidos'"></div>
+    </a>
+
+    <a href="/reports" class="kpi-card" style="border-top-color:#10b981;text-decoration:none;cursor:pointer;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Valor inventario</span>
+        <span style="width:32px;height:32px;background:#dcfce7;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#059669" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </span>
+      </div>
+      <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="kpis.inventory_value != null ? '$' + kpis.inventory_value.toLocaleString() : '—'">—</div>
+      <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;" x-text="kpis.inventory_value != null ? 'valor actual' : 'solo visible para Jefe'"></div>
+    </a>
+
+    <a href="/tools?status=mantenimiento" class="kpi-card" style="border-top-color:#ef4444;text-decoration:none;cursor:pointer;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Mantenimiento</span>
+        <span style="width:32px;height:32px;background:#fee2e2;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#dc2626" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </span>
+      </div>
+      <div style="font-size:1.75rem;font-weight:700;color:#1e293b;" x-text="kpis.maintenance_count">—</div>
+      <div style="font-size:0.75rem;color:#dc2626;margin-top:0.25rem;">requieren atención</div>
+    </a>
+  </div>
+
+  <!-- Fila 2: Préstamos recientes + gráfico uso -->
+  <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:1rem;">
+
+    <!-- Préstamos recientes -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h3 style="font-size:0.95rem;font-weight:600;">Préstamos activos</h3>
+        <a href="/loans" class="btn-primary" style="font-size:0.8rem;padding:0.3rem 0.75rem;text-decoration:none;">Ver todos</a>
+      </div>
+      <div hx-get="/api/v1/loans/recent" hx-trigger="load" hx-swap="innerHTML">
+        <!-- HTMX carga préstamos recientes aquí -->
+        <div style="text-align:center;padding:2rem;color:#94a3b8;">Cargando préstamos...</div>
+      </div>
+    </div>
+
+    <!-- Distribución del inventario por categoría -->
+    <div class="card">
+      <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:0.15rem;">Herramientas por categoría</h3>
+      <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 1rem;">Cuántas herramientas activas tenés en cada categoría (no incluye las dadas de baja)</p>
+      <canvas id="categoryChart" height="200" x-show="categoryData.length > 0"></canvas>
+      <p x-show="categoryData.length === 0" style="text-align:center;color:#94a3b8;font-size:0.85rem;padding:2rem 0;">Todavía no hay herramientas cargadas</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Vendorizado en static/vendor/ (no CDN) — ver base.html -->
+<script src="/static/vendor/chart.umd.js"></script>
+<script>
+function dashboardData() {
+  return {
+    kpis: { total_tools: 0, active_loans: 0, overdue_loans: 0, inventory_value: 0, maintenance_count: 0 },
+    categoryData: [],
+
+    async init() {
+      // Cargar KPIs
+      try {
+        const res = await authFetch('/api/v1/dashboard/kpis');
+        if (res.ok) this.kpis = await res.json();
+      } catch (e) {
+        // Datos de ejemplo mientras no hay API
+        this.kpis = { total_tools: 247, active_loans: 18, overdue_loans: 3, inventory_value: 1240000, maintenance_count: 5 };
+      }
+
+      // Gráfico: herramientas activas por categoría (datos reales, no fijos)
+      try {
+        const catRes = await authFetch('/api/v1/dashboard/tools-by-category');
+        this.categoryData = catRes.ok ? await catRes.json() : [];
+      } catch (e) {
+        this.categoryData = [];
+      }
+      if (this.categoryData.length === 0) return;
+
+      const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--brand-primary').trim() || '#4f46e5';
+      const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--brand-secondary').trim() || '#06b6d4';
+      const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--brand-accent').trim() || '#f59e0b';
+      const palette = [primaryColor, secondaryColor, accentColor, '#94a3b8', '#f472b6', '#22c55e', '#a855f7', '#eab308'];
+
+      const ctx = document.getElementById('categoryChart');
+      if (ctx) {
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: this.categoryData.map((c) => c.category),
+            datasets: [{
+              data: this.categoryData.map((c) => c.count),
+              backgroundColor: this.categoryData.map((_, i) => palette[i % palette.length]),
+              borderWidth: 0,
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: true,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } } },
+          },
+        });
+      }
+    }
+  }
+}
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#dashboard-kpis', title: 'Tarjetas KPI', text: 'Un resumen del estado del pañol de un vistazo. Son clickeables: tocá cualquiera y te lleva al listado filtrado correspondiente.' },
+  { selector: '#categoryChart', title: 'Uso por categoría', text: 'Qué categorías de herramientas se prestan más, para saber dónde conviene invertir en más stock.' },
+];
+</script>
+{% endblock %}

@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Sistema de Gestión de Herramientas">
+<title>{% block title %}Pañol 360{% endblock %} · {{ brand.company_name if brand else "Pañol 360" }}</title>
+
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/static/img/icon-192.png">
+<link rel="apple-touch-icon" href="/static/img/icon-192.png">
+<meta name="theme-color" content="{{ brand.primary_color if brand else '#4f46e5' }}">
+
+<!-- Fuentes -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- HTMX 2 y Alpine.js 3 — vendorizados en static/vendor/ (no CDN):
+     el sistema debe poder correr en un pañol/taller sin salida a internet. -->
+<script src="/static/vendor/htmx.min.js"></script>
+<script defer src="/static/vendor/alpine.min.js"></script>
+
+<!-- Sesión JWT (localStorage) — adjunta el token a fetch/htmx y protege la página -->
+<script src="/static/js/auth.js"></script>
+
+<!-- Tour guiado — cada página define window.PANOL_TOUR_STEPS (ver templates/help/) -->
+<script src="/static/js/tour.js"></script>
+
+<!-- CSS Variables de Branding — generadas dinámicamente desde el servidor -->
+<style>
+{{ brand_css | safe }}
+
+/* ===== SISTEMA DE DISEÑO PAÑOL 360 ===== */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: var(--brand-font-body, 'Inter', sans-serif);
+  background: #f8fafc;
+  color: #1e293b;
+  margin: 0;
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--brand-sidebar-bg, #0f172a);
+  color: var(--brand-sidebar-text, #e2e8f0);
+  width: 260px;
+  min-height: 100vh;
+  position: fixed;
+  top: 0; left: 0;
+  display: flex; flex-direction: column;
+  transition: transform 0.3s ease;
+  z-index: 40;
+}
+
+.sidebar-logo {
+  padding: 1.5rem 1.25rem;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  display: flex; align-items: center; gap: 0.75rem;
+}
+
+.sidebar-logo img {
+  height: 36px; width: auto; max-width: 140px;
+  object-fit: contain;
+}
+
+.sidebar-logo-text {
+  font-size: 1rem; font-weight: 600;
+  color: #fff; line-height: 1.2;
+}
+
+.sidebar-nav { flex: 1; padding: 1rem 0.75rem; overflow-y: auto; }
+
+.nav-section-label {
+  font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: rgba(255,255,255,0.3);
+  padding: 0.75rem 0.5rem 0.25rem;
+}
+
+.nav-link {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: calc(var(--brand-radius, 8px) - 2px);
+  color: rgba(255,255,255,0.6);
+  text-decoration: none; font-size: 0.875rem;
+  transition: all 0.15s;
+  margin-bottom: 2px;
+}
+
+.nav-link:hover {
+  background: rgba(255,255,255,0.07);
+  color: #fff;
+}
+
+.nav-link.active {
+  background: var(--brand-primary, #4f46e5);
+  color: var(--brand-text-on-primary, #fff);
+}
+
+.nav-link .nav-icon { width: 20px; height: 20px; flex-shrink: 0; opacity: 0.8; }
+.nav-link.active .nav-icon { opacity: 1; }
+
+/* Topbar */
+.topbar {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  height: 64px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1.5rem;
+  position: sticky; top: 0; z-index: 30;
+  gap: 1rem;
+}
+
+/* Título de página — antes tenía el color fijo #1e293b sin variante para
+   modo oscuro, y como [data-theme="dark"] .topbar pasa a ese MISMO color
+   de fondo, el título quedaba invisible (texto oscuro sobre fondo oscuro). */
+.page-title { font-size: 1rem; font-weight: 700; color: #1e293b; margin: 0; white-space: nowrap; }
+[data-theme="dark"] .page-title { color: #f1f5f9; }
+
+.page-subtitle-sep { color: #cbd5e1; }
+[data-theme="dark"] .page-subtitle-sep { color: #475569; }
+
+.page-subtitle-text { font-size: 0.85rem; color: #64748b; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-theme="dark"] .page-subtitle-text { color: #94a3b8; }
+
+/* Marca del cliente en el topbar (logo + nombre de la empresa) */
+.client-brand { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.client-brand img { height: 28px; width: auto; max-width: 130px; object-fit: contain; }
+.client-brand-name { font-size: 0.85rem; font-weight: 600; color: #1e293b; white-space: nowrap; }
+[data-theme="dark"] .client-brand-name { color: #e2e8f0; }
+
+.topbar-divider { width: 1px; height: 26px; background: #e2e8f0; flex-shrink: 0; }
+[data-theme="dark"] .topbar-divider { background: #334155; }
+
+/* Indicadores económicos (dólar, UF, euro, UTM) — ocultos en mobile por espacio */
+.indicators-strip {
+  display: none;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.72rem;
+  color: #475569;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  white-space: nowrap;
+}
+.indicators-strip strong { color: #1e293b; font-weight: 700; margin-right: 0.15rem; }
+@media (min-width: 900px) {
+  .indicators-strip { display: flex; }
+}
+[data-theme="dark"] .indicators-strip { background: #0f172a; border-color: #334155; color: #cbd5e1; }
+[data-theme="dark"] .indicators-strip strong { color: #f1f5f9; }
+
+/* Contenido principal */
+.main-content {
+  margin-left: 260px;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  transition: margin-left 0.3s ease;
+}
+
+/* Sidebar colapsable en desktop — independiente del drawer de mobile de
+   más abajo (ahí .sidebar.open resuelve otro caso: pantalla chica donde
+   el sidebar arranca oculto y se abre a pedido; acá es al revés, arranca
+   visible y el usuario lo puede ocultar para ganar espacio). */
+@media (min-width: 769px) {
+  .sidebar.collapsed { transform: translateX(-100%); }
+  .main-content.sidebar-collapsed { margin-left: 0; }
+}
+
+.page-content {
+  flex: 1;
+  padding: 1.75rem 2rem;
+}
+
+.app-footer {
+  padding: 0.9rem 2rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.8;
+}
+.app-footer a { color: #94a3b8; text-decoration: none; }
+.app-footer a:hover { color: var(--brand-primary, #4f46e5); text-decoration: underline; }
+[data-theme="dark"] .app-footer { background: #1e293b; border-color: #334155; color: #64748b; }
+[data-theme="dark"] .app-footer a { color: #64748b; }
+
+/* Botón primario con branding */
+.btn-primary {
+  background: var(--brand-primary, #4f46e5);
+  color: var(--brand-text-on-primary, #fff);
+  border: none;
+  border-radius: var(--brand-radius, 8px);
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+}
+.btn-primary:hover { filter: brightness(0.9); transform: translateY(-1px); }
+
+/* Card con branding */
+.card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--brand-radius, 8px);
+  padding: 1.5rem;
+}
+
+/* KPI card */
+.kpi-card {
+  display: block;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--brand-radius, 8px);
+  padding: 1.25rem;
+  border-top: 3px solid var(--brand-primary, #4f46e5);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+a.kpi-card:hover {
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Badge de estado */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.75rem; font-weight: 500;
+}
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-warning { background: #fef9c3; color: #854d0e; }
+.badge-danger  { background: #fee2e2; color: #991b1b; }
+.badge-info    { background: var(--brand-light, #ede9fe); color: var(--brand-dark, #1e1b4b); }
+
+/* Color picker personalizado */
+.color-swatch {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  border: 2px solid #e2e8f0;
+  cursor: pointer;
+  overflow: hidden;
+}
+.color-swatch input[type="color"] {
+  width: 200%; height: 200%;
+  border: none; cursor: pointer;
+  transform: translate(-25%, -25%);
+}
+
+/* Dark mode */
+[data-theme="dark"] body { background: #0f172a; color: #e2e8f0; }
+[data-theme="dark"] .card, [data-theme="dark"] .topbar { background: #1e293b; border-color: #334155; }
+[data-theme="dark"] .kpi-card { background: #1e293b; border-color: #334155; }
+
+/* Botón de hamburguesa — visible siempre: en desktop colapsa/muestra el
+   sidebar, en mobile abre/cierra el drawer (ver toggleSidebar() en JS). */
+.sidebar-toggle-btn { display: inline-flex; }
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .main-content { margin-left: 0; }
+}
+
+/* Tour guiado (ver static/js/tour.js) — overlay oscuro con un "hueco"
+   (spotlight) recortado con box-shadow sobre el elemento resaltado, más
+   un globo con el texto del paso. Sin librerías externas. */
+.panol-tour-overlay {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+  z-index: 9998; cursor: pointer;
+}
+.panol-tour-spotlight {
+  position: fixed; z-index: 9999; border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.55);
+  pointer-events: none;
+  outline: 2px solid var(--brand-primary, #4f46e5);
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+.panol-tour-popover {
+  position: fixed; z-index: 10000; max-width: 320px;
+  background: #fff; color: #1e293b; border-radius: 10px;
+  box-shadow: 0 20px 45px rgba(0,0,0,0.3); padding: 1rem 1.1rem;
+  font-size: 0.85rem; transition: top 0.2s ease, left 0.2s ease;
+}
+[data-theme="dark"] .panol-tour-popover { background: #1e293b; color: #e2e8f0; }
+.panol-tour-popover-step { font-size: 0.7rem; font-weight: 600; color: var(--brand-primary, #4f46e5); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+.panol-tour-popover-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.35rem; }
+.panol-tour-popover-text { color: #64748b; line-height: 1.4; margin-bottom: 0.85rem; }
+[data-theme="dark"] .panol-tour-popover-text { color: #94a3b8; }
+.panol-tour-popover-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.panol-tour-popover-actions button {
+  border: 1px solid #e2e8f0; background: none; border-radius: 6px;
+  padding: 0.35rem 0.7rem; font-size: 0.78rem; cursor: pointer; color: inherit;
+}
+.panol-tour-popover-actions button[data-action="next"] {
+  background: var(--brand-primary, #4f46e5); color: var(--brand-text-on-primary, #fff); border: none; margin-left: 0.4rem;
+}
+.panol-tour-popover-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+</head>
+
+<body x-data="appState()" :data-theme="theme">
+
+<!-- SIDEBAR -->
+<aside class="sidebar" :class="{'open': sidebarOpen, 'collapsed': sidebarCollapsed}">
+  <!-- Marca de la aplicación — SIEMPRE Pañol 360, sin importar el logo que
+       suba cada empresa cliente (ese va aparte, en el topbar, junto a su
+       nombre — ver client-brand más abajo). Antes el logo del cliente
+       reemplazaba este bloque entero; ahora conviven los dos, como en
+       cualquier sistema white-label: la marca del producto no desaparece. -->
+  <div class="sidebar-logo">
+    <svg width="34" height="34" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+      <g stroke="#fff" stroke-width="7" stroke-linecap="round">
+        <circle cx="50" cy="50" r="30"/>
+        <line x1="50" y1="12" x2="50" y2="20" transform="rotate(0 50 50)"/>
+        <line x1="50" y1="12" x2="50" y2="20" transform="rotate(45 50 50)"/>
+        <line x1="50" y1="12" x2="50" y2="20" transform="rotate(90 50 50)"/>
+        <line x1="50" y1="12" x2="50" y2="20" transform="rotate(135 50 50)"/>
+        <line x1="50" y1="12" x2="50" y2="20" transform="rotate(180 50 50)"/>
+        <line x1="50" y1="12" x2="50" y2="20" transform="rotate(225 50 50)"/>
+        <line x1="50" y1="12" x2="50" y2="20" transform="rotate(270 50 50)"/>
+        <line x1="50" y1="12" x2="50" y2="20" transform="rotate(315 50 50)"/>
+      </g>
+      <path d="M50 24 A26 26 0 0 1 76 50" fill="none" stroke="#f59e0b" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="76" cy="50" r="6" fill="#f59e0b"/>
+    </svg>
+    <div>
+      <span class="sidebar-logo-text">PAÑOL<span style="color:#f59e0b;">360</span></span>
+    </div>
+  </div>
+
+  <!-- Navegación -->
+  <nav class="sidebar-nav">
+    <p class="nav-section-label">Principal</p>
+
+    <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      Dashboard
+    </a>
+
+    <a href="/tools" class="nav-link {% if '/tools' in request.url.path %}active{% endif %}">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      Herramientas
+    </a>
+
+    <a href="/loans" class="nav-link {% if '/loans' in request.url.path %}active{% endif %}">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Préstamos
+    </a>
+
+    <a href="/toolboxes" class="nav-link {% if '/toolboxes' in request.url.path %}active{% endif %}">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      Cajas
+    </a>
+
+    <a href="/maintenance" class="nav-link {% if '/maintenance' in request.url.path %}active{% endif %}">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      Mantenimiento
+    </a>
+
+    <p class="nav-section-label" x-show="hasRole(currentUser, 'encargado')">Análisis</p>
+
+    <a href="/reports" x-show="hasRole(currentUser, 'encargado')" class="nav-link {% if '/reports' in request.url.path %}active{% endif %}">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Reportes
+    </a>
+
+    <p class="nav-section-label">Administración</p>
+
+    <a href="/users" class="nav-link {% if '/users' in request.url.path %}active{% endif %}">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+      Usuarios
+    </a>
+
+    <a href="/brand" x-show="hasRole(currentUser, 'encargado')" class="nav-link {% if '/brand' in request.url.path %}active{% endif %}" style="margin-top: 2px;">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+      Personalización
+    </a>
+
+    <a href="/lookups" x-show="hasRole(currentUser, 'encargado')" class="nav-link {% if '/lookups' in request.url.path %}active{% endif %}" style="margin-top: 2px;">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 6a2 2 0 012-2h12a2 2 0 012 2M4 6v12a2 2 0 002 2h12a2 2 0 002-2V6M9 6v14m0-14a2 2 0 00-2-2H4m5 2a2 2 0 012-2h2a2 2 0 012 2m0 0v14"/></svg>
+      Tablas maestras
+    </a>
+
+    <a href="/backup" x-show="hasRole(currentUser, 'jefe')" class="nav-link {% if '/backup' in request.url.path %}active{% endif %}" style="margin-top: 2px;">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8m-8 5h8m-8 5h5M4 4h16v16H4V4z"/></svg>
+      Respaldo
+    </a>
+
+    <p class="nav-section-label">Ayuda</p>
+
+    <a href="/ayuda" class="nav-link {% if '/ayuda' in request.url.path %}active{% endif %}">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Manual y ayuda
+    </a>
+  </nav>
+
+  <!-- User info en el fondo -->
+  <div style="padding: 1rem; border-top: 1px solid rgba(255,255,255,0.08);">
+    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.6rem;">
+      <img x-show="currentUser && currentUser.avatar_url" :src="currentUser && currentUser.avatar_url" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+      <div x-show="!currentUser || !currentUser.avatar_url" style="width:36px;height:36px;border-radius:50%;background:var(--brand-primary);display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600;color:var(--brand-text-on-primary);flex-shrink:0;" x-text="userInitials()">·</div>
+      <div style="min-width:0;">
+        <div style="font-size:0.8rem;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="currentUser ? currentUser.full_name : '···'"></div>
+        <div style="font-size:0.7rem;color:rgba(255,255,255,0.4);" x-text="userRoleLabel()"></div>
+      </div>
+    </div>
+    <button @click="logout()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:0.4rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:0.45rem 0.6rem;color:rgba(255,255,255,0.7);font-size:0.75rem;cursor:pointer;">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      Cerrar sesión
+    </button>
+  </div>
+</aside>
+
+<!-- CONTENIDO PRINCIPAL -->
+<div class="main-content" :class="{'sidebar-collapsed': sidebarCollapsed}">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:1rem;">
+      <button @click="toggleSidebar()" class="sidebar-toggle-btn" title="Mostrar/ocultar menú" style="background:none;border:none;cursor:pointer;padding:0.5rem;">
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+
+      <!-- Marca del cliente — el logo que cada empresa sube en Personalización,
+           siempre junto a su nombre (a diferencia del logo de Pañol 360 del
+           sidebar, este SÍ cambia por empresa). Si todavía no subió uno, no
+           se muestra nada acá — no hay un "logo por defecto" ajeno a la marca. -->
+      {% if brand and brand.logo_url %}
+      <div class="client-brand">
+        <img src="{{ brand.logo_url }}" alt="{{ brand.company_name }}">
+        <span class="client-brand-name">{{ brand.company_name }}</span>
+      </div>
+      <span class="topbar-divider"></span>
+      {% endif %}
+
+      <div style="display:flex;align-items:baseline;gap:0.55rem;min-width:0;">
+        <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+        {% block page_subtitle %}{% endblock %}
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <!-- Indicadores económicos de Chile (dólar, UF, euro, UTM) -->
+      <div class="indicators-strip" x-show="economicIndicators && economicIndicators.cached_at" x-cloak>
+        <template x-if="economicIndicators && economicIndicators.dolar">
+          <span title="Dólar observado"><strong>USD</strong><span x-text="formatIndicator(economicIndicators.dolar.valor)"></span></span>
+        </template>
+        <template x-if="economicIndicators && economicIndicators.uf">
+          <span title="Unidad de Fomento"><strong>UF</strong><span x-text="formatIndicator(economicIndicators.uf.valor)"></span></span>
+        </template>
+        <template x-if="economicIndicators && economicIndicators.euro">
+          <span title="Euro"><strong>EUR</strong><span x-text="formatIndicator(economicIndicators.euro.valor)"></span></span>
+        </template>
+        <template x-if="economicIndicators && economicIndicators.utm">
+          <span title="Unidad Tributaria Mensual"><strong>UTM</strong><span x-text="formatIndicator(economicIndicators.utm.valor)"></span></span>
+        </template>
+      </div>
+      <!-- Tour guiado de esta página (solo si tiene pasos definidos) -->
+      <button @click="panolTour.start(window.PANOL_TOUR_STEPS || [])" x-show="(window.PANOL_TOUR_STEPS || []).length > 0"
+              title="¿Cómo uso esto?" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem 0.6rem;cursor:pointer;font-size:0.78rem;font-weight:600;color:var(--brand-primary,#4f46e5);display:flex;align-items:center;gap:0.3rem;">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        ¿Cómo uso esto?
+      </button>
+      <!-- Toggle dark mode -->
+      <button @click="toggleTheme()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem;cursor:pointer;">
+        <template x-if="theme === 'light'">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        </template>
+        <template x-if="theme === 'dark'">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </template>
+      </button>
+      <!-- Notificaciones -->
+      <div style="position:relative;">
+        <button @click="toggleNotifications()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.4rem;cursor:pointer;position:relative;">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <span x-show="overdueLoans.length > 0" style="position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--brand-accent,#f59e0b);border-radius:50%;"></span>
+        </button>
+        <div x-show="showNotifications" x-cloak @click.outside="showNotifications = false"
+             style="position:absolute;right:0;top:calc(100% + 0.5rem);width:320px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 12px 28px rgba(0,0,0,0.12);z-index:100;">
+          <div style="padding:0.75rem 1rem;border-bottom:1px solid #f1f5f9;font-size:0.85rem;font-weight:600;color:#1e293b;">Notificaciones</div>
+          <div style="max-height:280px;overflow-y:auto;">
+            <template x-if="overdueLoans.length === 0">
+              <div style="padding:1.5rem;text-align:center;color:#94a3b8;font-size:0.8rem;">Sin novedades por ahora</div>
+            </template>
+            <template x-for="loan in overdueLoans" :key="loan.id">
+              <a href="/loans" style="display:block;padding:0.65rem 1rem;border-bottom:1px solid #f8fafc;text-decoration:none;">
+                <div style="font-size:0.8rem;font-weight:600;color:#991b1b;">⚠ Préstamo vencido</div>
+                <div style="font-size:0.78rem;color:#475569;" x-text="(loan.tool ? loan.tool.name : '—') + ' · ' + (loan.borrower ? loan.borrower.full_name : '—')"></div>
+              </a>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenido de página -->
+  <main class="page-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="app-footer">
+    Desarrollado por Valentín Morales Silva
+    &nbsp;|&nbsp; Copyright © 2026 VMS Ingeniería
+    &nbsp;|&nbsp; Email: <a href="mailto:hablemos@valentinmorales.cl">hablemos@valentinmorales.cl</a>
+    &nbsp;|&nbsp; Web: <a href="https://www.valentinmorales.cl" target="_blank" rel="noopener">www.valentinmorales.cl</a>
+    &nbsp;|&nbsp; Fono: <a href="tel:+56930688762">+569 30688762</a>
+  </footer>
+</div>
+
+<!-- Alpine.js Global State -->
+<script>
+function appState() {
+  return {
+    theme: localStorage.getItem('panol-theme') || 'light',
+    sidebarOpen: false,
+    sidebarCollapsed: localStorage.getItem('panol-sidebar-collapsed') === '1',
+    currentUser: null,
+    showNotifications: false,
+    overdueLoans: [],
+    economicIndicators: null,
+
+    toggleTheme() {
+      this.theme = this.theme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('panol-theme', this.theme);
+      document.documentElement.setAttribute('data-theme', this.theme);
+    },
+
+    // En desktop el sidebar arranca visible y se puede ocultar para ganar
+    // espacio (se recuerda entre sesiones); en mobile es el drawer de
+    // siempre, que arranca oculto y se abre a pedido. Es el mismo botón
+    // en las dos resoluciones, solo cambia qué bandera toca.
+    toggleSidebar() {
+      if (window.innerWidth <= 768) {
+        this.sidebarOpen = !this.sidebarOpen;
+      } else {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        localStorage.setItem('panol-sidebar-collapsed', this.sidebarCollapsed ? '1' : '0');
+      }
+    },
+
+    userInitials() {
+      if (!this.currentUser) return '·';
+      return this.currentUser.full_name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+    },
+
+    userRoleLabel() {
+      const labels = { jefe: 'Jefe', encargado: 'Encargado', mecanico: 'Mecánico' };
+      return this.currentUser ? (labels[this.currentUser.role] || this.currentUser.role) : '';
+    },
+
+    async toggleNotifications() {
+      this.showNotifications = !this.showNotifications;
+      if (this.showNotifications) await this.loadNotifications();
+    },
+
+    async loadNotifications() {
+      // Usa /api/v1/loans (abierto a cualquier rol autenticado), no
+      // /api/v1/reports/loans — ese quedó restringido a Encargado+ cuando
+      // se bloqueó el módulo de Reportes para Mecánico, y esta campanita
+      // de notificaciones no tiene nada que ver con Reportes: es un aviso
+      // general que todos los roles deben poder ver.
+      const res = await authFetch('/api/v1/loans?status=vencido');
+      if (res.ok) this.overdueLoans = await res.json();
+    },
+
+    async loadEconomicIndicators() {
+      try {
+        const res = await authFetch('/api/v1/indicators/economic');
+        if (res.ok) this.economicIndicators = await res.json();
+      } catch (e) {
+        // Sin salida a internet o API caída — el header simplemente no
+        // muestra la franja de indicadores, no rompe el resto de la página.
+      }
+    },
+
+    formatIndicator(valor) {
+      return '$' + new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(valor);
+    },
+
+    async logout() {
+      const refreshToken = localStorage.getItem('panol-refresh-token');
+      try {
+        await authFetch('/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+      } catch (e) { /* si falla igual limpiamos la sesión local */ }
+      localStorage.removeItem('panol-access-token');
+      localStorage.removeItem('panol-refresh-token');
+      window.location.href = '/login';
+    },
+
+    async init() {
+      requireAuth(); // manda a /login si no hay sesión guardada
+      document.documentElement.setAttribute('data-theme', this.theme);
+      this.currentUser = await getCurrentUser();
+      await this.loadNotifications();
+      this.loadEconomicIndicators(); // no bloqueante — la franja aparece sola cuando llega
+      // Para que el avatar del sidebar se actualice al toque cuando el
+      // usuario cambia su propia foto desde Usuarios, sin recargar la página.
+      window.addEventListener('panol-avatar-updated', (e) => {
+        if (this.currentUser) this.currentUser.avatar_url = e.detail;
+      });
+    }
+  }
+}
+
+// PWA — registra el service worker para instalación y fallback offline.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+}
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

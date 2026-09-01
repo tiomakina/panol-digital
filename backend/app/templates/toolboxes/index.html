@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+{% block title %}Cajas de Herramientas{% endblock %}
+{% block page_title %}Cajas de Herramientas{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Cajas armadas y auditorías de contenido</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="toolboxesPage()" x-init="init()">
+
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+    <button id="toolboxes-btn-nueva" class="btn-primary" @click="openCreate()" x-show="canManage()">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Nueva caja
+    </button>
+  </div>
+
+  <template x-if="loading"><p style="color:#94a3b8;">Cargando...</p></template>
+  <template x-if="!loading && toolboxes.length === 0"><p style="color:#94a3b8;">Todavía no hay cajas de herramientas creadas.</p></template>
+
+  <div id="toolboxes-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:1rem;">
+    <template x-for="box in toolboxes" :key="box.id">
+      <div class="card" style="cursor:pointer;" @click="openDetail(box)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+          <h3 style="font-size:0.95rem;font-weight:600;" x-text="box.name"></h3>
+          <span class="badge badge-info" x-text="box.items.length + (box.items.length === 1 ? ' herramienta' : ' herramientas')"></span>
+        </div>
+        <p style="font-size:0.8rem;color:#64748b;margin:0 0 0.5rem;" x-text="box.location || 'Sin ubicación asignada'"></p>
+        <p style="font-size:0.78rem;color:#475569;margin:0 0 0.35rem;display:flex;align-items:center;gap:0.3rem;">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:#94a3b8;"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          <span x-text="box.responsible ? box.responsible.full_name : 'Sin responsable asignado'" :style="box.responsible ? '' : 'color:#94a3b8;font-style:italic;'"></span>
+          <span x-show="box.responsible && box.responsible.identifying_color"
+                :style="'width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);flex-shrink:0;background:' + (box.responsible ? box.responsible.identifying_color : '')"
+                :title="'Caja marcada con este color: ' + (box.responsible ? box.responsible.identifying_color : '')"></span>
+        </p>
+        <p style="font-size:0.75rem;color:#94a3b8;margin:0;" x-text="box.description || ''"></p>
+      </div>
+    </template>
+  </div>
+
+  <!-- Modal crear -->
+  <div x-show="showCreateModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showCreateModal = false">
+    <div class="card" style="max-width:420px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Nueva caja de herramientas</h2>
+      <label class="field-label">Nombre *</label>
+      <input type="text" x-model="form.name" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Ubicación</label>
+      <input type="text" x-model="form.location" class="field-input" style="margin-bottom:0.75rem;">
+      <label class="field-label">Mecánico responsable</label>
+      <select x-model="form.responsible_user_id" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Sin asignar</option>
+        <template x-for="u in users" :key="u.id">
+          <option :value="u.id" x-text="u.full_name + ' (' + u.email + ')'"></option>
+        </template>
+      </select>
+      <label class="field-label">Descripción</label>
+      <textarea x-model="form.description" class="field-input" rows="2" style="margin-bottom:1rem;"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button @click="showCreateModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="createToolbox()" class="btn-primary">Crear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal detalle -->
+  <div x-show="showDetailModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showDetailModal = false">
+    <div class="card" style="max-width:520px;width:100%;max-height:90vh;overflow-y:auto;" x-show="detail">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.25rem;">
+        <h2 style="font-size:1.05rem;font-weight:600;" x-text="detail && detail.name"></h2>
+        <button @click="showDetailModal = false" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+      </div>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="detail && (detail.location || 'Sin ubicación asignada')"></p>
+
+      <template x-if="detail && detail.qr_code_url">
+        <img :src="detail.qr_code_url" style="width:56px;height:56px;margin-bottom:1rem;">
+      </template>
+
+      <label class="field-label">Mecánico responsable</label>
+      <template x-if="canManage()">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+          <select x-model="responsibleEdit" @change="updateResponsible()" class="field-input" style="flex:1;">
+            <option value="">Sin asignar</option>
+            <template x-for="u in users" :key="u.id">
+              <option :value="u.id" x-text="u.full_name + ' (' + u.email + ')'"></option>
+            </template>
+          </select>
+          <span x-show="detail && detail.responsible && detail.responsible.identifying_color"
+                :style="'width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);flex-shrink:0;background:' + (detail && detail.responsible ? detail.responsible.identifying_color : '')"
+                title="Color con el que está marcada esta caja"></span>
+        </div>
+      </template>
+      <template x-if="!canManage()">
+        <p style="font-size:0.85rem;color:#334155;margin:0 0 1rem;display:flex;align-items:center;gap:0.4rem;">
+          <span x-text="detail && detail.responsible ? detail.responsible.full_name : 'Sin responsable asignado'"></span>
+          <span x-show="detail && detail.responsible && detail.responsible.identifying_color"
+                :style="'width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);flex-shrink:0;background:' + (detail && detail.responsible ? detail.responsible.identifying_color : '')"></span>
+        </p>
+      </template>
+
+      <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">Herramientas en esta caja</h3>
+      <div style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:1rem;">
+        <template x-if="detail && detail.items.length === 0">
+          <p style="color:#94a3b8;font-size:0.8rem;">Vacía por ahora.</p>
+        </template>
+        <template x-for="item in (detail ? detail.items : [])" :key="item.tool_id">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:6px;">
+            <span style="font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;">
+              <span x-text="item.tool ? item.tool.name : ('Herramienta #' + item.tool_id)"></span>
+              <span class="status-tooltip-wrap" style="position:relative;display:inline-block;" x-show="item.tool && item.tool.status !== 'en_caja'">
+                <span class="badge" :class="toolStatusBadge(item.tool ? item.tool.status : '')" x-text="toolStatusLabel(item.tool ? item.tool.status : '')"></span>
+                <template x-if="item.tool && item.tool.status === 'mantenimiento_solicitada'">
+                  <div class="status-tooltip" x-text="requestTooltip(item.tool)"></div>
+                </template>
+              </span>
+            </span>
+            <span style="white-space:nowrap;">
+              <button x-show="!canManage() && item.tool && item.tool.status === 'en_caja'" @click="openRequestMaintenance(item)" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.72rem;margin-right:0.35rem;">Solicitar mantención</button>
+              <button x-show="canManage()" @click="removeTool(item.tool_id)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;">Quitar</button>
+            </span>
+          </div>
+        </template>
+      </div>
+
+      <template x-if="canManage()">
+        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+          <select x-model="toolToAdd" class="field-input">
+            <option value="">Agregar herramienta suelta...</option>
+            <template x-for="tool in unassignedTools" :key="tool.id">
+              <option :value="tool.id" x-text="tool.name"></option>
+            </template>
+          </select>
+          <button @click="addTool()" class="btn-primary" style="white-space:nowrap;">Agregar</button>
+        </div>
+      </template>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:1rem 0 0.5rem;">
+        <h3 style="font-size:0.85rem;font-weight:600;">Auditoría / inventario</h3>
+        <button x-show="canManage()" @click="startNewAudit()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.35rem 0.7rem;cursor:pointer;font-size:0.75rem;">+ Nueva auditoría</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.35rem;margin-bottom:1rem;">
+        <template x-if="audits.length === 0">
+          <p style="color:#94a3b8;font-size:0.8rem;">Todavía no se hizo ninguna auditoría de esta caja.</p>
+        </template>
+        <template x-for="a in audits" :key="a.id">
+          <button @click="openAuditModal(a)" style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;text-align:left;">
+            <span style="font-size:0.8rem;">
+              <span x-text="formatDate(a.audit_date)"></span>
+              <span style="color:#94a3b8;"> · </span>
+              <span style="color:#64748b;" x-text="a.performed_by ? a.performed_by.full_name : 'Sin datos'"></span>
+            </span>
+            <span class="badge" :class="a.status === 'completado' ? 'badge-success' : 'badge-warning'" x-text="a.status === 'completado' ? 'Completada' : 'En progreso'"></span>
+          </button>
+        </template>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;">
+        <button x-show="canDelete()" @click="deleteToolbox()" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Eliminar caja</button>
+        <button @click="showDetailModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;margin-left:auto;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal auditoría: checklist herramienta por herramienta -->
+  <div x-show="showAuditModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.6);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="showAuditModal = false">
+    <div class="card" style="max-width:560px;width:100%;max-height:90vh;overflow-y:auto;" x-show="activeAudit">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.25rem;">
+        <h2 style="font-size:1.05rem;font-weight:600;">Auditoría de caja</h2>
+        <button @click="showAuditModal = false" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+      </div>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;">
+        <span x-text="activeAudit ? formatDate(activeAudit.audit_date) : ''"></span>
+        <span x-show="activeAudit && activeAudit.performed_by"> · <span x-text="activeAudit && activeAudit.performed_by ? activeAudit.performed_by.full_name : ''"></span></span>
+        <span class="badge" style="margin-left:0.5rem;" :class="activeAudit && activeAudit.status === 'completado' ? 'badge-success' : 'badge-warning'" x-text="activeAudit && activeAudit.status === 'completado' ? 'Completada' : 'En progreso'"></span>
+      </p>
+
+      <template x-for="item in (activeAudit ? activeAudit.items : [])" :key="item.id">
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:0.75rem;margin-bottom:0.6rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+            <strong style="font-size:0.85rem;" x-text="item.tool ? item.tool.name : ('Herramienta #' + item.tool_id)"></strong>
+            <span class="badge" x-show="item.condition" :class="auditConditionBadge(item.condition)" x-text="auditConditionLabel(item.condition)"></span>
+          </div>
+
+          <template x-if="canManage() && activeAudit.status === 'en_progreso' && !item.sent_to_maintenance">
+            <div>
+              <select x-model="itemDrafts[item.id].condition" class="field-input" style="margin-bottom:0.5rem;">
+                <option value="bueno">Bueno</option>
+                <option value="dañado">Dañado</option>
+                <option value="faltante">Faltante</option>
+              </select>
+              <textarea x-show="itemDrafts[item.id].condition !== 'bueno'" x-model="itemDrafts[item.id].observation" class="field-input" rows="2" placeholder="Observación (obligatoria) — qué pasó con la herramienta" style="margin-bottom:0.5rem;"></textarea>
+              <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+                <button @click="saveAuditItem(item)" class="btn-primary" style="padding:0.3rem 0.7rem;font-size:0.78rem;">Guardar</button>
+                <button x-show="itemDrafts[item.id].condition === 'dañado'" @click="sendAuditItemToMaintenance(item)" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:0.3rem 0.7rem;cursor:pointer;font-size:0.78rem;">Enviar a mantenimiento</button>
+              </div>
+            </div>
+          </template>
+          <template x-if="!canManage() && activeAudit.status === 'en_progreso' && !item.sent_to_maintenance && !item.condition">
+            <p style="font-size:0.78rem;color:#94a3b8;margin:0;">Pendiente de revisión.</p>
+          </template>
+          <template x-if="item.sent_to_maintenance">
+            <p style="font-size:0.75rem;color:#92400e;margin:0;">✓ Enviada a mantenimiento</p>
+          </template>
+          <template x-if="(!canManage() || activeAudit.status === 'completado') && item.observation && !item.sent_to_maintenance">
+            <p style="font-size:0.78rem;color:#64748b;margin:0;" x-text="item.observation"></p>
+          </template>
+        </div>
+      </template>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.5rem;">
+        <button @click="showAuditModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cerrar</button>
+        <button x-show="canManage() && activeAudit && activeAudit.status === 'en_progreso'" @click="completeAudit()" class="btn-primary">Finalizar auditoría</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Mecánico solicita mantención de una herramienta de su caja -->
+  <div x-show="showRequestModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.6);display:flex;align-items:center;justify-content:center;z-index:70;padding:1rem;" @click.self="showRequestModal = false">
+    <div class="card" style="max-width:400px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;">Solicitar mantención</h2>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="requestTarget && requestTarget.tool ? requestTarget.tool.name : ''"></p>
+
+      <label class="field-label">Motivo (opcional)</label>
+      <textarea x-model="requestForm.reason" class="field-input" rows="3" placeholder="Ej: no enciende, hace ruido raro..."></textarea>
+      <p style="font-size:0.75rem;color:#94a3b8;margin:0.5rem 0 0;">Se va a avisar por email a Encargado y Jefe.</p>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showRequestModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmRequestMaintenance()" class="btn-primary">Solicitar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+
+/* Popup con quién y cuándo pidió mantención — mismo patrón que el
+   tooltip de estado de Herramientas (CSS-only, sin estado de Alpine). */
+.status-tooltip-wrap .status-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #fff;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+}
+.status-tooltip-wrap:hover .status-tooltip { display: block; }
+.badge-request { background: #cffafe; color: #155e75; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toolboxesPage() {
+  return {
+    user: null,
+    toolboxes: [],
+    tools: [],
+    users: [],
+    loading: true,
+    showCreateModal: false,
+    showDetailModal: false,
+    detail: null,
+    form: {},
+    toolToAdd: '',
+    responsibleEdit: '',
+    audits: [],
+    showAuditModal: false,
+    activeAudit: null,
+    itemDrafts: {},
+    showRequestModal: false,
+    requestTarget: null,
+    requestForm: {},
+    message: '',
+    messageType: 'success',
+
+    get unassignedTools() {
+      // Solo herramientas "disponible" pueden agregarse a una caja — si ya
+      // está prestada, en mantenimiento o dada de baja no debe listarse acá.
+      // Además hay que excluir las que ya están en OTRA caja: agregarlas no
+      // les cambia el status (sigue "disponible" mientras está en la caja),
+      // así que sin este filtro aparecerían duplicadas en el desplegable.
+      const assignedIds = new Set();
+      this.toolboxes.forEach((b) => b.items.forEach((i) => assignedIds.add(i.tool_id)));
+      return this.tools.filter((t) => t.status === 'disponible' && !assignedIds.has(t.id));
+    },
+
+    async init() {
+      this.user = await getCurrentUser();
+      await Promise.all([this.loadToolboxes(), this.loadTools(), this.loadUsers()]);
+    },
+
+    async loadUsers() {
+      const res = await authFetch('/api/v1/users');
+      this.users = res.ok ? await res.json() : [];
+    },
+
+    canManage() { return hasRole(this.user, 'encargado'); },
+    canDelete() { return hasRole(this.user, 'jefe'); },
+
+    async loadToolboxes() {
+      this.loading = true;
+      const res = await authFetch('/api/v1/toolboxes');
+      this.toolboxes = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    async loadTools() {
+      const res = await authFetch('/api/v1/tools?limit=500');
+      this.tools = res.ok ? await res.json() : [];
+    },
+
+    openCreate() {
+      this.form = { name: '', location: '', description: '', responsible_user_id: '' };
+      this.showCreateModal = true;
+    },
+
+    async createToolbox() {
+      if (!this.form.name) { this.showMessage('El nombre es obligatorio', 'error'); return; }
+      const payload = { ...this.form, responsible_user_id: this.form.responsible_user_id || null };
+      const res = await authFetch('/api/v1/toolboxes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      if (!res.ok) { this.showMessage('Error al crear la caja', 'error'); return; }
+      this.showCreateModal = false;
+      this.showMessage('Caja creada correctamente');
+      await this.loadToolboxes();
+    },
+
+    openDetail(box) {
+      this.detail = box;
+      this.toolToAdd = '';
+      this.responsibleEdit = box.responsible_user_id || '';
+      this.showDetailModal = true;
+      this.loadAudits();
+    },
+
+    async loadAudits() {
+      if (!this.detail) return;
+      const res = await authFetch(`/api/v1/toolbox-audits?toolbox_id=${this.detail.id}`);
+      this.audits = res.ok ? await res.json() : [];
+    },
+
+    async startNewAudit() {
+      const res = await authFetch('/api/v1/toolbox-audits', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ toolbox_id: this.detail.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo iniciar la auditoría', 'error');
+        return;
+      }
+      const audit = await res.json();
+      await this.loadAudits();
+      this.openAuditModal(audit);
+    },
+
+    openAuditModal(audit) {
+      this.activeAudit = audit;
+      this.itemDrafts = {};
+      audit.items.forEach((item) => {
+        this.itemDrafts[item.id] = { condition: item.condition || 'bueno', observation: item.observation || '' };
+      });
+      this.showAuditModal = true;
+    },
+
+    async refreshActiveAudit() {
+      if (!this.activeAudit) return;
+      const res = await authFetch(`/api/v1/toolbox-audits/${this.activeAudit.id}`);
+      if (res.ok) {
+        const audit = await res.json();
+        this.activeAudit = audit;
+        audit.items.forEach((item) => {
+          if (!this.itemDrafts[item.id]) {
+            this.itemDrafts[item.id] = { condition: item.condition || 'bueno', observation: item.observation || '' };
+          }
+        });
+      }
+      await this.loadAudits();
+    },
+
+    async saveAuditItem(item) {
+      const draft = this.itemDrafts[item.id];
+      const res = await authFetch(`/api/v1/toolbox-audits/${this.activeAudit.id}/items/${item.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo guardar', 'error');
+        return;
+      }
+      this.showMessage('Herramienta revisada');
+      await this.refreshActiveAudit();
+    },
+
+    async sendAuditItemToMaintenance(item) {
+      const draft = this.itemDrafts[item.id];
+      const res = await authFetch(`/api/v1/toolbox-audits/${this.activeAudit.id}/items/${item.id}/send-to-maintenance`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: draft.observation || null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo enviar a mantenimiento', 'error');
+        return;
+      }
+      this.showMessage('Herramienta enviada a mantenimiento y sacada de la caja');
+      await this.refreshActiveAudit();
+      await this.refreshDetail();
+      await this.loadTools();
+    },
+
+    async completeAudit() {
+      const res = await authFetch(`/api/v1/toolbox-audits/${this.activeAudit.id}/complete`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo cerrar la auditoría', 'error');
+        return;
+      }
+      this.showMessage('Auditoría finalizada');
+      await this.refreshActiveAudit();
+    },
+
+    auditConditionLabel(condition) {
+      return { bueno: 'Bueno', dañado: 'Dañado', faltante: 'Faltante' }[condition] || condition;
+    },
+    auditConditionBadge(condition) {
+      return { bueno: 'badge-success', dañado: 'badge-danger', faltante: 'badge-warning' }[condition] || 'badge-info';
+    },
+    formatDate(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleDateString('es-AR');
+    },
+    formatDateTime(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleString('es-AR');
+    },
+
+    // Solo se muestran acá los estados que no son "en_caja" (el normal
+    // dentro de una caja) — mantenimiento_solicitada es el que más
+    // importa distinguir, con su propio color y tooltip.
+    toolStatusLabel(status) {
+      return { mantenimiento_solicitada: 'Mantención solicitada', mantenimiento: 'En mantenimiento' }[status] || status;
+    },
+    toolStatusBadge(status) {
+      return { mantenimiento_solicitada: 'badge-request', mantenimiento: 'badge-danger' }[status] || 'badge-info';
+    },
+    requestTooltip(tool) {
+      const who = tool.maintenance_requested_by ? tool.maintenance_requested_by.full_name : 'alguien';
+      const when = tool.maintenance_requested_at ? this.formatDateTime(tool.maintenance_requested_at) : '';
+      return `Solicitada por: ${who}${when ? ' · ' + when : ''}`;
+    },
+
+    openRequestMaintenance(item) {
+      this.requestTarget = item;
+      this.requestForm = { reason: '' };
+      this.showRequestModal = true;
+    },
+
+    async confirmRequestMaintenance() {
+      const res = await authFetch(
+        `/api/v1/toolboxes/${this.detail.id}/tools/${this.requestTarget.tool_id}/request-maintenance`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.requestForm) },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo solicitar la mantención', 'error');
+        return;
+      }
+      this.showRequestModal = false;
+      this.showMessage('Mantención solicitada — se avisó a Encargado y Jefe');
+      await this.refreshDetail();
+    },
+
+    async updateResponsible() {
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responsible_user_id: this.responsibleEdit || null }),
+      });
+      if (!res.ok) { this.showMessage('No se pudo actualizar el responsable', 'error'); return; }
+      this.showMessage('Responsable actualizado');
+      await this.refreshDetail();
+    },
+
+    async refreshDetail() {
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}`);
+      if (res.ok) this.detail = await res.json();
+      await this.loadToolboxes();
+    },
+
+    async addTool() {
+      if (!this.toolToAdd) return;
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}/tools?tool_id=${this.toolToAdd}`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo agregar la herramienta', 'error');
+        return;
+      }
+      this.toolToAdd = '';
+      await this.refreshDetail();
+    },
+
+    async removeTool(toolId) {
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}/tools/${toolId}`, { method: 'DELETE' });
+      if (!res.ok) { this.showMessage('No se pudo quitar la herramienta', 'error'); return; }
+      await this.refreshDetail();
+    },
+
+    async deleteToolbox() {
+      if (!confirm(`¿Eliminar la caja "${this.detail.name}"? Las herramientas que contiene quedan sueltas.`)) return;
+      const res = await authFetch(`/api/v1/toolboxes/${this.detail.id}`, { method: 'DELETE' });
+      if (res.status !== 204) { this.showMessage('No se pudo eliminar', 'error'); return; }
+      this.showDetailModal = false;
+      this.showMessage('Caja eliminada');
+      await this.loadToolboxes();
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#toolboxes-btn-nueva', title: 'Nueva caja', text: 'Creá una caja, ponele un nombre y ubicación, y asignale un mecánico responsable.' },
+  { selector: '#toolboxes-grid', title: 'Tarjetas de caja', text: 'Tocá cualquier caja para ver su contenido, auditarla, o (si sos Mecánico) solicitar mantención de algo que se rompió.' },
+];
+</script>
+{% endblock %}

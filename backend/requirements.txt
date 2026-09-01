@@ -1,0 +1,55 @@
+# Pañol v2.0 — Dependencias Python
+# ====================================
+
+# Framework principal
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+python-multipart==0.0.31   # fix PYSEC-2026-3036/3037/3038/3039/3040
+
+# Base de datos
+sqlalchemy==2.0.28
+asyncpg==0.29.0
+alembic==1.13.1
+
+# Validación y configuración
+pydantic==2.6.3
+pydantic-settings==2.2.1
+email-validator==2.1.1
+
+# Autenticación
+python-jose[cryptography]==3.4.0  # fix PYSEC-2024-232/233, PYSEC-2025-185
+passlib[bcrypt]==1.7.4
+pyotp==2.9.0
+# passlib 1.7.4 está sin mantenimiento y su auto-detección de bcrypt se
+# rompe con bcrypt>=4.1 (ValueError: password cannot be longer than 72
+# bytes) — se fija la última versión compatible.
+bcrypt==4.0.1
+
+# Templates
+jinja2==3.1.6               # fix PYSEC-2026-1471/1472/1474/1475
+
+# Tareas asíncronas
+celery[redis]==5.3.6
+redis==5.0.2
+
+# Procesamiento de imágenes (para logos y extracción de colores)
+Pillow==12.3.0              # fix PYSEC-2026-165/1793/2253/2254/2255/2256/2257 + 2026-3xxx
+
+# Generación de PDFs (vales de préstamo)
+reportlab==4.1.0
+
+# Generación de QR
+qrcode[pil]==7.4.2
+
+# Email
+aiosmtplib==5.1.2           # fix PYSEC-2026-2338, CVE-2026-55558
+
+# Utilidades
+python-dotenv==1.2.2        # fix PYSEC-2026-2270
+httpx==0.27.0
+
+# Testing
+pytest==8.3.5               # última 8.x estable; pytest 9 rompe pytest-asyncio (sin soporte estable aún)
+pytest-asyncio==0.23.8     # compatible con pytest>=7,<9
+aiosqlite==0.20.0
+fakeredis==2.21.1

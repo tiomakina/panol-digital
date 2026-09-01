@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% block title %}Ayuda{% endblock %}
+{% block page_title %}Ayuda{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Manual de usuario — qué hace cada pantalla y cómo se usa</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="helpPage()" x-init="init()">
+
+  <!-- Intro -->
+  <div class="card" style="margin-bottom:1rem;">
+    <h2 style="font-size:1.05rem;font-weight:700;margin:0 0 0.5rem;">Bienvenido a {{ brand.company_name if brand else "Pañol 360" }}</h2>
+    <p style="font-size:0.88rem;color:#475569;line-height:1.55;margin:0 0 0.75rem;">
+      Este manual explica, módulo por módulo, qué hace cada pantalla y cómo usar cada botón. Si preferís una
+      guía en vivo dentro de la pantalla que estás mirando, buscá el botón <strong>"¿Cómo uso esto?"</strong>
+      arriba a la derecha — te va a ir mostrando, uno por uno, los elementos de esa pantalla.
+    </p>
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
+      <a href="/ayuda/manual.pdf" target="_blank" rel="noopener" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;font-size:0.8rem;text-decoration:none;color:inherit;display:inline-flex;align-items:center;gap:0.4rem;">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Ver manual completo (PDF)
+      </a>
+    </div>
+    <div class="help-search-box">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:#94a3b8;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <input type="text" x-model="search" placeholder="Buscar en el manual (ej: 'préstamo vencido', 'código QR', 'color mecánico')..." style="border:none;outline:none;flex:1;font-size:0.85rem;font-family:inherit;">
+    </div>
+  </div>
+
+  <!-- Quién puede hacer qué -->
+  <div class="card" style="margin-bottom:1rem;overflow-x:auto;" x-show="matches('roles jefe encargado mecánico permisos quién puede')">
+    <h2 class="help-h2">Los 3 roles del sistema</h2>
+    <p class="help-p">Cada persona tiene un rol fijo que define qué puede ver y hacer. Un Jefe puede cambiar el rol de cualquiera desde <a href="/users">Usuarios</a>.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin-top:0.5rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.5rem 0.75rem;">Rol</th>
+          <th style="padding:0.5rem 0.75rem;">Puede hacer</th>
+          <th style="padding:0.5rem 0.75rem;">No puede</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:0.6rem 0.75rem;font-weight:600;"><span class="badge badge-info">Jefe</span></td>
+          <td style="padding:0.6rem 0.75rem;">Todo: crear/editar herramientas, usuarios, préstamos, cajas, mantenimiento, ver valores económicos, personalizar la marca, respaldar y restaurar el sistema.</td>
+          <td style="padding:0.6rem 0.75rem;color:#94a3b8;">—</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:0.6rem 0.75rem;font-weight:600;"><span class="badge badge-info">Encargado</span></td>
+          <td style="padding:0.6rem 0.75rem;">Gestiona herramientas, préstamos, cajas, mantenimiento y reportes. Ve el listado completo de usuarios.</td>
+          <td style="padding:0.6rem 0.75rem;color:#94a3b8;">No ve valores económicos (costo/valor de rescate), no edita usuarios, no accede a Respaldo.</td>
+        </tr>
+        <tr>
+          <td style="padding:0.6rem 0.75rem;font-weight:600;"><span class="badge badge-info">Mecánico</span></td>
+          <td style="padding:0.6rem 0.75rem;">Ve sus propios préstamos y su caja asignada, solicita mantención de una herramienta, ve su propio perfil.</td>
+          <td style="padding:0.6rem 0.75rem;color:#94a3b8;">No ve el listado de usuarios, no edita nada (ni herramientas, ni su propio perfil), no ve Reportes ni valores económicos.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Acordeón de módulos -->
+  <div class="help-sections">
+
+    <!-- DASHBOARD -->
+    <div class="card help-section" x-show="matches('dashboard inicio kpi préstamos vencidos gráfico uso por categoría')">
+      <button class="help-section-toggle" @click="toggle('dashboard')">
+        <span>📊 Dashboard</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'dashboard' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'dashboard'">
+        <p class="help-p">Es la pantalla de inicio. Muestra de un vistazo el estado general del pañol: cuántas herramientas hay,
+          cuántas están prestadas, cuántas necesitan mantenimiento y cuántos préstamos están vencidos.</p>
+        <ul class="help-list">
+          <li><strong>Tarjetas KPI</strong> (los números grandes arriba): son clickeables — tocá "Préstamos vencidos" y te lleva directo al listado filtrado.</li>
+          <li><strong>Gráfico "Uso por categoría"</strong>: muestra qué categorías de herramientas (eléctricas, manuales, etc.) se prestan más, para saber dónde conviene invertir en más stock.</li>
+          <li><strong>Valor total del inventario</strong>: solo lo ve el Jefe (dato económico sensible).</li>
+        </ul>
+        <img class="help-img" src="/static/img/help/02_dashboard.png" alt="Dashboard con tarjetas KPI y gráfico de uso por categoría">
+      </div>
+    </div>
+
+    <!-- HERRAMIENTAS -->
+    <div class="card help-section" x-show="matches('herramientas inventario código qr foto duplicar importar exportar csv depreciación producto folio documento compra')">
+      <button class="help-section-toggle" @click="toggle('herramientas')">
+        <span>🔧 Herramientas</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'herramientas' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'herramientas'">
+        <p class="help-p">El inventario completo del pañol: cada herramienta con su marca, modelo, número de serie, estado y ubicación.</p>
+        <ul class="help-list">
+          <li><strong>Estados posibles:</strong>
+            <span class="badge badge-success">Disponible</span>
+            <span class="badge badge-warning">Prestado</span>
+            <span class="badge badge-info">En caja de herramientas</span>
+            <span class="badge badge-danger">Mantenimiento</span>
+            <span class="badge" style="background:#fef3c7;color:#92400e;">Mantención solicitada</span>
+            <span class="badge badge-info">Baja</span>
+          </li>
+          <li><strong>Nueva herramienta</strong>: nombre, marca/categoría/ubicación (elegís de las <a href="#" @click.prevent="openSection('lookups')">Tablas maestras</a>), número de serie, foto, y opcionalmente el código de producto, folio de compra y el comprobante (PDF/imagen) adjunto.</li>
+          <li><strong>Código QR</strong>: cada herramienta tiene uno generado automático — se puede escanear con la cámara del celular para identificarla rápido.</li>
+          <li><strong>Duplicar</strong>: para dar de alta varias unidades iguales (mismo modelo, distinto número de serie) sin recargar todos los datos de nuevo.</li>
+          <li><strong>Importar/exportar CSV</strong>: para cargar o sacar el inventario completo en una planilla — útil para migrar datos o hacer un respaldo aparte en Excel.</li>
+          <li><strong>Costo y valor de rescate</strong>: solo el Jefe los ve y los edita (dato económico sensible, se enmascara para los demás roles incluso en el CSV exportado).</li>
+        </ul>
+        <p class="help-p" style="margin-top:0.75rem;"><strong>Cómo se ve en la práctica — dar de alta una herramienta:</strong></p>
+        <img class="help-img" src="/static/img/help/gifs/nueva-herramienta.gif" alt="GIF: cargar una herramienta nueva paso a paso">
+        <img class="help-img" src="/static/img/help/03_herramientas_listado.png" alt="Listado de herramientas">
+        <img class="help-img" src="/static/img/help/04_herramientas_detalle.png" alt="Detalle de una herramienta">
+      </div>
+    </div>
+
+    <!-- PRÉSTAMOS -->
+    <div class="card help-section" x-show="matches('préstamos vale pdf devolución vencido planilla carga masiva')">
+      <button class="help-section-toggle" @click="toggle('prestamos')">
+        <span>📋 Préstamos</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'prestamos' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'prestamos'">
+        <p class="help-p">Acá se registra quién tiene cada herramienta prestada y hasta cuándo.</p>
+        <ul class="help-list">
+          <li><strong>Nuevo préstamo</strong>: elegís la herramienta (solo aparecen las disponibles), quién la retira y la fecha de devolución esperada.</li>
+          <li><strong>Vale en PDF</strong>: cada préstamo genera un comprobante firmable, descargable o visible directo en el navegador.</li>
+          <li><strong>Colores de urgencia</strong> en el tooltip del estado: verde (al día), naranjo (vence en 2 días o menos), rojo (vencido).</li>
+          <li><strong>Devolver</strong>: marca la herramienta como devuelta; si volvió dañada, se puede mandar directo a Mantenimiento desde ahí mismo.</li>
+          <li><strong>Carga masiva tipo planilla</strong>: para registrar varios préstamos de una sola vez (ej. entregar herramientas a todo un equipo).</li>
+          <li>Un <strong>Mecánico</strong> solo ve y descarga sus propios vales, no los de otros.</li>
+        </ul>
+        <p class="help-p" style="margin-top:0.75rem;"><strong>Cómo se ve en la práctica — registrar un préstamo:</strong></p>
+        <img class="help-img" src="/static/img/help/gifs/nuevo-prestamo.gif" alt="GIF: registrar un préstamo paso a paso">
+        <img class="help-img" src="/static/img/help/05_prestamos_listado.png" alt="Listado de préstamos">
+      </div>
+    </div>
+
+    <!-- CAJAS -->
+    <div class="card help-section" x-show="matches('cajas de herramientas responsable auditoría solicitar mantención color mecánico marcar')">
+      <button class="help-section-toggle" @click="toggle('cajas')">
+        <span>🧰 Cajas de herramientas</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'cajas' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'cajas'">
+        <p class="help-p">Una caja agrupa varias herramientas que un Mecánico lleva junto (ej. "Caja Electricista"). Sirve para prestarlas en conjunto y auditar que esté completa.</p>
+        <ul class="help-list">
+          <li><strong>Mecánico responsable</strong>: cada caja tiene uno asignado — es quien responde por su contenido.</li>
+          <li><strong>Auditoría de caja</strong> (Encargado/Jefe): checklist de lo que debería tener la caja vs. lo que realmente se encontró. Si algo aparece dañado o falta, se puede mandar a Mantenimiento directo desde la auditoría.</li>
+          <li><strong>Solicitar mantención</strong> (Mecánico): si una herramienta de su caja se rompió, el Mecánico avisa sin tener que pasar por todo el flujo de Encargado/Jefe — queda con el estado "Mantención solicitada" hasta que un Encargado o Jefe la confirme.</li>
+          <li><strong>Color identificador del mecánico</strong>: si el mecánico responsable tiene un color asignado (ver <a href="#" @click.prevent="openSection('usuarios')">Usuarios</a>), aparece un punto de ese color junto a su nombre acá y junto al estado "En caja" en Herramientas — para cotejar con la pintura real de la caja.</li>
+          <li>Un <strong>Mecánico</strong> solo ve la(s) caja(s) de las que es responsable, no todas.</li>
+        </ul>
+        <img class="help-img" src="/static/img/help/06_cajas_listado.png" alt="Listado de cajas de herramientas">
+        <img class="help-img" src="/static/img/help/07_cajas_detalle.png" alt="Detalle de una caja con su contenido">
+      </div>
+    </div>
+
+    <!-- MANTENIMIENTO -->
+    <div class="card help-section" x-show="matches('mantenimiento reparación proveedor comprobante documento baja definitiva')">
+      <button class="help-section-toggle" @click="toggle('mantenimiento')">
+        <span>🛠️ Mantenimiento</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'mantenimiento' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'mantenimiento'">
+        <p class="help-p">Historial de reparaciones: qué herramienta se mandó a arreglar, a qué proveedor, y en qué quedó.</p>
+        <ul class="help-list">
+          <li><strong>Enviar a mantenimiento</strong>: desde Herramientas (botón rápido) o cuando una devolución de préstamo llega dañada.</li>
+          <li><strong>Comprobantes</strong>: se pueden adjuntar varias imágenes o PDFs por registro (ej. la boleta de reparación), cada uno con su propio título y observación. Un Mecánico no ve estos documentos (pueden tener información de costos).</li>
+          <li><strong>Dar de baja</strong>: si la herramienta no tiene arreglo, se marca como baja definitiva y queda fuera del inventario activo, con el motivo registrado.</li>
+        </ul>
+        <img class="help-img" src="/static/img/help/08_mantenimiento_listado.png" alt="Listado de mantenimiento">
+      </div>
+    </div>
+
+    <!-- REPORTES -->
+    <div class="card help-section" x-show="matches('reportes inventario auditoría estadísticas')">
+      <button class="help-section-toggle" @click="toggle('reportes')">
+        <span>📈 Reportes</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'reportes' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'reportes'">
+        <p class="help-p">Pestañas con información consolidada: inventario completo, historial de préstamos, mantenimiento y auditorías de caja. Requiere rol Encargado o Jefe — un Mecánico no tiene acceso a este módulo.</p>
+        <img class="help-img" src="/static/img/help/09_reportes_inventario.png" alt="Reporte de inventario">
+      </div>
+    </div>
+
+    <!-- USUARIOS -->
+    <div class="card help-section" x-show="matches('usuarios rut email contraseña rol color mecánico foto perfil 2fa verificación dos pasos')">
+      <button class="help-section-toggle" @click="toggle('usuarios')" id="help-section-usuarios">
+        <span>👤 Usuarios</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'usuarios' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'usuarios'">
+        <p class="help-p">Administración de las cuentas del sistema.</p>
+        <ul class="help-list">
+          <li><strong>RUT como identificador único</strong>: para iniciar sesión se usa el RUT (no el email) — el RUT de una persona no cambia, a diferencia del correo. El email sigue existiendo y es editable.</li>
+          <li><strong>Solo el Jefe edita</strong>: un Encargado ve el listado completo y cualquier ficha, pero no puede modificar nada, ni siquiera la suya. Un Mecánico solo ve su propio perfil (botón "Mi perfil").</li>
+          <li><strong>Color identificador de Mecánico</strong>: en la ficha de un Mecánico, un Jefe puede sacarle una foto a la pintura/spray con la que se marcan físicamente sus herramientas — el sistema detecta el color solo, y se puede ajustar a mano con la ruedita si la foto salió con mala luz. Ese color después aparece junto a su nombre en Cajas y Herramientas.</li>
+          <li><strong>Foto de perfil</strong>: solo el Jefe la sube/cambia, para cualquier usuario.</li>
+          <li><strong>Verificación en dos pasos (2FA)</strong>: cada usuario la puede activar para su propia cuenta desde "Verificación en dos pasos" (código de una app como Google Authenticator, además de la contraseña). Muy recomendado para el Jefe.</li>
+          <li><strong>Cambiar contraseña</strong>: cada uno cambia la suya desde "Cambiar mi contraseña".</li>
+        </ul>
+        <img class="help-img" src="/static/img/help/10_usuarios_listado.png" alt="Listado de usuarios">
+        <p class="help-p" style="margin-top:0.75rem;"><strong>Cómo se ve en la práctica — asignar el color de un mecánico:</strong></p>
+        <img class="help-img" src="/static/img/help/gifs/color-mecanico.gif" alt="GIF: sacar la foto de la pintura y ver el color detectado">
+        <img class="help-img" src="/static/img/help/12_usuarios_color_mecanico.png" alt="Ficha de un mecánico con el selector de color identificador">
+      </div>
+    </div>
+
+    <!-- PERSONALIZACIÓN -->
+    <div class="card help-section" x-show="matches('personalización marca logo colores branding empresa')">
+      <button class="help-section-toggle" @click="toggle('personalizacion')">
+        <span>🎨 Personalización</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'personalizacion' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'personalizacion'">
+        <p class="help-p">Acá se sube el logo de la empresa y se define la paleta de colores de todo el sistema (Encargado o Jefe).</p>
+        <ul class="help-list">
+          <li><strong>Logo</strong>: arrastrás o seleccionás el archivo (PNG/SVG/JPG, máx. 2MB) — aparece en el header y en el login.</li>
+          <li><strong>Colores</strong>: se pueden elegir a mano o generar automáticamente a partir del logo subido. El cambio se aplica al instante, sin recargar la página.</li>
+        </ul>
+        <img class="help-img" src="/static/img/help/13_personalizacion_marca.png" alt="Pantalla de personalización de marca">
+      </div>
+    </div>
+
+    <!-- TABLAS MAESTRAS -->
+    <div class="card help-section" x-show="matches('tablas maestras marca categoría ubicación proveedor')">
+      <button class="help-section-toggle" @click="toggle('lookups')" id="help-section-lookups">
+        <span>🗂️ Tablas maestras</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'lookups' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'lookups'">
+        <p class="help-p">Las listas desplegables que se usan al cargar una herramienta: Marca, Categoría, Ubicación y Proveedor. Mantenerlas ordenadas acá evita que cada uno escriba el mismo dato distinto (ej. "Bosch" vs "bosch" vs "BOSCH").</p>
+        <img class="help-img" src="/static/img/help/14_tablas_maestras.png" alt="Administración de tablas maestras">
+      </div>
+    </div>
+
+    <!-- RESPALDO -->
+    <div class="card help-section" x-show="matches('respaldo backup restaurar base de datos')">
+      <button class="help-section-toggle" @click="toggle('respaldo')">
+        <span>💾 Respaldo</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'respaldo' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'respaldo'">
+        <p class="help-p">Solo para el Jefe. Genera una copia completa del sistema (base de datos + archivos subidos: fotos, documentos, logos).</p>
+        <ul class="help-list">
+          <li><strong>Generar respaldo</strong>: crea un archivo descargable con todo el estado actual.</li>
+          <li><strong>Restaurar</strong>: sube un respaldo anterior y lo aplica — pide confirmar con la contraseña antes de hacerlo, porque reemplaza los datos actuales.</li>
+        </ul>
+        <img class="help-img" src="/static/img/help/15_respaldo.png" alt="Pantalla de respaldo del sistema">
+      </div>
+    </div>
+
+  </div>
+
+  <template x-if="search && !anyVisible()">
+    <div class="card" style="text-align:center;color:#94a3b8;padding:2rem;">
+      No encontré nada para "<span x-text="search"></span>". Probá con otra palabra.
+    </div>
+  </template>
+
+</div>
+
+<style>
+.help-search-box { display:flex;align-items:center;gap:0.5rem;border:1px solid #e2e8f0;border-radius:8px;padding:0.55rem 0.8rem; }
+.help-h2 { font-size:1rem;font-weight:700;margin:0 0 0.35rem; }
+.help-p { font-size:0.85rem;color:#475569;line-height:1.55;margin:0 0 0.6rem; }
+.help-list { font-size:0.85rem;color:#334155;line-height:1.6;margin:0 0 0.75rem;padding-left:1.2rem; }
+.help-list li { margin-bottom:0.4rem; }
+.help-sections { display:flex;flex-direction:column;gap:0.75rem; }
+.help-section-toggle {
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  background:none;border:none;cursor:pointer;font-size:0.95rem;font-weight:600;
+  padding:0.25rem 0;color:inherit;font-family:inherit;
+}
+.help-img { max-width:100%;border:1px solid #e2e8f0;border-radius:8px;margin:0.5rem 0.5rem 0.5rem 0;box-shadow:0 4px 14px rgba(0,0,0,0.06); }
+[data-theme="dark"] .help-p, [data-theme="dark"] .help-list { color:#cbd5e1; }
+[data-theme="dark"] .help-search-box { border-color:#334155; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.PANOL_TOUR_STEPS = [
+  { selector: '.help-search-box input', title: 'Buscador del manual', text: 'Escribí cualquier palabra (ej. "color mecánico" o "vale PDF") y el manual filtra solo las secciones relevantes.' },
+  { selector: '#help-section-usuarios', title: 'Secciones desplegables', text: 'Cada módulo del sistema tiene su propia sección acá — tocá el título para abrirla y ver el paso a paso con capturas reales.' },
+];
+
+function helpPage() {
+  return {
+    open: null,
+    search: '',
+
+    init() {
+      // Si venís desde un link "¿Cómo uso esto?" con ?abrir=usuarios, abrí esa sección de una.
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('abrir')) this.open = params.get('abrir');
+    },
+
+    toggle(key) {
+      this.open = this.open === key ? null : key;
+    },
+
+    openSection(key) {
+      this.open = key;
+      const el = document.getElementById('help-section-' + key);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    },
+
+    matches(keywords) {
+      if (!this.search) return true;
+      return keywords.toLowerCase().includes(this.search.toLowerCase().trim());
+    },
+
+    anyVisible() {
+      return document.querySelectorAll('.help-section:not([style*="display: none"])').length > 0;
+    },
+  };
+}
+</script>
+{% endblock %}

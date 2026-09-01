@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+{% block title %}Mantenimiento{% endblock %}
+{% block page_title %}Mantenimiento{% endblock %}
+{% block page_subtitle %}
+<span class="page-subtitle-sep">|</span>
+<span class="page-subtitle-text">Herramientas en service y su historial</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="maintenancePage()" x-init="init()">
+
+  <div x-show="message" x-transition style="margin-bottom:1rem;">
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+    <select id="maintenance-status-filter" x-model="statusFilter" @change="loadRecords()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+      <option value="en_proceso">En proceso</option>
+      <option value="">Todos los estados</option>
+      <option value="resuelto">Resuelto</option>
+      <option value="sin_solucion">Sin solución</option>
+    </select>
+    <button id="maintenance-btn-enviar" class="btn-primary" @click="openSend()" x-show="canManage()" style="margin-left:auto;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Enviar herramienta a mantenimiento
+    </button>
+  </div>
+
+  <div id="maintenance-table" class="card" style="padding:0;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
+          <th style="padding:0.75rem 1rem;font-weight:600;">Herramienta</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Proveedor</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Motivo</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Enviado</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Estado</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Documentos</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="loading"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
+        <template x-if="!loading && records.length === 0"><tr><td colspan="7" style="padding:2rem;text-align:center;color:#94a3b8;">No hay registros con ese filtro</td></tr></template>
+        <template x-for="rec in records" :key="rec.id">
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:0.65rem 1rem;font-weight:600;" x-text="rec.tool ? rec.tool.name : ('#' + rec.tool_id)"></td>
+            <td style="padding:0.65rem 1rem;color:#475569;" x-text="rec.provider || '—'"></td>
+            <td style="padding:0.65rem 1rem;color:#475569;max-width:260px;" x-text="rec.reason"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;white-space:nowrap;" x-text="formatDate(rec.sent_date)"></td>
+            <td style="padding:0.65rem 1rem;"><span class="badge" :class="statusBadgeClass(rec.status)" x-text="statusLabel(rec.status)"></span></td>
+            <td style="padding:0.65rem 1rem;">
+              <template x-if="rec.documents && rec.documents.length">
+                <button @click="viewDocuments(rec)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">
+                  Ver (<span x-text="rec.documents.length"></span>)
+                </button>
+              </template>
+              <template x-if="!rec.documents || rec.documents.length === 0">
+                <span style="color:#94a3b8;">—</span>
+              </template>
+            </td>
+            <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;" x-show="canManage()">
+              <label style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;display:inline-block;">
+                Subir documento
+                <input type="file" accept="image/*,application/pdf" style="display:none;" @change="promptDocumentUpload(rec, $event.target.files[0]); $event.target.value = ''">
+              </label>
+              <button x-show="rec.status === 'en_proceso'" @click="openResolve(rec)" class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.75rem;margin-right:0.35rem;">Resolver</button>
+              <button x-show="rec.status === 'sin_solucion' && canDecommission()" @click="openDecommission(rec)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Dar de baja</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal: enviar a mantenimiento -->
+  <div x-show="showSendModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showSendModal = false">
+    <div class="card" style="max-width:460px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:1rem;">Enviar herramienta a mantenimiento</h2>
+
+      <label class="field-label">Herramienta disponible *</label>
+      <select x-model="sendForm.tool_id" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Seleccionar...</option>
+        <template x-for="tool in availableTools" :key="tool.id">
+          <option :value="tool.id" x-text="tool.name + (tool.brand ? ' — ' + tool.brand : '')"></option>
+        </template>
+      </select>
+
+      <label class="field-label">Proveedor</label>
+      <select x-model="sendForm.provider" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="">Sin especificar</option>
+        <template x-for="p in providers" :key="p.id"><option :value="p.name" x-text="p.name"></option></template>
+      </select>
+
+      <label class="field-label">Motivo *</label>
+      <textarea x-model="sendForm.reason" class="field-input" rows="3" placeholder="Ej: no enciende, ruido en el motor..."></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showSendModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="sendToMaintenance()" class="btn-primary">Enviar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: resolver -->
+  <div x-show="showResolveModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showResolveModal = false">
+    <div class="card" style="max-width:460px;width:100%;" x-show="resolving">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;">Resolver mantenimiento</h2>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="resolving && resolving.tool ? resolving.tool.name : ''"></p>
+
+      <label class="field-label">Resultado *</label>
+      <select x-model="resolveForm.status" class="field-input" style="margin-bottom:0.75rem;">
+        <option value="resuelto">Resuelto — vuelve a estar disponible</option>
+        <option value="sin_solucion">Sin solución — no se pudo reparar</option>
+      </select>
+
+      <label class="field-label">Notas</label>
+      <textarea x-model="resolveForm.resolution_notes" class="field-input" rows="3" placeholder="Detalle de lo que se hizo o por qué no tiene solución..."></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showResolveModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmResolve()" class="btn-primary">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: dar de baja -->
+  <div x-show="showDecommissionModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showDecommissionModal = false">
+    <div class="card" style="max-width:460px;width:100%;" x-show="decommissioning">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;color:#991b1b;">Dar de baja</h2>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;" x-text="decommissioning && decommissioning.tool ? decommissioning.tool.name : ''"></p>
+
+      <label class="field-label">Motivo de la baja *</label>
+      <textarea x-model="decommissionForm.reason" class="field-input" rows="3" style="margin-bottom:0.75rem;" placeholder="Por qué se da de baja definitivamente..."></textarea>
+
+      <label class="field-label">Quién autoriza *</label>
+      <select x-model="decommissionForm.authorized_by_id" class="field-input">
+        <option value="">Seleccionar...</option>
+        <template x-for="u in users" :key="u.id">
+          <option :value="u.id" x-text="u.full_name + ' (' + u.email + ')'"></option>
+        </template>
+      </select>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showDecommissionModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmDecommission()" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Dar de baja</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: ver documentos (puede haber varios, imagen o PDF) -->
+  <div x-show="showDocModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.7);display:flex;align-items:center;justify-content:center;z-index:60;padding:1rem;" @click.self="showDocModal = false">
+    <div class="card" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;" x-show="docRecord">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <h2 style="font-size:1.05rem;font-weight:600;">Comprobantes</h2>
+        <button @click="showDocModal = false" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">&times;</button>
+      </div>
+
+      <template x-if="docRecord && docRecord.documents && docRecord.documents.length === 0">
+        <p style="color:#94a3b8;font-size:0.85rem;">Todavía no hay documentos subidos.</p>
+      </template>
+
+      <template x-for="doc in (docRecord ? docRecord.documents : [])" :key="doc.id">
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;">
+          <template x-if="editingDocumentId !== doc.id">
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.25rem;">
+                <span style="font-size:0.88rem;font-weight:600;color:#1e293b;" x-text="doc.title || doc.original_filename || 'Documento'"></span>
+                <span x-show="canManage()" style="white-space:nowrap;">
+                  <button @click="startEditDocument(doc)" style="background:none;border:none;color:#475569;cursor:pointer;font-size:0.75rem;margin-right:0.5rem;">Editar</button>
+                  <button @click="deleteDocument(doc)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;">Eliminar</button>
+                </span>
+              </div>
+              <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:0.5rem;" x-text="(doc.original_filename || '') + ' · ' + formatDate(doc.uploaded_at)"></div>
+              <p x-show="doc.note" style="font-size:0.8rem;color:#475569;margin:0 0 0.5rem;" x-text="doc.note"></p>
+            </div>
+          </template>
+
+          <template x-if="editingDocumentId === doc.id">
+            <div style="margin-bottom:0.75rem;">
+              <label class="field-label">Título</label>
+              <input type="text" x-model="editDocumentForm.title" class="field-input" style="margin-bottom:0.5rem;" placeholder="Ej: Cotización, Factura N°123...">
+              <label class="field-label">Observación</label>
+              <textarea x-model="editDocumentForm.note" class="field-input" rows="2" style="margin-bottom:0.5rem;"></textarea>
+              <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+                <button @click="editingDocumentId = null" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.35rem 0.7rem;cursor:pointer;font-size:0.78rem;">Cancelar</button>
+                <button @click="saveDocumentEdit(doc)" class="btn-primary" style="padding:0.35rem 0.7rem;font-size:0.78rem;">Guardar</button>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="doc.mime_type && doc.mime_type.startsWith('image/')">
+            <img :src="doc.file_url" style="width:100%;border-radius:6px;border:1px solid #e2e8f0;">
+          </template>
+          <template x-if="doc.mime_type === 'application/pdf'">
+            <iframe :src="doc.file_url" style="width:100%;height:50vh;border:1px solid #e2e8f0;border-radius:6px;"></iframe>
+          </template>
+
+          <div style="margin-top:0.5rem;text-align:right;">
+            <a :href="doc.file_url" download style="font-size:0.78rem;">Descargar</a>
+          </div>
+        </div>
+      </template>
+
+      <label x-show="canManage()" style="background:#f1f5f9;border-radius:6px;padding:0.5rem 0.75rem;cursor:pointer;font-size:0.8rem;display:inline-block;">
+        + Agregar documento
+        <input type="file" accept="image/*,application/pdf" style="display:none;" @change="promptDocumentUpload(docRecord, $event.target.files[0]); $event.target.value = ''">
+      </label>
+    </div>
+  </div>
+
+  <!-- Modal: título/observación al subir un documento -->
+  <div x-show="showUploadDetailsModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.6);display:flex;align-items:center;justify-content:center;z-index:70;padding:1rem;" @click.self="showUploadDetailsModal = false">
+    <div class="card" style="max-width:400px;width:100%;">
+      <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;">Datos del documento</h2>
+      <p style="font-size:0.78rem;color:#64748b;margin:0 0 1rem;" x-text="pendingUploadFile ? pendingUploadFile.name : ''"></p>
+
+      <label class="field-label">Título</label>
+      <input type="text" x-model="uploadForm.title" class="field-input" style="margin-bottom:0.75rem;" placeholder="Ej: Cotización, Factura N°123...">
+      <label class="field-label">Observación</label>
+      <textarea x-model="uploadForm.note" class="field-input" rows="2"></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+        <button @click="showUploadDetailsModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+        <button @click="confirmDocumentUpload()" class="btn-primary">Subir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+[x-cloak] { display:none !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function maintenancePage() {
+  return {
+    user: null,
+    records: [],
+    tools: [],
+    providers: [],
+    users: [],
+    loading: true,
+    statusFilter: 'en_proceso',
+    showSendModal: false,
+    showResolveModal: false,
+    showDecommissionModal: false,
+    showDocModal: false,
+    showUploadDetailsModal: false,
+    sendForm: {},
+    resolveForm: {},
+    decommissionForm: {},
+    uploadForm: {},
+    editDocumentForm: {},
+    resolving: null,
+    decommissioning: null,
+    docRecord: null,
+    pendingUploadRecordId: null,
+    pendingUploadFile: null,
+    editingDocumentId: null,
+    message: '',
+    messageType: 'success',
+
+    get availableTools() {
+      return this.tools.filter((t) => t.status === 'disponible' || t.status === 'en_caja');
+    },
+
+    async init() {
+      this.user = await getCurrentUser();
+      await Promise.all([this.loadRecords(), this.loadTools(), this.loadProviders(), this.loadUsers()]);
+    },
+
+    canManage() { return hasRole(this.user, 'encargado'); },
+    canDecommission() { return hasRole(this.user, 'jefe'); },
+
+    async loadRecords() {
+      this.loading = true;
+      const params = new URLSearchParams();
+      if (this.statusFilter) params.set('status', this.statusFilter);
+      const res = await authFetch('/api/v1/maintenance?' + params.toString());
+      this.records = res.ok ? await res.json() : [];
+      this.loading = false;
+    },
+
+    async loadTools() {
+      const res = await authFetch('/api/v1/tools?limit=500');
+      this.tools = res.ok ? await res.json() : [];
+    },
+
+    async loadProviders() {
+      const res = await authFetch('/api/v1/lookups/providers');
+      this.providers = res.ok ? await res.json() : [];
+    },
+
+    async loadUsers() {
+      const res = await authFetch('/api/v1/users');
+      this.users = res.ok ? await res.json() : [];
+    },
+
+    openSend() {
+      this.sendForm = { tool_id: '', provider: '', reason: '' };
+      this.showSendModal = true;
+    },
+
+    async sendToMaintenance() {
+      if (!this.sendForm.tool_id || !this.sendForm.reason) {
+        this.showMessage('Elegí la herramienta y describí el motivo', 'error');
+        return;
+      }
+      const res = await authFetch('/api/v1/maintenance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.sendForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo enviar a mantenimiento', 'error');
+        return;
+      }
+      this.showSendModal = false;
+      this.showMessage('Herramienta enviada a mantenimiento');
+      await Promise.all([this.loadRecords(), this.loadTools()]);
+    },
+
+    // Antes de subir de verdad, pedimos título/observación en un modal
+    // aparte — así cada comprobante queda identificable a simple vista en
+    // vez de ser solo un nombre de archivo suelto.
+    promptDocumentUpload(rec, file) {
+      if (!file || !rec) return;
+      this.pendingUploadRecordId = rec.id;
+      this.pendingUploadFile = file;
+      this.uploadForm = { title: '', note: '' };
+      this.showUploadDetailsModal = true;
+    },
+
+    async confirmDocumentUpload() {
+      const fd = new FormData();
+      fd.append('file', this.pendingUploadFile);
+      if (this.uploadForm.title) fd.append('title', this.uploadForm.title);
+      if (this.uploadForm.note) fd.append('note', this.uploadForm.note);
+
+      const res = await authFetch(`/api/v1/maintenance/${this.pendingUploadRecordId}/document`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo subir el documento', 'error');
+        return;
+      }
+      this.showMessage('Documento subido');
+      this.showUploadDetailsModal = false;
+      const recordId = this.pendingUploadRecordId;
+      this.pendingUploadFile = null;
+      await this.loadRecords();
+      // Si el modal de "ver documentos" está abierto para este mismo
+      // registro, lo refrescamos también — si no, queda viejo hasta
+      // cerrar y volver a abrir.
+      if (this.docRecord && this.docRecord.id === recordId) {
+        this.docRecord = this.records.find((r) => r.id === recordId) || this.docRecord;
+      }
+    },
+
+    viewDocuments(rec) {
+      this.docRecord = rec;
+      this.showDocModal = true;
+    },
+
+    startEditDocument(doc) {
+      this.editingDocumentId = doc.id;
+      this.editDocumentForm = { title: doc.title || '', note: doc.note || '' };
+    },
+
+    async saveDocumentEdit(doc) {
+      if (!this.docRecord) return;
+      const res = await authFetch(`/api/v1/maintenance/${this.docRecord.id}/document/${doc.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.editDocumentForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo guardar', 'error');
+        return;
+      }
+      this.editingDocumentId = null;
+      this.showMessage('Documento actualizado');
+      await this.loadRecords();
+      this.docRecord = this.records.find((r) => r.id === this.docRecord.id) || null;
+    },
+
+    async deleteDocument(doc) {
+      if (!this.docRecord) return;
+      const res = await authFetch(`/api/v1/maintenance/${this.docRecord.id}/document/${doc.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo eliminar el documento', 'error');
+        return;
+      }
+      this.showMessage('Documento eliminado');
+      await this.loadRecords();
+      this.docRecord = this.records.find((r) => r.id === this.docRecord.id) || null;
+    },
+
+    openResolve(rec) {
+      this.resolving = rec;
+      this.resolveForm = { status: 'resuelto', resolution_notes: '' };
+      this.showResolveModal = true;
+    },
+
+    async confirmResolve() {
+      const res = await authFetch(`/api/v1/maintenance/${this.resolving.id}/resolve`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.resolveForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo resolver', 'error');
+        return;
+      }
+      this.showResolveModal = false;
+      this.showMessage('Mantenimiento actualizado');
+      await Promise.all([this.loadRecords(), this.loadTools()]);
+    },
+
+    openDecommission(rec) {
+      this.decommissioning = rec;
+      this.decommissionForm = { reason: '', authorized_by_id: '' };
+      this.showDecommissionModal = true;
+    },
+
+    async confirmDecommission() {
+      if (!this.decommissionForm.reason || !this.decommissionForm.authorized_by_id) {
+        this.showMessage('Completá el motivo y quién autoriza', 'error');
+        return;
+      }
+      const res = await authFetch(`/api/v1/tools/${this.decommissioning.tool_id}/decommission`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.decommissionForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'No se pudo dar de baja', 'error');
+        return;
+      }
+      this.showDecommissionModal = false;
+      this.showMessage('Herramienta dada de baja');
+      await Promise.all([this.loadRecords(), this.loadTools()]);
+    },
+
+    statusLabel(status) {
+      return { en_proceso: 'En proceso', resuelto: 'Resuelto', sin_solucion: 'Sin solución' }[status] || status;
+    },
+    statusBadgeClass(status) {
+      return { en_proceso: 'badge-warning', resuelto: 'badge-success', sin_solucion: 'badge-danger' }[status] || 'badge-info';
+    },
+    formatDate(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleDateString('es-AR');
+    },
+
+    showMessage(msg, type = 'success') {
+      this.message = msg;
+      this.messageType = type;
+      setTimeout(() => { this.message = ''; }, 3500);
+    },
+  };
+}
+
+window.PANOL_TOUR_STEPS = [
+  { selector: '#maintenance-status-filter', title: 'Filtro por estado', text: 'Ver lo que está en proceso, resuelto, o sin solución (dado de baja).' },
+  { selector: '#maintenance-btn-enviar', title: 'Enviar a mantenimiento', text: 'Mandá una herramienta a reparar: proveedor, motivo y fecha de envío.' },
+  { selector: '#maintenance-table', title: 'Historial', text: 'Cada registro puede tener varios comprobantes adjuntos (fotos o PDF). Un Mecánico no ve estos documentos.' },
+];
+</script>
+{% endblock %}
