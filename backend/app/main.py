@@ -8,9 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
-from fastapi.exceptions import HTTPException as FastAPIHTTPException
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.responses import FileResponse, JSONResponse
 from app.core.config import settings
 from app.core.branding import get_brand_css_vars, load_brand_config
 from app.api.v1.router import api_router
@@ -51,35 +49,6 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 app.include_router(api_router, prefix="/api/v1")
 
-
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """
-    Handler centralizado de errores HTTP.
-    - 404 en rutas de navegación: devuelve la página de error personalizada (HTML).
-    - Rutas /api/... y otros códigos: siempre JSON.
-    """
-    is_api = request.url.path.startswith("/api/")
-
-    if exc.status_code == 404 and not is_api:
-        brand_css = await get_brand_css_vars()
-        config = load_brand_config()
-        return templates.TemplateResponse(
-            "errors/404.html",
-            {
-                "request": request,
-                "brand_css": brand_css,
-                "brand": config,
-                "app_name": settings.APP_NAME,
-            },
-            status_code=404,
-        )
-
-    # Rutas API o códigos distintos de 404 → JSON estándar
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail},
-    )
 
 
 @app.get("/robots.txt", include_in_schema=False)
@@ -213,3 +182,22 @@ async def help_manual_pdf():
     )
 
 
+# ── Catch-all 404 ─────────────────────────────────────────────────────────────
+# Debe ser la ÚLTIMA ruta registrada: FastAPI evalúa las rutas en orden y solo
+# llega acá si ninguna otra coincidió.  Las peticiones a /api/... las maneja el
+# api_router antes de llegar aquí, así que no las interceptamos.
+@app.get("/{full_path:path}", include_in_schema=False)
+async def page_not_found(request: Request, full_path: str):
+    """Devuelve la página 404 personalizada para cualquier ruta desconocida."""
+    brand_css = await get_brand_css_vars()
+    config = load_brand_config()
+    return templates.TemplateResponse(
+        "errors/404.html",
+        {
+            "request": request,
+            "brand_css": brand_css,
+            "brand": config,
+            "app_name": settings.APP_NAME,
+        },
+        status_code=404,
+    )
