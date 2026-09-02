@@ -618,6 +618,38 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
+<!-- Sidebar toggle: fallback vanilla JS.
+     Espera 600ms a que Alpine inicialice. Si Alpine está activo (body tiene
+     _x_dataStack), no hace nada — Alpine maneja todo. Si Alpine falló
+     (versión cacheada rota, error de carga), el fallback toma el control
+     para que el botón de 3 rayas siempre funcione. -->
+<script>
+(function () {
+  setTimeout(function () {
+    // Alpine inicializado → no interferir
+    if (document.body._x_dataStack) return;
+
+    var btn  = document.querySelector('.sidebar-toggle-btn');
+    var side = document.querySelector('.sidebar');
+    var main = document.querySelector('.main-content');
+    if (!btn || !side) return;
+
+    // Consola de diagnóstico — visible en F12 si Alpine no cargó
+    console.warn('[Pañol] Alpine.js no se inicializó — usando fallback JS para el sidebar');
+
+    btn.addEventListener('click', function () {
+      var isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        side.classList.toggle('open');
+      } else {
+        side.classList.toggle('collapsed');
+        if (main) main.classList.toggle('sidebar-collapsed');
+      }
+    });
+  }, 600);
+})();
+</script>
+
 {% block scripts %}{% endblock %}
 </body>
 </html>

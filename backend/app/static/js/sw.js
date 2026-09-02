@@ -6,7 +6,7 @@
  * A propósito NO cachea nada bajo /api/ — el inventario, los préstamos y
  * todo lo demás siempre tienen que venir en vivo del servidor.
  */
-const CACHE_NAME = 'panol-shell-v1';
+const CACHE_NAME = 'panol-shell-v3';  // incrementar al actualizar archivos estáticos
 const APP_SHELL = [
   '/static/vendor/htmx.min.js',
   '/static/vendor/alpine.min.js',
