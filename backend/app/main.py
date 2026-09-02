@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from app.core.config import settings
 from app.core.branding import get_brand_css_vars, load_brand_config
 from app.api.v1.router import api_router
@@ -49,6 +49,16 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 app.include_router(api_router, prefix="/api/v1")
 
+
+
+@app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
+async def health_check():
+    """
+    Endpoint de salud para monitoreo externo (UptimeRobot, etc.).
+    Responde a GET y HEAD sin autenticación — no renderiza templates
+    ni accede a la BD, así que es rápido y confiable como indicador de vida.
+    """
+    return Response(status_code=200, media_type="text/plain", content="ok")
 
 
 @app.get("/robots.txt", include_in_schema=False)
