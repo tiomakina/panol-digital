@@ -93,6 +93,8 @@ load_client_conf() {
     [[ "$line" =~ ^[[:space:]]*#  ]] && continue
     [[ "$line" =~ ^[[:space:]]*$  ]] && continue
     [[ "$line" =~ ^[a-zA-Z_][a-zA-Z0-9_]*= ]] || continue
+    # Eliminar comentarios inline (ej: STATUS=active  # activo) y espacios sobrantes
+    line=$(echo "$line" | sed 's/[[:space:]]*#[^=]*$//' | sed 's/[[:space:]]*$//')
     export "${line}" 2>/dev/null || true
   done < "$conf"
 }
@@ -127,9 +129,9 @@ cmd_list() {
 
     # Cargar variables del cliente en subshell para no contaminar el entorno
     local status company domain plan
-    status=$(grep -m1 '^STATUS=' "$client_dir/client.conf" 2>/dev/null | cut -d= -f2- | tr -d '"' || echo "?")
-    domain=$(grep -m1 '^DOMAIN=' "$client_dir/client.conf" 2>/dev/null | cut -d= -f2- | tr -d '"' || echo "?")
-    plan=$(grep -m1 '^PLAN=' "$client_dir/client.conf" 2>/dev/null | cut -d= -f2- | tr -d '"' || echo "?")
+    status=$(grep -m1 '^STATUS=' "$client_dir/client.conf" 2>/dev/null | cut -d= -f2- | sed 's/[[:space:]]*#.*$//' | tr -d '"' | xargs || echo "?")
+    domain=$(grep -m1 '^DOMAIN=' "$client_dir/client.conf" 2>/dev/null | cut -d= -f2- | sed 's/[[:space:]]*#.*$//' | tr -d '"' | xargs || echo "?")
+    plan=$(grep -m1 '^PLAN=' "$client_dir/client.conf" 2>/dev/null | cut -d= -f2- | sed 's/[[:space:]]*#.*$//' | tr -d '"' | xargs || echo "?")
 
     local status_color="$NC"
     case "$status" in
