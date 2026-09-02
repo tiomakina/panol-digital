@@ -110,6 +110,33 @@ services:
     depends_on:
       - backend
 
+  # Admin Panel — consola de administración de clientes SaaS
+  # Acceso exclusivamente vía Tailscale VPN (100.x.x.x:9001)
+  # Puerto 9001 NO está en la Security List de Oracle Cloud → inaccesible desde internet
+  admin-panel:
+    build:
+      context: ./admin-panel
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Credenciales — definir en .env del host
+      ADMIN_USERNAME: ${ADMIN_PANEL_USER:-admin}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PANEL_PASSWORD_HASH}
+      SECRET_KEY: ${ADMIN_PANEL_SECRET:-cambiar_con_openssl_rand_hex_32}
+      CLIENTS_DIR: /app/clients
+    volumes:
+      # Acceso de lectura/escritura a la carpeta de clientes
+      - ./clients:/app/clients:rw
+    ports:
+      # Vinculado a todas las interfaces del host.
+      # La seguridad la provee:
+      #  1. Oracle Cloud Security List (puerto 9001 cerrado al exterior)
+      #  2. UFW: sudo ufw allow from 100.64.0.0/10 to any port 9001 (Tailscale CGNAT)
+      #  3. Autenticación propia del panel (usuario + contraseña bcrypt)
+      - "9001:9001"
+    # No depende de la base de datos — lee archivos locales
+    # (red interna Docker por defecto)
+
   # Portainer — administración visual de Docker (para usuarios sin conocimientos técnicos)
   portainer:
     image: portainer/portainer-ce:latest
