@@ -8,12 +8,16 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Cargar variables desde .env si existe (DB_PASSWORD, etc.)
+# Carga segura de .env — NO usa `source` porque valores con caracteres
+# especiales (ñ, tildes, guiones) rompen el shell con set -euo pipefail.
+# Solo exporta líneas de la forma KEY=VALUE (saltar comentarios y vacías).
 if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ "$line" =~ ^[[:space:]]*#  ]] && continue   # comentario
+    [[ "$line" =~ ^[[:space:]]*$  ]] && continue   # línea vacía
+    [[ "$line" =~ ^[a-zA-Z_][a-zA-Z0-9_]*= ]] || continue  # no es KEY=VALUE
+    export "${line}" 2>/dev/null || true
+  done < .env
 fi
 
 DB_USER="${DB_USER:-panol}"
