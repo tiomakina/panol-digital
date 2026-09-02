@@ -1,5 +1,20 @@
 # 🔧 Pañol 360 — Sistema de Gestión de Herramientas
 
+## 🚨 Instrucción para Claude: Contexto de sesión
+
+**AL INICIO DE CADA SESIÓN**, antes de hacer cualquier cosa, leer el archivo `SESSION.md`
+en la raíz del proyecto. Ese archivo indica:
+- En qué cliente estamos trabajando (slug, nombre, entorno)
+- Si es dev o prod
+- Los datos de conexión al servidor
+
+Si SESSION.md no tiene contexto activo (dice "Sin contexto activo"), preguntar al usuario:
+> "¿En qué cliente o módulo estás trabajando hoy? ¿Es para desarrollo o producción?"
+
+Para actualizar el contexto: `bash scripts/admin.sh context <slug> [dev|prod]`
+
+---
+
 ## Visión del proyecto
 Sistema empresarial de gestión de herramientas con **branding dinámico por empresa**. 
 Cada organización puede subir su logo y personalizar la paleta de colores completa.
