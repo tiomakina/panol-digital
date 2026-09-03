@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
+    # Dirección que aparece como remitente en los emails. Si está vacía, usa SMTP_USER.
+    # Con Resend: SMTP_USER="resend" pero SMTP_FROM="noreply@tudominio.cl"
+    SMTP_FROM: str = ""
     WHATSAPP_API_TOKEN: str = ""
     WHATSAPP_PHONE_ID: str = ""
     COMPANY_NAME: str = "Mi Empresa"
