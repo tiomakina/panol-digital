@@ -30,7 +30,10 @@
         <div><span style="font-size:0.75rem;color:#64748b;">Costo total de compra</span><div style="font-size:1.25rem;font-weight:700;" x-text="'$' + inventoryTotals.total_purchase_cost.toLocaleString()"></div></div>
         <div><span style="font-size:0.75rem;color:#64748b;">Valor actual del inventario</span><div style="font-size:1.25rem;font-weight:700;" x-text="'$' + inventoryTotals.total_current_value.toLocaleString()"></div></div>
       </div>
-      <button @click="downloadInventoryCsv()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ Descargar CSV</button>
+      <div style="display:flex;gap:0.5rem;">
+        <button @click="downloadInventoryCsv()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ CSV</button>
+        <button @click="downloadInventoryPdf()" style="background:var(--brand-primary,#4f46e5);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ PDF</button>
+      </div>
     </div>
 
     <!-- Resumen por herramienta: cuántas unidades hay de cada modelo. El
@@ -88,6 +91,7 @@
       <input type="date" x-model="dateFrom" @change="loadLoansReport()" class="field-input" style="width:auto;">
       <span style="color:#94a3b8;font-size:0.8rem;">hasta</span>
       <input type="date" x-model="dateTo" @change="loadLoansReport()" class="field-input" style="width:auto;">
+      <button @click="downloadLoansPdf()" style="margin-left:auto;background:var(--brand-primary,#4f46e5);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ PDF</button>
     </div>
     <div class="card" style="margin-bottom:1rem;">
       <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:0.6rem;">Cantidad de préstamos por herramienta</h3>
@@ -142,6 +146,7 @@
         <option value="resuelto">Resuelto</option>
         <option value="sin_solucion">Sin solución</option>
       </select>
+      <button @click="downloadMaintenancePdf()" style="margin-left:auto;background:var(--brand-primary,#4f46e5);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ PDF</button>
     </div>
     <div class="card" style="padding:0;overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
@@ -267,6 +272,48 @@ function reportsPage() {
       const a = document.createElement('a');
       a.href = url;
       a.download = 'inventario.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    async downloadInventoryPdf() {
+      const res = await authFetch('/api/v1/reports/inventory.pdf');
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventario_${new Date().toISOString().slice(0,10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    async downloadLoansPdf() {
+      const params = new URLSearchParams();
+      if (this.loanStatusFilter) params.set('status', this.loanStatusFilter);
+      if (this.dateFrom) params.set('date_from', this.dateFrom);
+      if (this.dateTo) params.set('date_to', this.dateTo);
+      const res = await authFetch('/api/v1/reports/loans.pdf?' + params.toString());
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `prestamos_${new Date().toISOString().slice(0,10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    async downloadMaintenancePdf() {
+      const params = new URLSearchParams();
+      if (this.maintenanceStatusFilter) params.set('status', this.maintenanceStatusFilter);
+      const res = await authFetch('/api/v1/reports/maintenance.pdf?' + params.toString());
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mantenimiento_${new Date().toISOString().slice(0,10)}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     },

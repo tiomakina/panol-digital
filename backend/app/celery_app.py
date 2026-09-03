@@ -21,6 +21,11 @@ celery_app.conf.update(
             "task": "app.tasks.loan_tasks.mark_overdue_loans",
             "schedule": crontab(minute=0),  # cada hora, en punto
         },
+        "recordatorio-pre-vencimiento": {
+            "task": "app.tasks.loan_tasks.send_loan_reminders",
+            # 08:00 UTC = 11:00 Chile verano (UTC-3) / 12:00 Chile invierno (UTC-4)
+            "schedule": crontab(hour=8, minute=0),
+        },
     },
 )
 

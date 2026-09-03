@@ -15,11 +15,17 @@ from app.core.database import get_db
 from app.core.security import require_role
 from app.models.audit import AuditLog
 from app.models.loan import Loan, LoanStatus
+from app.models.maintenance import MaintenanceRecord
 from app.models.tool import Tool
 from app.models.toolbox import Toolbox
 from app.models.user import User
 from app.schemas.audit import AuditLogOut
 from app.services.depreciation import calculate_current_value
+from app.services.report_pdf_service import (
+    generate_inventory_pdf,
+    generate_loans_pdf,
+    generate_maintenance_pdf,
+)
 
 router = APIRouter(prefix="/reports", tags=["Reportes"])
 
@@ -98,6 +104,101 @@ async def inventory_report_csv(db: AsyncSession = Depends(get_db), user: User = 
     return StreamingResponse(
         iter([buffer.getvalue()]),
         media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/inventory.pdf")
+async def inventory_report_pdf(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("encargado"))):
+    """Reporte de inventario en PDF con branding dinámico."""
+    rows = await _inventory_rows(db)
+    pdf_bytes = generate_inventory_pdf(rows)
+    filename = f"inventario_{date.today().isoformat()}.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/loans.pdf")
+async def loans_report_pdf(
+    status_filter: LoanStatus | None = Query(None, alias="status"),
+    date_from: date | None = None,
+    date_to: date | None = None,
+    borrower_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("encargado")),
+):
+    """Reporte de préstamos en PDF con branding dinámico, mismos filtros que la vista JSON."""
+    stmt = select(Loan)
+    if status_filter:
+        stmt = stmt.where(Loan.status == status_filter)
+    if date_from:
+        stmt = stmt.where(Loan.loan_date >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        stmt = stmt.where(Loan.loan_date <= datetime.combine(date_to, datetime.max.time()))
+    if borrower_id:
+        stmt = stmt.where(Loan.borrower_id == borrower_id)
+    stmt = stmt.order_by(Loan.loan_date.desc())
+
+    loans = (await db.execute(stmt)).scalars().all()
+    rows = [
+        {
+            "id": loan.id,
+            "tool": loan.tool.name if loan.tool else None,
+            "tool_category": loan.tool.category if loan.tool else None,
+            "borrower": loan.borrower.full_name if loan.borrower else None,
+            "loan_date": loan.loan_date.isoformat(),
+            "due_date": loan.due_date.isoformat(),
+            "return_date": loan.return_date.isoformat() if loan.return_date else None,
+            "status": loan.status.value,
+        }
+        for loan in loans
+    ]
+    pdf_bytes = generate_loans_pdf(rows)
+    filename = f"prestamos_{date.today().isoformat()}.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+async def _maintenance_rows(db: AsyncSession, status_filter: str | None = None) -> list[dict]:
+    """Filas de mantenimiento para PDF y futuras exportaciones."""
+    stmt = select(MaintenanceRecord).order_by(MaintenanceRecord.sent_date.desc())
+    if status_filter:
+        stmt = stmt.where(MaintenanceRecord.status == status_filter)
+    records = (await db.execute(stmt)).scalars().all()
+    return [
+        {
+            "id": r.id,
+            "tool_name": r.tool.name if r.tool else None,
+            "title": r.title,
+            "technician": r.technician,
+            "sent_date": r.sent_date.isoformat() if r.sent_date else None,
+            "return_date": r.return_date.isoformat() if r.return_date else None,
+            "cost": float(r.cost) if r.cost is not None else None,
+            "status": r.status.value if r.status else None,
+        }
+        for r in records
+    ]
+
+
+@router.get("/maintenance.pdf")
+async def maintenance_report_pdf(
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("encargado")),
+):
+    """Reporte de mantenimiento en PDF con branding dinámico."""
+    rows = await _maintenance_rows(db, status_filter=status)
+    pdf_bytes = generate_maintenance_pdf(rows)
+    filename = f"mantenimiento_{date.today().isoformat()}.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

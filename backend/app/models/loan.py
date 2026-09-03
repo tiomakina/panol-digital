@@ -41,6 +41,7 @@ class Loan(Base):
     signature_data: Mapped[str] = mapped_column(Text, nullable=True)  # base64 firma digital
     voucher_pdf_url: Mapped[str] = mapped_column(String(500), nullable=True)
     alert_sent: Mapped[bool] = mapped_column(default=False)
+    reminder_sent: Mapped[bool] = mapped_column(default=False)  # aviso 1 día antes de vencer
 
     # Relaciones con carga "joined" (eager) para evitar lazy-load fuera del contexto async
     tool: Mapped["Tool"] = relationship(foreign_keys=[tool_id], lazy="joined")
