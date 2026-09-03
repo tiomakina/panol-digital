@@ -47,6 +47,15 @@ services:
       SECRET_KEY: ${SECRET_KEY:-cambiar_en_produccion}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-jwt_cambiar_en_produccion}
       DEBUG: ${DEBUG:-false}
+      # Notificaciones por email (Resend u otro SMTP)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # WhatsApp Business API (opcional)
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
     volumes:
       - ./backend/app/static/uploads:/app/app/static/uploads
       # Respaldos generados/restaurados desde la web (Administración →
@@ -73,6 +82,13 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_db
       REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
     depends_on:
       - db
       - redis
@@ -88,6 +104,13 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_db
       REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
     depends_on:
       - db
       - redis
