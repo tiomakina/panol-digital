@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-09-03 (noche)
+
+### Alerta de stock mínimo de herramientas
+- ✅ Nuevo campo `min_stock` (nullable) en modelo `Tool` + migración Alembic `b4e7a2c91d38`
+- ✅ Concepto: stock se agrupa por `product_code` (si existe) o por `nombre+marca` — permite tener N unidades del mismo tipo
+- ✅ `list_tools()` calcula `available_count` y `low_stock` desde los datos ya cargados (sin queries extra)
+- ✅ Badge **⚠ Stock bajo** en la tabla de herramientas (visible solo para Encargado/Jefe)
+- ✅ Campo "Stock mínimo disponible" en formulario crear/editar herramienta
+- ✅ `create_loan()`: post-commit, si el stock disponible cae bajo el mínimo → avisa por email a todos los Encargados/Jefes activos vía `notify_low_stock()`
+- 📝 Requiere SMTP configurado en `.env` para el aviso por email
+
+---
+
 ## 2026-09-03 (tarde)
 
 ### Exportación de reportes a PDF
@@ -251,7 +264,7 @@
 | 5 | ✅ | **Reportes: exportar a PDF** | Botón ⬇ PDF en las 3 pestañas; `report_pdf_service.py` genera PDF A4 con branding |
 | 6 | ✅ | **Módulo de depreciación** | `depreciation.py` implementado y conectado a la UI de Reportes de Inventario |
 | 7 | ✅ | **Dashboard: gráfico de uso por categoría** | Query real a la BD; datos reales en Chart.js |
-| 8 | 🟡 | **Herramientas: alerta de stock mínimo** | Pendiente: agregar campo `min_stock` en Tool + migración + check en Celery al crear préstamo |
+| 8 | ✅ | **Herramientas: alerta de stock mínimo** | Campo `min_stock` en Tool; badge ⚠ en tabla; aviso por email al prestar si el stock cae bajo el mínimo |
 | 9 | ✅ | **Préstamos: recordatorio antes de vencer** | Task Celery `send_loan_reminders` avisa 1 día antes; corre a 08:00 UTC (11:00 Chile) |
 
 ## 🟢 Nice-to-have — para versiones futuras
