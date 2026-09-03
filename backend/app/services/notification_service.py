@@ -76,6 +76,20 @@ async def send_whatsapp(phone: str, message: str) -> bool:
         return False
 
 
+async def notify_low_stock(tool_name: str, available: int, min_stock: int, recipients: list[str]) -> None:
+    """Avisa a los Encargados/Jefes cuando el stock disponible baja del mínimo configurado."""
+    subject = f"⚠ Stock mínimo alcanzado: {tool_name}"
+    body = (
+        f"Atención:\n\n"
+        f'La herramienta "{tool_name}" tiene solo {available} unidad(es) disponible(s), '
+        f"que está por debajo del mínimo configurado ({min_stock}).\n\n"
+        f"Considera devolver o gestionar el reabastecimiento.\n\n"
+        f"— Pañol 360"
+    )
+    for email in recipients:
+        await send_email(email, subject, body)
+
+
 async def notify_overdue_loan(loan, tool, borrower) -> None:
     """Avisa al responsable de un préstamo que acaba de marcarse como vencido."""
     subject = f"Préstamo vencido: {tool.name}"

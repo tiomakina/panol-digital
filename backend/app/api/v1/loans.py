@@ -17,6 +17,7 @@ from app.models.maintenance import MaintenanceRecord, MaintenanceStatus
 from app.models.tool import Tool, ToolStatus
 from app.models.user import User
 from app.schemas.loan import LoanCreate, LoanOut, LoanReturnInput
+from app.services.notification_service import notify_low_stock
 from app.services.pdf_service import VOUCHER_DIR, generate_loan_voucher
 
 router = APIRouter(prefix="/loans", tags=["Préstamos"])
@@ -105,6 +106,40 @@ async def create_loan(
 
     await db.commit()
     await db.refresh(loan)
+
+    # ── Alerta de stock mínimo ──────────────────────────────────────────────
+    # Después de prestar, verificar si el stock disponible del mismo tipo
+    # cayó por debajo del mínimo configurado. Se hace fuera de la transacción
+    # para no bloquear la respuesta si la notificación tarda.
+    if tool.min_stock is not None and tool.min_stock > 0:
+        # Clave de agrupación igual que en tools.py::_group_key
+        if tool.product_code:
+            avail_stmt = select(Tool).where(
+                Tool.product_code == tool.product_code,
+                Tool.status == ToolStatus.disponible,
+            )
+        else:
+            avail_stmt = select(Tool).where(
+                Tool.name == tool.name,
+                Tool.brand == tool.brand,
+                Tool.status == ToolStatus.disponible,
+            )
+        avail_result = await db.execute(avail_stmt)
+        available = len(avail_result.scalars().all())
+        if available < tool.min_stock:
+            # Obtener emails de Encargados y Jefes para avisar
+            managers_result = await db.execute(
+                select(User).where(
+                    User.role.in_(["encargado", "jefe"]),
+                    User.is_active == True,  # noqa: E712
+                )
+            )
+            recipients = [u.email for u in managers_result.scalars().all() if u.email]
+            import asyncio as _asyncio
+            _asyncio.ensure_future(
+                notify_low_stock(tool.name, available, tool.min_stock, recipients)
+            )
+
     return loan
 
 

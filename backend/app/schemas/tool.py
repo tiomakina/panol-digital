@@ -21,6 +21,8 @@ class ToolBase(BaseModel):
     description: str | None = None
     supplier: str | None = None
     purchase_document_folio: str | None = None
+    # Mínimo de unidades del mismo tipo que deben quedar disponibles. None = sin alerta.
+    min_stock: int | None = None
 
 
 class ToolCreate(ToolBase):
@@ -48,6 +50,7 @@ class ToolUpdate(BaseModel):
     description: str | None = None
     supplier: str | None = None
     purchase_document_folio: str | None = None
+    min_stock: int | None = None
 
 
 class DecommissionAuthorizedByOut(BaseModel):
@@ -89,3 +92,7 @@ class ToolOut(ToolBase):
     # salida apenas alguien sin rol Jefe pidiera una herramienta.
     purchase_cost: Decimal | None = None
     salvage_value: Decimal | None = None
+    # Calculado en _to_out(): cuántas unidades del mismo tipo están disponibles ahora.
+    # El frontend lo compara con min_stock para mostrar el badge de alerta.
+    available_count: int | None = None
+    low_stock: bool = False

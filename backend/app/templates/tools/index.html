@@ -95,6 +95,12 @@
                   <div class="status-tooltip" :style="'color:' + loanUrgencyColor(tool)" x-text="statusDetail(tool)"></div>
                 </template>
               </div>
+              <!-- Badge stock mínimo — solo visible para Encargado/Jefe cuando la alerta está activa -->
+              <span x-show="canManage() && tool.low_stock"
+                    title="Stock disponible bajo el mínimo configurado"
+                    style="display:inline-flex;align-items:center;gap:0.2rem;margin-left:0.4rem;background:#fef9c3;color:#854d0e;border:1px solid #fde047;border-radius:4px;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:600;vertical-align:middle;">
+                ⚠ Stock bajo
+              </span>
             </td>
             <td style="padding:0.65rem 1rem;color:#475569;" x-show="isJefe()" x-text="tool.current_value != null ? '$' + Number(tool.current_value).toLocaleString() : '—'"></td>
             <td style="padding:0.65rem 1rem;text-align:right;">
@@ -225,6 +231,11 @@
           </select>
         </div>
         <div><label class="field-label">Folio documento de compra</label><input type="text" x-model="form.purchase_document_folio" class="field-input" placeholder="N° de boleta/factura"></div>
+        <div>
+          <label class="field-label">Stock mínimo disponible</label>
+          <input type="number" min="0" x-model.number="form.min_stock" class="field-input" placeholder="Ej: 2 (dejar vacío = sin alerta)">
+          <span style="font-size:0.75rem;color:#94a3b8;display:block;margin-top:0.25rem;">Avisa cuando queden menos unidades del mismo tipo disponibles. Requiere SMTP configurado.</span>
+        </div>
         <div>
           <label class="field-label">Comprobante de compra</label>
           <input type="file" accept="image/*,application/pdf" @change="purchaseDocFile = $event.target.files[0]" class="field-input">
@@ -572,6 +583,7 @@ function toolsPage() {
         name: '', product_code: '', brand: '', model: '', serial_number: '', category: '', location: '',
         supplier: '', purchase_date: '', purchase_cost: '', salvage_value: '0',
         useful_life_years: 5, depreciation_method: 'lineal', description: '', purchase_document_folio: '',
+        min_stock: null,
       };
       this.photoFile = null;
       this.purchaseDocFile = null;
@@ -652,7 +664,7 @@ function toolsPage() {
       const payload = { ...this.form };
       delete payload.id; delete payload.status; delete payload.photo_url;
       delete payload.qr_code_url; delete payload.created_at; delete payload.updated_at; delete payload.current_value;
-      delete payload.purchase_document_url;
+      delete payload.purchase_document_url; delete payload.available_count; delete payload.low_stock;
       // Un no-Jefe nunca ve purchase_cost/salvage_value (el backend se los
       // oculta al leer la herramienta — ver _to_out en tools.py), así que
       // su formulario los tiene en null. Si los mandáramos igual en el
@@ -661,7 +673,7 @@ function toolsPage() {
       // con solo editar cualquier otro campo. Se sacan del todo del
       // payload para que ese PUT ni los toque.
       if (!this.isJefe()) { delete payload.purchase_cost; delete payload.salvage_value; }
-      ['purchase_date', 'purchase_cost'].forEach((f) => { if (payload[f] === '') payload[f] = null; });
+      ['purchase_date', 'purchase_cost', 'min_stock'].forEach((f) => { if (payload[f] === '' || payload[f] === 0) payload[f] = null; });
 
       const url = this.editing ? `/api/v1/tools/${this.editing.id}` : '/api/v1/tools';
       const method = this.editing ? 'PUT' : 'POST';

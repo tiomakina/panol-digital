@@ -5,6 +5,8 @@ Endpoint: /api/v1/tools/
 from datetime import date
 from pathlib import Path
 
+from collections import Counter
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,13 +30,24 @@ PHOTO_DIR = Path(settings.UPLOAD_DIR) / "tools"
 PURCHASE_DOC_DIR = Path(settings.UPLOAD_DIR) / "purchase_docs"
 
 
-def _to_out(tool: Tool, viewer: User) -> ToolOut:
+def _group_key(tool: Tool) -> str:
+    """Clave de agrupación para calcular stock disponible del mismo tipo de herramienta.
+    Usa product_code si existe; si no, nombre + marca."""
+    if tool.product_code:
+        return f"pc:{tool.product_code}"
+    return f"nb:{tool.name}|{tool.brand or ''}"
+
+
+def _to_out(tool: Tool, viewer: User, available_count: int | None = None) -> ToolOut:
     """
     viewer determina si se muestran los valores económicos (costo de
     compra, valor de rescate, valor actual/depreciado) — solo el Jefe los
     ve. No alcanza con ocultarlos en el frontend: si el dato sigue viniendo
     en el JSON, cualquiera puede leerlo abriendo el panel de red del
     navegador, así que se los saca acá antes de responder.
+
+    available_count: cuántas unidades del mismo tipo están disponibles.
+    Se calcula en list_tools(); para vistas de herramienta individual queda en None.
     """
     data = ToolOut.model_validate(tool)
     data.current_value = calculate_current_value(tool)
@@ -42,6 +55,10 @@ def _to_out(tool: Tool, viewer: User) -> ToolOut:
         data.purchase_cost = None
         data.salvage_value = None
         data.current_value = None
+    if available_count is not None:
+        data.available_count = available_count
+        if tool.min_stock is not None:
+            data.low_stock = available_count < tool.min_stock
     return data
 
 
@@ -68,7 +85,16 @@ async def list_tools(
 
     result = await db.execute(stmt)
     tools = result.scalars().all()
-    return [_to_out(t, user) for t in tools]
+
+    # Calcula cuántas unidades del mismo tipo están disponibles en la lista cargada.
+    # Si los filtros de estado/búsqueda reducen mucho los resultados el count puede
+    # no ser global, pero es suficiente para el badge de alerta en la vista normal.
+    avail_counts: Counter = Counter()
+    for t in tools:
+        if t.status == ToolStatus.disponible:
+            avail_counts[_group_key(t)] += 1
+
+    return [_to_out(t, user, available_count=avail_counts.get(_group_key(t), 0)) for t in tools]
 
 
 @router.get("/scan/{payload:path}", response_model=ToolOut)

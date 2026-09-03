@@ -68,6 +68,10 @@ class Tool(Base):
     decommission_authorized_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     decommission_date: Mapped[date] = mapped_column(Date, nullable=True)
 
+    # Stock mínimo — cuántas unidades del mismo tipo (product_code / name+brand)
+    # deben quedar disponibles como mínimo. None = sin alerta configurada.
+    min_stock: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+
     # Solicitud de mantención hecha por un Mecánico desde su caja asignada
     # (status pasa a mantenimiento_solicitada) — quién y cuándo, para que
     # el popup en Cajas/Herramientas lo pueda mostrar. Se limpia cuando un
