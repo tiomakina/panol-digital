@@ -2,16 +2,34 @@
 Pañol 360 — FastAPI Application Entry Point
 Equipo: Alex (Arquitecto), Marco (Backend), Luna (UX/UI)
 """
+import json
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from pathlib import Path
+from fastapi import Cookie, FastAPI, Form, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from app.core.config import settings
 from app.core.branding import get_brand_css_vars, load_brand_config
 from app.api.v1.router import api_router
+
+# ── Registro de tenants (clientes) ────────────────────────────────────────────
+# El archivo tenants.json es la fuente de verdad de los alias válidos.
+# La consola de administración (admin-panel) lo actualiza cuando se crea
+# o suspende un cliente. Formato: { "alias": { "name": "...", "active": true } }
+_TENANTS_FILE = Path("app/tenants.json")
+
+
+def _load_tenants() -> dict:
+    """Lee el registro de tenants desde disco. Devuelve dict vacío si no existe."""
+    if _TENANTS_FILE.exists():
+        try:
+            return json.loads(_TENANTS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
 
 
 @asynccontextmanager
@@ -105,14 +123,82 @@ async def service_worker():
     return FileResponse("app/static/js/sw.js", media_type="application/javascript")
 
 
+@app.get("/portal")
+async def portal_page(request: Request):
+    """Portal de entrada: el usuario escribe el alias de su empresa."""
+    return templates.TemplateResponse("portal/index.html", {"request": request})
+
+
+@app.post("/portal/verify")
+async def portal_verify(request: Request, alias: str = Form(...)):
+    """
+    Valida el alias ingresado en el portal.
+    Si es válido → setea cookie panol_tenant y redirige al login.
+    Si no existe o está inactivo → muestra el portal con mensaje de error.
+    """
+    alias = alias.strip().lower()
+    tenants = _load_tenants()
+
+    tenant = tenants.get(alias)
+    if not tenant or not tenant.get("active", True):
+        return templates.TemplateResponse(
+            "portal/index.html",
+            {
+                "request": request,
+                "error": f'No encontramos la empresa "{alias}". Verificá el alias o contactá al administrador.',
+                "alias": alias,
+            },
+            status_code=400,
+        )
+
+    # Alias válido → guardar en cookie y redirigir al login
+    response = RedirectResponse("/login", status_code=303)
+    response.set_cookie(
+        key="panol_tenant",
+        value=alias,
+        max_age=30 * 24 * 3600,  # 30 días
+        secure=True,
+        httponly=False,   # legible por JS para mostrar nombre de empresa
+        samesite="lax",
+    )
+    return response
+
+
 @app.get("/")
-async def root(request: Request):
+async def root(request: Request, panol_tenant: str = Cookie(default=None)):
+    """
+    Raíz de la app. Si no hay cookie de tenant → redirige al portal.
+    Si hay cookie → sirve el dashboard (el JS verifica el JWT).
+    """
+    tenants = _load_tenants()
+    if not panol_tenant or panol_tenant not in tenants:
+        return RedirectResponse("/portal")
     return await _render(request, "dashboard/index.html")
 
 
 @app.get("/login")
-async def login_page(request: Request):
-    return await _render(request, "auth/login.html")
+async def login_page(request: Request, panol_tenant: str = Cookie(default=None)):
+    """
+    Login con branding del cliente. Si no hay cookie de tenant → portal primero.
+    """
+    tenants = _load_tenants()
+    if not panol_tenant or panol_tenant not in tenants:
+        return RedirectResponse("/portal")
+    # Agregar el nombre del tenant al contexto para mostrarlo en el login
+    tenant_name = tenants[panol_tenant].get("name", panol_tenant)
+    brand_css = await get_brand_css_vars()
+    config = load_brand_config()
+    return templates.TemplateResponse(
+        "auth/login.html",
+        {
+            "request": request,
+            "brand_css": brand_css,
+            "brand": config,
+            "app_name": settings.APP_NAME,
+            "tenant_alias": panol_tenant,
+            "tenant_name": tenant_name,
+        },
+    )
 
 
 @app.get("/tools")

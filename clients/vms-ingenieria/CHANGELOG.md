@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-09-04
+
+### Portal de acceso multi-tenant (Opción C)
+- ✅ Nuevo dominio de producción: `panol360.app` con SSL Let's Encrypt gratuito
+- ✅ `www.panol360.app` redirige automáticamente al apex `panol360.app`
+- ✅ `demopanol.valentinmorales.cl` redirige a `panol360.app` (dominio legado mantenido)
+- ✅ Portal de entrada en `panol360.app`: página de alias empresarial (Opción C arquitectura multi-tenant)
+- ✅ Flujo: URL única → alias "vms-ingenieria" → login con branding VMS Ingeniería → dashboard
+- ✅ Cookie `panol_tenant` (30 días, Secure, SameSite=Lax) identifica al cliente activo
+- ✅ Registro de tenants en `tenants.json` — la consola de administración lo actualiza al crear clientes
+- ✅ Login muestra badge "Empresa: VMS Ingeniería" + link "Cambiar empresa" → portal
+- ✅ Rutas protegidas: `/` y `/login` redirigen al portal si no hay cookie de tenant válida
+- ✅ Variables SMTP pasadas a todos los contenedores Docker (backend, celery_worker, celery_beat)
+- ✅ Email transaccional configurado con Resend (dominio `valentinmorales.cl` verificado)
+- ✅ SECRET_KEY y JWT_SECRET_KEY generadas y fijadas en `.env` del servidor (sin default inseguro)
+
+### Arquitectura multi-tenant — Fases planificadas
+- 📋 **Fase actual (1):** Un backend, portal con alias, cookie de tenant
+- 📋 **Fase 2:** `alias.panol360.app` subdominio por cliente (wildcard DNS + SSL DNS challenge)
+- 📋 **Fase 3:** Admin console crea nuevo cliente → genera contenedor + BD + entrada en `tenants.json`
+
+---
+
 ## 2026-09-03 (noche)
 
 ### Alerta de stock mínimo de herramientas

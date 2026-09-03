@@ -190,6 +190,17 @@ body {
   </form>
 
   <p class="footer-note">Sistema de Gestión de Herramientas<br>{{ brand.company_name if brand else "Pañol 360" }}</p>
+
+  {% if tenant_alias %}
+  <div style="text-align:center;margin-top:1rem;padding-top:1rem;border-top:1px solid #f1f5f9;">
+    <span style="font-size:0.72rem;color:#94a3b8;">
+      Empresa:
+      <strong style="color:#475569;">{{ tenant_name or tenant_alias }}</strong>
+      &nbsp;·&nbsp;
+      <a href="/portal" style="color:var(--brand-primary,#4f46e5);text-decoration:none;font-weight:500;">Cambiar empresa</a>
+    </span>
+  </div>
+  {% endif %}
 </div>
 
 <script>
