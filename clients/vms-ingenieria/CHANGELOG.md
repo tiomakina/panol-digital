@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-09-03 (noche — sesión 2)
+
+### Ajustes de identidad visual, páginas legales y seguridad del portal
+
+#### Portal de entrada (`panol360.app`)
+- ✅ Placeholder del campo alias cambiado a `alias-empresa` (antes `ej: vms-ingenieria`)
+- ✅ Título del portal: `PAÑOL360` con `360` en ámbar (#f59e0b), coherente con el sidebar de la app
+- ✅ Footer del portal con datos de contacto completos:
+  - Copyright Valentín Morales Silva © 2026. Todos los derechos reservados.
+  - Icono web: [www.valentinmorales.cl](https://www.valentinmorales.cl)
+  - Icono email: hablemos@valentinmorales.cl
+  - Icono teléfono: +569 30688762
+  - Links a Términos y Condiciones (`/terminos`) y Política de Privacidad (`/privacidad`)
+
+#### Páginas legales (nuevas, públicas — no requieren alias)
+- ✅ `/terminos` → Términos y Condiciones de Uso (estándar, ley chilena, 11 cláusulas)
+- ✅ `/privacidad` → Política de Privacidad (Ley 19.628, tabla de datos, medidas de seguridad)
+- ✅ Ambas páginas accesibles sin cookie de tenant (rutas públicas en `main.py`)
+
+#### Footer de la app interna
+- ✅ Actualizado en `base.html`: Copyright Valentín Morales Silva © 2026 · íconos web/email/fono · links T&C y Privacidad
+
+#### Ayuda in-app
+- ✅ Nueva sección `🌐 Cómo acceder al sistema` en `/ayuda`:
+  - Explica el flujo portal → alias → login
+  - Formato del RUT, sesión guardada 30 días
+  - Advertencia: `/login` siempre redirige al portal si no hay empresa seleccionada
+
+#### Seguridad (verificado)
+- ✅ `GET /login` verifica cookie `panol_tenant`; si ausente o inválida → `RedirectResponse("/portal")`
+- ✅ `GET /` mismo comportamiento
+- ✅ No es posible saltarse el portal accediendo directamente a `/login`
+
+---
+
 ## 2026-09-04
 
 ### Portal de acceso multi-tenant (Opción C)
