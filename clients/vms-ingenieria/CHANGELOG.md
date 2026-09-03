@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-09-03 (tarde)
+
+### Exportación de reportes a PDF
+- ✅ Nuevo servicio `report_pdf_service.py`: genera PDFs A4 horizontal para Inventario, Préstamos y Mantenimiento usando `reportlab` con branding dinámico (color primario y nombre de empresa en la cabecera)
+- ✅ Tres endpoints nuevos en `/api/v1/reports`: `GET /inventory.pdf`, `/loans.pdf`, `/maintenance.pdf` — mismos filtros que sus homólogos JSON/CSV
+- ✅ Botón "⬇ PDF" en las tres pestañas del módulo Reportes (Inventario, Préstamos, Mantenimiento)
+- ✅ Funciones JS `downloadInventoryPdf()`, `downloadLoansPdf()`, `downloadMaintenancePdf()` en el componente Alpine `reportsPage()`
+
+### Recordatorio pre-vencimiento de préstamos (Celery)
+- ✅ Columna `reminder_sent` en modelo `Loan` + migración Alembic `3a1f72d8e9c4`
+- ✅ Tarea Celery `send_loan_reminders`: busca préstamos activos que vencen mañana y envía aviso por email y/o WhatsApp al responsable; marca `reminder_sent=True` para no re-enviar
+- ✅ Registrada en beat schedule: corre a las 08:00 UTC (11:00 Chile hora verano)
+- 📝 **Requiere** configurar SMTP en `.env` del servidor para activar el envío real (código ya listo)
+
+---
+
 ## 2026-09-03
 
 ### Panel de administración SaaS (Tailscale)
@@ -217,7 +233,7 @@
 
 # 📋 Pendientes y próximos pasos
 
-> Estado al 2026-09-03. Actualizar a medida que se completen.
+> Estado al 2026-09-03 (tarde). Actualizar a medida que se completen.
 
 ## 🔴 Crítico — sin esto el sistema no está completo en producción
 
@@ -229,14 +245,14 @@
 
 ## 🟡 Importante — mejoras de producto pendientes
 
-| # | Tarea | Detalle |
-|---|-------|---------|
-| 4 | **Notificaciones de préstamos vencidos por email** | El sistema ya detecta vencidos; falta enviar email diario a Jefe/Encargado vía Celery |
-| 5 | **Reportes: exportar a PDF** | Los reportes de inventario y préstamos se ven en pantalla; falta botón "Descargar PDF" |
-| 6 | **Módulo de depreciación** | `depreciation.py` existe en el código con 3 métodos (lineal, doble saldo decreciente, suma de dígitos); falta conectarlo a la UI de Reportes |
-| 7 | **Dashboard: gráfico de uso por categoría** | El gráfico existe pero siempre aparece con datos de ejemplo; requiere query real a la BD |
-| 8 | **Herramientas: alerta de stock mínimo** | Cuando una herramienta se presta y no queda stock disponible, avisar al Encargado |
-| 9 | **Préstamos: recordatorio antes de vencer** | Notificación en app (o email) 1 día antes del vencimiento de un préstamo |
+| # | Estado | Tarea | Detalle |
+|---|--------|-------|---------|
+| 4 | ✅ | **Notificaciones de préstamos vencidos por email** | `notification_service.py` implementado; task Celery `mark_overdue_loans` envía aviso al vencer |
+| 5 | ✅ | **Reportes: exportar a PDF** | Botón ⬇ PDF en las 3 pestañas; `report_pdf_service.py` genera PDF A4 con branding |
+| 6 | ✅ | **Módulo de depreciación** | `depreciation.py` implementado y conectado a la UI de Reportes de Inventario |
+| 7 | ✅ | **Dashboard: gráfico de uso por categoría** | Query real a la BD; datos reales en Chart.js |
+| 8 | 🟡 | **Herramientas: alerta de stock mínimo** | Pendiente: agregar campo `min_stock` en Tool + migración + check en Celery al crear préstamo |
+| 9 | ✅ | **Préstamos: recordatorio antes de vencer** | Task Celery `send_loan_reminders` avisa 1 día antes; corre a 08:00 UTC (11:00 Chile) |
 
 ## 🟢 Nice-to-have — para versiones futuras
 
