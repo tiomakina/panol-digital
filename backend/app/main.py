@@ -246,6 +246,18 @@ async def backup_page(request: Request):
     return await _render(request, "backup/index.html")
 
 
+@app.get("/terminos")
+async def terms_page(request: Request):
+    """Página de Términos y Condiciones — pública, no requiere cookie de tenant."""
+    return templates.TemplateResponse("legal/terms.html", {"request": request})
+
+
+@app.get("/privacidad")
+async def privacy_page(request: Request):
+    """Política de Privacidad — pública, no requiere cookie de tenant."""
+    return templates.TemplateResponse("legal/privacy.html", {"request": request})
+
+
 @app.get("/ayuda")
 async def help_page(request: Request):
     """Manual de usuario in-app — abierto a los 3 roles, sin restricción de RBAC."""

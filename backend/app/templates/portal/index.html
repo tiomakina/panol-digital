@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pañol 360 · Acceso empresarial</title>
+<title>PAÑOL360 · Acceso empresarial</title>
 <meta name="description" content="Sistema de Gestión de Herramientas — Ingresa el alias de tu empresa">
 <link rel="icon" href="/static/img/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,6 +16,7 @@
   --p-primary:   #4f46e5;
   --p-dark:      #1e1b4b;
   --p-accent:    #06b6d4;
+  --p-amber:     #f59e0b;
   --p-radius:    12px;
 }
 
@@ -24,10 +25,11 @@ body {
   margin: 0;
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, var(--p-dark) 0%, var(--p-primary) 60%, var(--p-accent) 100%);
-  padding: 1.5rem;
+  padding: 1.5rem 1.5rem 5rem;
 }
 
 /* Fondo con patrón sutil */
@@ -49,6 +51,7 @@ body::before {
   box-shadow: 0 25px 60px rgba(0,0,0,0.3);
   padding: 2.5rem 2.25rem;
   position: relative;
+  z-index: 1;
 }
 
 /* Logo / identidad de la plataforma */
@@ -69,13 +72,17 @@ body::before {
   box-shadow: 0 8px 20px rgba(79,70,229,0.35);
 }
 
+/* Título PAÑOL360 — coherente con el sidebar de la app */
 .brand-name {
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   font-weight: 800;
   color: #1e293b;
   letter-spacing: -0.5px;
   margin: 0;
+  line-height: 1.1;
 }
+
+.brand-name .accent { color: var(--p-amber); }
 
 .brand-tagline {
   font-size: 0.82rem;
@@ -183,20 +190,53 @@ body::before {
 
 /* Footer plataforma */
 .platform-footer {
-  position: absolute;
-  bottom: -2.5rem;
-  left: 0; right: 0;
+  z-index: 1;
+  margin-top: 2rem;
   text-align: center;
-  font-size: 0.72rem;
-  color: rgba(255,255,255,0.55);
+  font-size: 0.71rem;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.9;
 }
+
+.platform-footer a {
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.platform-footer a:hover { color: #fff; text-decoration: underline; }
+
+.platform-footer .contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-top: 0.25rem;
+}
+
+.platform-footer .contact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.platform-footer .legal-links {
+  margin-top: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem 0.75rem;
+  flex-wrap: wrap;
+}
+
+.platform-footer .sep { opacity: 0.4; }
 </style>
 </head>
 <body>
 
 <div class="card">
 
-  <!-- Identidad Pañol 360 -->
+  <!-- Identidad PAÑOL360 — mismo estilo que el sidebar -->
   <div class="brand-header">
     <div class="brand-icon">
       <svg width="30" height="30" viewBox="0 0 36 36" fill="none">
@@ -204,7 +244,7 @@ body::before {
         <circle cx="18" cy="18" r="7" stroke="white" stroke-width="2.2" fill="none"/>
       </svg>
     </div>
-    <h1 class="brand-name">Pañol 360</h1>
+    <h1 class="brand-name">PAÑOL<span class="accent">360</span></h1>
     <p class="brand-tagline">Sistema de Gestión de Herramientas</p>
   </div>
 
@@ -231,7 +271,7 @@ body::before {
         id="alias"
         name="alias"
         value="{{ alias or '' }}"
-        placeholder="ej: vms-ingenieria"
+        placeholder="alias-empresa"
         autocomplete="organization"
         autocapitalize="none"
         autocorrect="off"
@@ -254,8 +294,36 @@ body::before {
     Contactá al administrador de tu organización.
   </p>
 
-  <div class="platform-footer">panol360.app · © 2025 Valentín Morales</div>
 </div>
+
+<!-- Footer externo a la card -->
+<footer class="platform-footer">
+  <div>Copyright Valentín Morales Silva &copy; 2026. Todos los derechos reservados.</div>
+  <div class="contact-row">
+    <span class="contact-item">
+      <!-- Icono web -->
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="1.8"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <a href="https://www.valentinmorales.cl" target="_blank" rel="noopener">www.valentinmorales.cl</a>
+    </span>
+    <span class="sep">·</span>
+    <span class="contact-item">
+      <!-- Icono email -->
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <a href="mailto:hablemos@valentinmorales.cl">hablemos@valentinmorales.cl</a>
+    </span>
+    <span class="sep">·</span>
+    <span class="contact-item">
+      <!-- Icono teléfono -->
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.95.68l1.45 4.36a1 1 0 01-.23 1.03L8.91 10.6a16.06 16.06 0 006.5 6.5l1.53-1.54a1 1 0 011.03-.23l4.36 1.45A1 1 0 0121 17.72V21a2 2 0 01-2 2C9.72 23 1 14.28 1 5a2 2 0 012-2z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <a href="tel:+56930688762">+569 30688762</a>
+    </span>
+  </div>
+  <div class="legal-links">
+    <a href="/terminos">Términos y Condiciones</a>
+    <span class="sep">·</span>
+    <a href="/privacidad">Política de Privacidad</a>
+  </div>
+</footer>
 
 </body>
 </html>

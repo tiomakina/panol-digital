@@ -29,6 +29,33 @@
     </div>
   </div>
 
+  <!-- Cómo acceder al sistema -->
+  <div class="card" style="margin-bottom:1rem;" x-show="matches('acceso portal alias empresa login ingresar panol360 dominio url')">
+    <h2 class="help-h2">🌐 Cómo acceder al sistema</h2>
+    <p class="help-p">
+      PAÑOL360 es una aplicación web accesible desde cualquier navegador, sin instalar nada.
+      La dirección principal es <strong><a href="https://panol360.app" target="_blank" rel="noopener">panol360.app</a></strong>.
+    </p>
+    <ol style="font-size:0.88rem;line-height:1.6;padding-left:1.4rem;color:#334155;margin:0.5rem 0 0.75rem;">
+      <li style="margin-bottom:0.5rem;">
+        <strong>Portal de empresa:</strong> al entrar al sitio, verás un campo donde debes escribir el <em>alias</em> de tu organización (ej: <code style="background:#f1f5f9;padding:0.1rem 0.35rem;border-radius:4px;">mi-empresa</code>). Este alias lo entrega el administrador del sistema.
+      </li>
+      <li style="margin-bottom:0.5rem;">
+        <strong>Login:</strong> después de confirmar el alias, ingresás tu <strong>RUT</strong> (formato <code style="background:#f1f5f9;padding:0.1rem 0.35rem;border-radius:4px;">12345678-9</code>) y tu contraseña.
+      </li>
+      <li>
+        <strong>Sesión guardada:</strong> el sistema recuerda tu empresa por 30 días. La próxima vez que entres, irás directo al login sin tener que escribir el alias de nuevo.
+      </li>
+    </ol>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:0.65rem 0.85rem;font-size:0.82rem;color:#92400e;">
+      <strong>⚠️ Importante:</strong> no está permitido acceder directamente a <code>/login</code> saltándose el portal. El sistema te redirigirá al portal automáticamente si no tenés una empresa seleccionada.
+    </div>
+    <p class="help-p" style="margin-top:0.75rem;">
+      ¿No recordás el alias de tu empresa? Contactá al administrador de tu organización o escribinos a
+      <a href="mailto:hablemos@valentinmorales.cl">hablemos@valentinmorales.cl</a>.
+    </p>
+  </div>
+
   <!-- Quién puede hacer qué -->
   <div class="card" style="margin-bottom:1rem;overflow-x:auto;" x-show="matches('roles jefe encargado mecánico permisos quién puede')">
     <h2 class="help-h2">Los 3 roles del sistema</h2>
