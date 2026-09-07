@@ -59,6 +59,9 @@ services:
       # Entorno: "demo" muestra badge naranja en la UI; "prod" no muestra nada.
       # Cambiar a PANOL_ENV=prod en el .env del servidor de producción.
       PANOL_ENV: ${PANOL_ENV:-demo}
+      # Token compartido con el admin-panel para endpoints de administración internos.
+      # Generar con: openssl rand -hex 32
+      ADMIN_API_SECRET: ${ADMIN_API_SECRET:-cambiar_con_openssl_rand_hex_32}
     volumes:
       - ./backend/app/static/uploads:/app/app/static/uploads
       # Respaldos generados/restaurados desde la web (Administración →
@@ -153,9 +156,19 @@ services:
       ADMIN_PASSWORD_HASH: ${ADMIN_PANEL_PASSWORD_HASH}
       SECRET_KEY: ${ADMIN_PANEL_SECRET:-cambiar_con_openssl_rand_hex_32}
       CLIENTS_DIR: /app/clients
+      # Ruta al tenants.json montado via volumen (rw para poder agregar/suspender tenants)
+      TENANTS_FILE: /app/tenants.json
+      # URL interna del backend (red Docker por defecto — sin exponer puertos)
+      BACKEND_URL: http://backend:8000
+      # Token compartido con el backend para endpoints de admin internos.
+      # Generar con: openssl rand -hex 32
+      ADMIN_API_SECRET: ${ADMIN_API_SECRET:-cambiar_con_openssl_rand_hex_32}
     volumes:
       # Acceso de lectura/escritura a la carpeta de clientes
       - ./clients:/app/clients:rw
+      # tenants.json: admin-panel puede leer/escribir (gestión de tenants);
+      # el backend lo monta :ro. Ambos ven el mismo archivo del host.
+      - ./backend/app/tenants.json:/app/tenants.json:rw
     ports:
       # Vinculado a todas las interfaces del host.
       # La seguridad la provee:
@@ -163,8 +176,9 @@ services:
       #  2. UFW: sudo ufw allow from 100.64.0.0/10 to any port 9001 (Tailscale CGNAT)
       #  3. Autenticación propia del panel (usuario + contraseña bcrypt)
       - "9001:9001"
-    # No depende de la base de datos — lee archivos locales
-    # (red interna Docker por defecto)
+    # Necesita acceso al backend para estadísticas y provisionamiento de usuarios
+    depends_on:
+      - backend
 
   # Portainer — administración visual de Docker (para usuarios sin conocimientos técnicos)
   portainer:

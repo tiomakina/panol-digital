@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+
+{% block title %}Tenants — {{ title }}{% endblock %}
+
+{% block content %}
+<style>
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .75rem;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 480px) { .stats-row { grid-template-columns: repeat(3, 1fr); } }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: .875rem 1rem;
+    text-align: center;
+  }
+  .stat-card .num { font-size: 1.75rem; font-weight: 700; line-height: 1; margin-bottom: .2rem; }
+  .stat-card .lbl { font-size: .7rem; text-transform: uppercase; color: var(--text3); letter-spacing: .05em; }
+  .stat-total  .num { color: var(--accent); }
+  .stat-active .num { color: var(--green); }
+  .stat-suspended .num { color: var(--yellow); }
+
+  /* Section header */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    gap: .5rem;
+    flex-wrap: wrap;
+  }
+  .section-title { font-size: 1rem; font-weight: 600; }
+
+  /* Tenants table */
+  .tenants-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .875rem;
+  }
+  .tenants-table th {
+    text-align: left;
+    padding: .5rem .75rem;
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text3);
+    border-bottom: 1px solid var(--border);
+  }
+  .tenants-table td {
+    padding: .7rem .75rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .tenants-table tr:last-child td { border-bottom: none; }
+  .tenants-table tr:hover td { background: rgba(255,255,255,.03); }
+
+  .tenant-alias {
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    color: var(--text2);
+  }
+  .tenant-name { font-weight: 600; }
+
+  .num-cell {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: .85rem;
+  }
+  .num-cell.zero { color: var(--text3); }
+
+  /* Alert / toast banner */
+  .alert {
+    padding: .75rem 1rem;
+    border-radius: var(--radius);
+    font-size: .875rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+  }
+  .alert-success { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.3); color: #4ade80; }
+  .alert-error   { background: rgba(239,68,68,.12);  border: 1px solid rgba(239,68,68,.3);  color: #f87171; }
+  .alert-warn    { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); color: #fbbf24; }
+
+  /* Modal overlay */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 300;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .modal-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+  .modal-footer {
+    display: flex;
+    gap: .5rem;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+  }
+
+  /* Action buttons */
+  .action-row {
+    display: flex;
+    gap: .4rem;
+    flex-wrap: wrap;
+  }
+  .btn-danger { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+  .btn-danger:hover { background: var(--red); color: #fff; border-color: transparent; }
+  .btn-success { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+  .btn-success:hover { background: var(--green); color: #fff; border-color: transparent; }
+
+  @media (max-width: 640px) {
+    .tenants-table th:nth-child(3),
+    .tenants-table td:nth-child(3),
+    .tenants-table th:nth-child(4),
+    .tenants-table td:nth-child(4),
+    .tenants-table th:nth-child(5),
+    .tenants-table td:nth-child(5) { display: none; }
+  }
+</style>
+
+<!-- Alertas -->
+{% if msg %}
+<div class="alert alert-success">✅ {{ msg }}</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-error">❌ {{ error }}</div>
+{% endif %}
+{% if backend_error %}
+<div class="alert alert-warn">⚠️ Backend no responde — estadísticas no disponibles. ({{ backend_error }})</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card stat-total">
+    <div class="num">{{ total }}</div>
+    <div class="lbl">Total</div>
+  </div>
+  <div class="stat-card stat-active">
+    <div class="num">{{ active_count }}</div>
+    <div class="lbl">Activos</div>
+  </div>
+  <div class="stat-card stat-suspended">
+    <div class="num">{{ total - active_count }}</div>
+    <div class="lbl">Suspendidos</div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="section-header">
+  <h2 class="section-title">🏢 Tenants registrados</h2>
+  <div style="display:flex;gap:.5rem;align-items:center;">
+    <span style="font-size:.75rem;color:var(--text3);">{{ now }}</span>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modal-new')">＋ Nuevo tenant</button>
+  </div>
+</div>
+
+<!-- Tabla de tenants -->
+{% if tenant_list %}
+<div class="card" style="padding:0;overflow:hidden;">
+  <table class="tenants-table">
+    <thead>
+      <tr>
+        <th>Alias / Nombre</th>
+        <th>Estado</th>
+        <th>Usuarios</th>
+        <th>Herramientas</th>
+        <th>Préstamos activos</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tenant_list %}
+      <tr>
+        <td>
+          <div class="tenant-name">{{ t.name }}</div>
+          <div class="tenant-alias">{{ t.alias }}</div>
+        </td>
+        <td>
+          {% if t.active %}
+          <span class="badge badge-active">Activo</span>
+          {% else %}
+          <span class="badge badge-suspended">Suspendido</span>
+          {% endif %}
+        </td>
+        <td class="num-cell {% if t.users == 0 %}zero{% endif %}">{{ t.users }}</td>
+        <td class="num-cell {% if t.tools == 0 %}zero{% endif %}">{{ t.tools }}</td>
+        <td class="num-cell {% if t.active_loans == 0 %}zero{% endif %}">{{ t.active_loans }}</td>
+        <td>
+          <div class="action-row">
+            <!-- Agregar usuario -->
+            <button class="btn btn-ghost btn-sm"
+              onclick="openAddUser('{{ t.alias }}', '{{ t.name }}')"
+              title="Provisionar usuario admin">
+              👤 Usuario
+            </button>
+            <!-- Toggle estado -->
+            <form method="post" action="/tenants/{{ t.alias }}/toggle" style="display:inline;">
+              {% if t.active %}
+              <button type="submit" class="btn btn-sm btn-danger"
+                onclick="return confirm('¿Suspender {{ t.alias }}? Los usuarios no podrán iniciar sesión.')"
+                title="Suspender tenant">⏸ Suspender</button>
+              {% else %}
+              <button type="submit" class="btn btn-sm btn-success"
+                title="Reactivar tenant">▶ Activar</button>
+              {% endif %}
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="card">
+  <div style="text-align:center;padding:3rem 1rem;color:var(--text3);">
+    <span style="font-size:3rem;display:block;margin-bottom:1rem;">🏢</span>
+    <p>No hay tenants registrados aún.</p>
+    <p style="font-size:.8rem;margin-top:.5rem;">
+      Usa el botón <strong>＋ Nuevo tenant</strong> para agregar el primero.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ── Modal: Nuevo tenant ──────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-new">
+  <div class="modal">
+    <div class="modal-title">🏢 Nuevo tenant</div>
+    <form method="post" action="/tenants/new">
+      <div class="form-group">
+        <label class="form-label">Alias (ID único, solo minúsculas y guiones)</label>
+        <input class="form-input" name="alias" type="text" required
+          placeholder="ej: ferreteria-norte" pattern="[a-z0-9][a-z0-9-]{0,49}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nombre de la empresa</label>
+        <input class="form-input" name="name" type="text" required placeholder="ej: Ferretería Norte Ltda.">
+      </div>
+      <hr style="border-color:var(--border);margin:1rem 0;">
+      <p style="font-size:.8rem;color:var(--text2);margin-bottom:.75rem;">
+        <strong>Crear usuario administrador</strong> — deja en blanco para omitir
+      </p>
+      <div class="form-group">
+        <label class="form-label">RUT del admin</label>
+        <input class="form-input" name="rut" type="text" placeholder="ej: 12345678-9">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email del admin</label>
+        <input class="form-input" name="email" type="email" placeholder="admin@empresa.cl (opcional)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contraseña inicial</label>
+        <input class="form-input" name="password" type="password" placeholder="Mínimo 8 caracteres">
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
+        <input type="checkbox" name="provision_user" id="ck-provision" value="on" checked>
+        <label for="ck-provision" style="font-size:.8rem;color:var(--text2);">
+          Provisionar usuario en la base de datos
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-new')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Crear tenant</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Modal: Agregar usuario a tenant existente ─────────────────────────── -->
+<div class="modal-overlay" id="modal-add-user">
+  <div class="modal">
+    <div class="modal-title">👤 <span id="add-user-title">Provisionar usuario</span></div>
+    <form method="post" id="form-add-user" action="">
+      <div class="form-group">
+        <label class="form-label">RUT</label>
+        <input class="form-input" name="rut" type="text" required placeholder="12345678-9">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nombre completo</label>
+        <input class="form-input" name="full_name" type="text" placeholder="ej: Juan Pérez">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" name="email" type="email" placeholder="admin@empresa.cl">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contraseña inicial</label>
+        <input class="form-input" name="password" type="password" required placeholder="Mínimo 8 caracteres">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-add-user')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Provisionar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+// Cerrar modal al hacer clic fuera
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+// Tecla Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  }
+});
+
+function openAddUser(alias, name) {
+  document.getElementById('add-user-title').textContent = 'Provisionar usuario en ' + name;
+  document.getElementById('form-add-user').action = '/tenants/' + alias + '/add-user';
+  openModal('modal-add-user');
+}
+</script>
+{% endblock %}

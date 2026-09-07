@@ -4,9 +4,11 @@ Pañol 360 — Admin Panel
 Panel de administración de clientes SaaS.
 Acceso exclusivamente vía Tailscale VPN.
 """
+import json
 import os
 import re
 import bcrypt
+import httpx
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +19,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 # ─── Configuración ────────────────────────────────────────────────────────────
 CLIENTS_DIR = Path(os.environ.get("CLIENTS_DIR", "/app/clients"))
+TENANTS_FILE = Path(os.environ.get("TENANTS_FILE", "/app/tenants.json"))
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8000")
+ADMIN_API_SECRET = os.environ.get("ADMIN_API_SECRET", "")
 SECRET_KEY = os.environ.get("SECRET_KEY", "CAMBIAR_CON_openssl_rand_hex_32")
 ADMIN_USER = os.environ.get("ADMIN_USERNAME", "admin")
 # Hash bcrypt de la contraseña — generar con:
@@ -320,3 +325,229 @@ async def add_log_entry(
     changelog_path.write_text(content, encoding="utf-8")
 
     return RedirectResponse(f"/client/{slug}?added=1", status_code=302)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GESTIÓN DE TENANTS — tenants.json + provisionamiento via backend API
+# ══════════════════════════════════════════════════════════════════════════════
+
+def load_tenants() -> dict:
+    """Lee tenants.json y retorna el dict (vacío si no existe o hay error)."""
+    if not TENANTS_FILE.exists():
+        return {}
+    try:
+        return json.loads(TENANTS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_tenants(data: dict) -> None:
+    """Escribe tenants.json con formato bonito."""
+    TENANTS_FILE.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+async def fetch_backend_stats() -> dict:
+    """Llama al endpoint /api/v1/admin/stats del backend y retorna el payload."""
+    if not ADMIN_API_SECRET:
+        return {"tenants": {}, "stats": {}, "error": "ADMIN_API_SECRET no configurado"}
+    try:
+        async with httpx.AsyncClient(base_url=BACKEND_URL, timeout=5.0) as client:
+            resp = await client.get(
+                "/api/v1/admin/stats",
+                headers={"x-admin-token": ADMIN_API_SECRET},
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as exc:
+        return {"tenants": {}, "stats": {}, "error": str(exc)}
+
+
+async def backend_provision(tenant_id: str, rut: str, email: str, full_name: str, password: str) -> dict:
+    """Llama a POST /api/v1/admin/provision en el backend."""
+    async with httpx.AsyncClient(base_url=BACKEND_URL, timeout=10.0) as client:
+        resp = await client.post(
+            "/api/v1/admin/provision",
+            headers={"x-admin-token": ADMIN_API_SECRET},
+            json={
+                "tenant_id": tenant_id,
+                "rut": rut,
+                "email": email,
+                "full_name": full_name,
+                "password": password,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+# ── Rutas de tenants ──────────────────────────────────────────────────────────
+
+@app.get("/tenants", response_class=HTMLResponse)
+async def tenants_list(request: Request, msg: str = "", error: str = ""):
+    if not is_authenticated(request):
+        return RedirectResponse("/login?next=/tenants", status_code=302)
+
+    # Leer tenants.json localmente
+    tenants = load_tenants()
+
+    # Intentar obtener estadísticas desde el backend
+    backend_data = await fetch_backend_stats()
+    stats = backend_data.get("stats", {})
+    backend_error = backend_data.get("error", "")
+
+    # Enriquecer lista de tenants con stats
+    tenant_list = []
+    for alias, info in tenants.items():
+        s = stats.get(alias, {})
+        tenant_list.append({
+            "alias": alias,
+            "name": info.get("name", alias),
+            "active": info.get("active", True),
+            "users": s.get("users", "—"),
+            "tools": s.get("tools", "—"),
+            "active_loans": s.get("active_loans", "—"),
+        })
+
+    # Ordenar: activos primero, luego alfabético
+    tenant_list.sort(key=lambda t: (0 if t["active"] else 1, t["alias"]))
+
+    return templates.TemplateResponse("tenants.html", {
+        "request": request,
+        "title": APP_TITLE,
+        "user": request.session.get("user", "admin"),
+        "tenant_list": tenant_list,
+        "total": len(tenant_list),
+        "active_count": sum(1 for t in tenant_list if t["active"]),
+        "msg": msg,
+        "error": error,
+        "backend_error": backend_error,
+        "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
+    })
+
+
+@app.post("/tenants/new")
+async def tenant_create(
+    request: Request,
+    alias: str = Form(...),
+    name: str = Form(...),
+    rut: str = Form(...),
+    password: str = Form(...),
+    email: str = Form(default=""),
+    provision_user: str = Form(default="on"),
+):
+    """Crea un nuevo tenant en tenants.json y opcionalmente provisiona su admin."""
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    # Sanitizar alias
+    alias = alias.strip().lower()
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,49}$", alias):
+        return RedirectResponse(
+            "/tenants?error=Alias+inválido.+Usa+solo+minúsculas,+números+y+guiones.",
+            status_code=302,
+        )
+
+    tenants = load_tenants()
+    if alias in tenants:
+        return RedirectResponse(
+            f"/tenants?error=El+alias+'{alias}'+ya+existe.",
+            status_code=302,
+        )
+
+    # 1. Agregar a tenants.json
+    tenants[alias] = {"name": name.strip(), "active": True}
+    save_tenants(tenants)
+
+    # 2. Provisionar usuario admin en la BD si se solicitó
+    provision_err = ""
+    if provision_user == "on" and rut.strip():
+        email_final = email.strip() or f"admin@{alias}.cl"
+        try:
+            await backend_provision(
+                tenant_id=alias,
+                rut=rut.strip(),
+                email=email_final,
+                full_name=f"Administrador {name.strip()}",
+                password=password,
+            )
+        except httpx.HTTPStatusError as exc:
+            body = exc.response.text
+            provision_err = f"Tenant creado en tenants.json pero falló el provisionamiento de usuario: {body}"
+        except Exception as exc:
+            provision_err = f"Tenant creado en tenants.json pero falló el provisionamiento de usuario: {exc}"
+
+    if provision_err:
+        return RedirectResponse(
+            f"/tenants?error={provision_err.replace(' ', '+')}",
+            status_code=302,
+        )
+
+    return RedirectResponse(
+        f"/tenants?msg=Tenant+'{alias}'+creado+correctamente.",
+        status_code=302,
+    )
+
+
+@app.post("/tenants/{alias}/toggle")
+async def tenant_toggle(request: Request, alias: str):
+    """Activa o suspende un tenant en tenants.json."""
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    alias = alias.strip().lower()
+    tenants = load_tenants()
+    if alias not in tenants:
+        return RedirectResponse("/tenants?error=Tenant+no+encontrado.", status_code=302)
+
+    tenants[alias]["active"] = not tenants[alias].get("active", True)
+    action = "activado" if tenants[alias]["active"] else "suspendido"
+    save_tenants(tenants)
+
+    return RedirectResponse(
+        f"/tenants?msg=Tenant+'{alias}'+{action}+correctamente.",
+        status_code=302,
+    )
+
+
+@app.post("/tenants/{alias}/add-user")
+async def tenant_add_user(
+    request: Request,
+    alias: str,
+    rut: str = Form(...),
+    password: str = Form(...),
+    email: str = Form(default=""),
+    full_name: str = Form(default=""),
+):
+    """Provisiona un usuario adicional en un tenant existente."""
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    alias = alias.strip().lower()
+    tenants = load_tenants()
+    if alias not in tenants:
+        return RedirectResponse("/tenants?error=Tenant+no+encontrado.", status_code=302)
+
+    email_final = email.strip() or f"admin@{alias}.cl"
+    name_final = full_name.strip() or f"Admin {alias}"
+
+    try:
+        await backend_provision(
+            tenant_id=alias,
+            rut=rut.strip(),
+            email=email_final,
+            full_name=name_final,
+            password=password,
+        )
+    except httpx.HTTPStatusError as exc:
+        err = exc.response.text.replace(" ", "+")
+        return RedirectResponse(f"/tenants?error={err}", status_code=302)
+    except Exception as exc:
+        return RedirectResponse(f"/tenants?error={str(exc).replace(' ', '+')}", status_code=302)
+
+    return RedirectResponse(
+        f"/tenants?msg=Usuario+provisionado+en+'{alias}'+correctamente.",
+        status_code=302,
+    )
