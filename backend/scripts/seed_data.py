@@ -39,6 +39,7 @@ async def seed() -> None:
                 full_name=data["full_name"],
                 role=data["role"],
                 hashed_password=hash_password(data["password"]),
+                tenant_id="vms-ingenieria",  # tenant por defecto para seed de desarrollo
             )
             db.add(user)
             print(f"✅ Usuario creado: {data['email']} (RUT {data['rut']}, {data['role'].value})")

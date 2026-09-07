@@ -13,6 +13,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from app.core.config import settings
 from app.core.branding import get_brand_css_vars, load_brand_config
+from app.core.tenant import set_current_tenant
 from app.api.v1.router import api_router
 
 # ── Registro de tenants (clientes) ────────────────────────────────────────────
@@ -63,6 +64,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def tenant_middleware(request: Request, call_next):
+    """
+    Lee la cookie panol_tenant y registra el tenant activo en la ContextVar
+    para que get_db() pueda filtrar los datos de la sesión correcta.
+    Las rutas públicas (portal, terminos, privacidad, health) no tienen cookie
+    y operan sin tenant — get_db() recibe None y no aplica filtro.
+    """
+    tenant_alias = request.cookies.get("panol_tenant")
+    if tenant_alias:
+        set_current_tenant(tenant_alias)
+    response = await call_next(request)
+    return response
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 app.include_router(api_router, prefix="/api/v1")
@@ -94,7 +110,13 @@ async def _render(request: Request, template_name: str):
     config = load_brand_config()
     return templates.TemplateResponse(
         template_name,
-        {"request": request, "brand_css": brand_css, "brand": config, "app_name": settings.APP_NAME},
+        {
+            "request": request,
+            "brand_css": brand_css,
+            "brand": config,
+            "app_name": settings.APP_NAME,
+            "panol_env": settings.PANOL_ENV,  # "demo" | "prod" — muestra badge en header
+        },
     )
 
 
@@ -207,6 +229,7 @@ async def login_page(request: Request, panol_tenant: str = Cookie(default=None))
             "app_name": settings.APP_NAME,
             "tenant_alias": panol_tenant,
             "tenant_name": tenant_name,
+            "panol_env": settings.PANOL_ENV,
         },
     )
 

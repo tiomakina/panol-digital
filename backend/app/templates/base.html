@@ -442,6 +442,15 @@ a.kpi-card:hover {
         <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
         {% block page_subtitle %}{% endblock %}
       </div>
+      {% if panol_env == "demo" %}
+      <span title="Entorno de demostración — los datos pueden resetearse en cualquier momento"
+            style="background:#f59e0b;color:#fff;font-size:0.65rem;font-weight:700;
+                   letter-spacing:0.08em;text-transform:uppercase;
+                   padding:0.2rem 0.55rem;border-radius:99px;white-space:nowrap;
+                   align-self:center;margin-left:0.5rem;line-height:1.5;">
+        DEMO
+      </span>
+      {% endif %}
     </div>
     <div style="display:flex;align-items:center;gap:0.75rem;">
       <!-- Indicadores económicos de Chile (dólar, UF, euro, UTM) -->

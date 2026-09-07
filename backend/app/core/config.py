@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     COMPANY_SECONDARY_COLOR: str = "#06b6d4"
     COMPANY_ACCENT_COLOR: str = "#f59e0b"
 
+    # Entorno de ejecución: "demo" muestra un badge naranja en la UI para que
+    # el usuario sepa que está en el entorno de pruebas; "prod" no muestra nada.
+    # Configurar via variable de entorno PANOL_ENV=prod en producción.
+    PANOL_ENV: str = "demo"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

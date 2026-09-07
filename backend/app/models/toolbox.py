@@ -11,9 +11,10 @@ from app.core.database import Base
 # declarativo compartido, sin depender de que otro módulo lo importe antes.
 from app.models.tool import Tool  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.models.tenant_mixin import TenantMixin
 
 
-class Toolbox(Base):
+class Toolbox(TenantMixin, Base):
     __tablename__ = "toolboxes"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), index=True)

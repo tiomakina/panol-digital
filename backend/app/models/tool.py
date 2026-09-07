@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy import String, Numeric, Date, DateTime, Enum as SQLEnum, Text, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
+from app.models.tenant_mixin import TenantMixin
 import enum
 
 # Import real (no solo TYPE_CHECKING) — ver la explicación en models/loan.py:
@@ -28,7 +29,7 @@ class DepreciationMethod(str, enum.Enum):
     uop = "uop"                    # Unidades de producción
     doble_saldo = "doble_saldo"    # Doble saldo decreciente
 
-class Tool(Base):
+class Tool(TenantMixin, Base):
     __tablename__ = "tools"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), index=True)

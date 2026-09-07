@@ -11,6 +11,7 @@ from app.core.database import Base
 # en cualquier contexto que solo toque Loan, como las tareas de Celery.
 from app.models.tool import Tool  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.models.tenant_mixin import TenantMixin
 import enum
 
 class LoanStatus(str, enum.Enum):
@@ -25,7 +26,7 @@ class ReturnCondition(str, enum.Enum):
     reparacion = "reparacion"
     perdido = "perdido"
 
-class Loan(Base):
+class Loan(TenantMixin, Base):
     __tablename__ = "loans"
     id: Mapped[int] = mapped_column(primary_key=True)
     tool_id: Mapped[int] = mapped_column(ForeignKey("tools.id"))

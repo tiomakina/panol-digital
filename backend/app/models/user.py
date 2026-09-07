@@ -1,23 +1,33 @@
-"""Modelo de Usuario con roles RBAC."""
+"""Modelo de Usuario con roles RBAC y aislamiento multi-tenant."""
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, Enum as SQLEnum
+from sqlalchemy import String, Boolean, DateTime, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
+from app.models.tenant_mixin import TenantMixin
 import enum
+
 
 class UserRole(str, enum.Enum):
     jefe = "jefe"
     encargado = "encargado"
     mecanico = "mecanico"
 
-class User(Base):
+
+class User(TenantMixin, Base):
     __tablename__ = "users"
+    # Multi-tenant: RUT y email únicos POR TENANT, no globalmente.
+    # Un mismo RUT puede ser admin en dos empresas distintas.
+    __table_args__ = (
+        UniqueConstraint("rut", "tenant_id", name="uq_users_rut_tenant"),
+        UniqueConstraint("email", "tenant_id", name="uq_users_email_tenant"),
+    )
+
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), index=True)
     # Identificador único real: el email puede cambiar con el tiempo, el RUT
     # no. Es la credencial de login (reemplaza al email en /auth/login).
     # Formato canónico "NNNNNNNN-D" sin puntos (ver app/core/rut.py).
-    rut: Mapped[str] = mapped_column(String(12), unique=True, index=True)
+    rut: Mapped[str] = mapped_column(String(12), index=True)
     full_name: Mapped[str] = mapped_column(String(255))
     hashed_password: Mapped[str] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.mecanico)

@@ -56,12 +56,18 @@ services:
       # WhatsApp Business API (opcional)
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      # Entorno: "demo" muestra badge naranja en la UI; "prod" no muestra nada.
+      # Cambiar a PANOL_ENV=prod en el .env del servidor de producción.
+      PANOL_ENV: ${PANOL_ENV:-demo}
     volumes:
       - ./backend/app/static/uploads:/app/app/static/uploads
       # Respaldos generados/restaurados desde la web (Administración →
       # Respaldo) — quedan visibles en el host, no solo dentro del
       # contenedor, igual que scripts/backup.sh.
       - ./backups:/app/backups
+      # tenants.json montado como volumen: git pull en el host actualiza los
+      # clientes en tiempo real sin reconstruir la imagen Docker.
+      - ./backend/app/tenants.json:/app/app/tenants.json:ro
     depends_on:
       db:
         condition: service_healthy

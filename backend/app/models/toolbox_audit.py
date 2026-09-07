@@ -11,6 +11,7 @@ from sqlalchemy import Boolean, Date, DateTime, Enum as SQLEnum, ForeignKey, Tex
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.models.tenant_mixin import TenantMixin
 
 # Imports reales (no solo TYPE_CHECKING) — ver la explicación en
 # models/loan.py: relationship() necesita que Toolbox/Tool/User ya estén
@@ -31,7 +32,7 @@ class AuditItemCondition(str, enum.Enum):
     faltante = "faltante"
 
 
-class ToolboxAudit(Base):
+class ToolboxAudit(TenantMixin, Base):
     __tablename__ = "toolbox_audits"
 
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -16,6 +16,7 @@ from app.core.database import Base
 # registrados en el registro declarativo compartido.
 from app.models.tool import Tool  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.models.tenant_mixin import TenantMixin
 
 
 class MaintenanceStatus(str, enum.Enum):
@@ -24,7 +25,7 @@ class MaintenanceStatus(str, enum.Enum):
     sin_solucion = "sin_solucion"
 
 
-class MaintenanceRecord(Base):
+class MaintenanceRecord(TenantMixin, Base):
     __tablename__ = "maintenance_records"
 
     id: Mapped[int] = mapped_column(primary_key=True)

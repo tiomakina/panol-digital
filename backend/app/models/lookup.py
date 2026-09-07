@@ -8,40 +8,54 @@ Tool.category, Tool.location y Tool.supplier siguen siendo texto libre
 valores aparecen en el desplegable al cargar/editar una herramienta. Esto
 evita una migración invasiva sobre datos ya cargados — el pedido original es
 "que se puedan seleccionar de una lista", no una normalización estricta.
+
+Multi-tenant: la unicidad de nombre es POR TENANT (dos clientes distintos
+pueden tener una categoría "Herramientas" cada uno, por eso se usa
+UniqueConstraint("name", "tenant_id") en vez de unique=True en la columna).
 """
 from datetime import datetime
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.tenant_mixin import TenantMixin
 
 
-class Brand(Base):
+class Brand(TenantMixin, Base):
     __tablename__ = "brands"
+    # Unicidad por tenant: "Bosch" puede existir en dos empresas distintas
+    __table_args__ = (UniqueConstraint("name", "tenant_id", name="uq_brands_name_tenant"),)
+
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
-class Category(Base):
+class Category(TenantMixin, Base):
     __tablename__ = "categories"
+    __table_args__ = (UniqueConstraint("name", "tenant_id", name="uq_categories_name_tenant"),)
+
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
-class Location(Base):
+class Location(TenantMixin, Base):
     __tablename__ = "locations"
+    __table_args__ = (UniqueConstraint("name", "tenant_id", name="uq_locations_name_tenant"),)
+
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
-class Provider(Base):
+class Provider(TenantMixin, Base):
     __tablename__ = "providers"
+    __table_args__ = (UniqueConstraint("name", "tenant_id", name="uq_providers_name_tenant"),)
+
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
     # contact_info queda como estaba (un campo libre "teléfono/email" de la
     # primera versión) por compatibilidad con datos ya cargados, pero el
     # formulario ya no lo usa — los datos de contacto ahora van en los
