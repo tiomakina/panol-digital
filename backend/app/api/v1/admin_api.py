@@ -107,7 +107,7 @@ async def get_stats(
         rows = await db.execute(
             text(
                 "SELECT tenant_id, COUNT(*) FROM loans "
-                "WHERE status IN ('activo','pendiente') GROUP BY tenant_id"
+                "WHERE status IN ('activo','vencido') GROUP BY tenant_id"
             )
         )
         for tenant_id, count in rows.fetchall():
