@@ -22,6 +22,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - panol-net
 
   # Redis para cache y Celery
   redis:
@@ -34,6 +36,8 @@ services:
     # vulnerabilidad crítica (escritura arbitraria en caché/sesiones).
     expose:
       - "6379"
+    networks:
+      - panol-net
 
   # FastAPI backend
   backend:
@@ -80,6 +84,8 @@ services:
     # Nginx hace de proxy; no hay razón para exponerlo a internet.
     expose:
       - "8000"
+    networks:
+      - panol-net
 
   # Celery worker para tareas asíncronas
   celery_worker:
@@ -102,6 +108,8 @@ services:
       - db
       - redis
       - backend
+    networks:
+      - panol-net
 
   # Celery beat — dispara las tareas periódicas (ver beat_schedule en celery_app.py)
   celery_beat:
@@ -124,6 +132,8 @@ services:
       - db
       - redis
       - celery_worker
+    networks:
+      - panol-net
 
   # Nginx reverse proxy
   nginx:
@@ -141,6 +151,8 @@ services:
       - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - backend
+    networks:
+      - panol-net
 
   # Admin Panel — consola de administración de clientes SaaS
   # Acceso exclusivamente vía Tailscale VPN (100.x.x.x:9001)
@@ -179,6 +191,8 @@ services:
     # Necesita acceso al backend para estadísticas y provisionamiento de usuarios
     depends_on:
       - backend
+    networks:
+      - panol-net
 
   # Portainer — administración visual de Docker (para usuarios sin conocimientos técnicos)
   portainer:
@@ -201,3 +215,10 @@ volumes:
   postgres_data:
   redis_data:
   portainer_data:
+
+# Red interna explícita — todos los servicios que necesitan comunicarse
+# entre sí (backend ↔ admin-panel, backend ↔ celery, etc.) deben declarar
+# esta red. Nginx y Portainer la heredan implícitamente por Docker Compose.
+networks:
+  panol-net:
+    driver: bridge
