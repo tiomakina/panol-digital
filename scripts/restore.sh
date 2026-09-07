@@ -19,11 +19,14 @@ if [ ! -d "$BACKUP_DIR" ]; then
   exit 1
 fi
 
+# Carga segura de .env (sin source — ver comentario en backup.sh)
 if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ "$line" =~ ^[[:space:]]*#  ]] && continue
+    [[ "$line" =~ ^[[:space:]]*$  ]] && continue
+    [[ "$line" =~ ^[a-zA-Z_][a-zA-Z0-9_]*= ]] || continue
+    export "${line}" 2>/dev/null || true
+  done < .env
 fi
 
 DB_USER="${DB_USER:-panol}"
