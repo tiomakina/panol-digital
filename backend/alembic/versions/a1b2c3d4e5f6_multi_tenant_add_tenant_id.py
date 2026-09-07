@@ -12,6 +12,9 @@ Estrategia de migración:
    ya que toda la data actual pertenece a ese cliente.
 3. Altera la columna a NOT NULL + agrega un índice para las consultas filtradas.
 
+La migración es IDEMPOTENTE: usa IF NOT EXISTS / IF EXISTS para que pueda
+reintentarse sin error si una ejecución anterior quedó incompleta.
+
 En downgrade se elimina la columna en cada tabla (operación destructiva — los datos
 de tenant quedan sin registro, pero la estructura vuelve al estado mono-tenant).
 
@@ -23,6 +26,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision: str = 'a1b2c3d4e5f6'
@@ -53,28 +57,31 @@ DEFAULT_TENANT = "vms-ingenieria"
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+
     for table in TABLES:
-        # 1. Agrega la columna como nullable para no romper datos existentes
-        op.add_column(table, sa.Column("tenant_id", sa.String(100), nullable=True))
+        # 1. Agrega la columna como nullable — IF NOT EXISTS evita error si ya existe
+        conn.execute(text(
+            f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100)"
+        ))
 
         # 2. Backfill: todos los registros existentes pertenecen a vms-ingenieria
-        op.execute(
-            f"UPDATE {table} SET tenant_id = '{DEFAULT_TENANT}' WHERE tenant_id IS NULL"  # noqa: S608
-        )
+        conn.execute(text(
+            f"UPDATE {table} SET tenant_id = :tenant WHERE tenant_id IS NULL"
+        ).bindparams(tenant=DEFAULT_TENANT))
 
-        # 3. Pone la columna como NOT NULL ahora que todos los registros tienen valor
-        op.alter_column(table, "tenant_id", nullable=False)
+        # 3. NOT NULL (idempotente: si ya es NOT NULL PostgreSQL lo ignora silenciosamente)
+        conn.execute(text(
+            f"ALTER TABLE {table} ALTER COLUMN tenant_id SET NOT NULL"
+        ))
 
-        # 4. Crea índice simple para acelerar las consultas filtradas por tenant
-        op.create_index(
-            f"ix_{table}_tenant_id",
-            table,
-            ["tenant_id"],
-        )
+        # 4. Índice — IF NOT EXISTS evita error si ya existe
+        conn.execute(text(
+            f"CREATE INDEX IF NOT EXISTS ix_{table}_tenant_id ON {table} (tenant_id)"
+        ))
 
     # 5. Las tablas maestras tenían unique=True en 'name' globalmente.
-    #    Con multi-tenant la unicidad debe ser POR tenant: eliminamos el
-    #    índice único global y creamos uno compuesto (name, tenant_id).
+    #    Con multi-tenant la unicidad debe ser POR tenant.
     LOOKUP_TABLES = {
         "brands": "brands_name_key",
         "categories": "categories_name_key",
@@ -82,41 +89,103 @@ def upgrade() -> None:
         "providers": "providers_name_key",
     }
     for table, old_unique in LOOKUP_TABLES.items():
-        # Eliminar el índice único global (PostgreSQL lo nombra así por defecto)
-        try:
-            op.drop_constraint(old_unique, table, type_="unique")
-        except Exception:
-            pass  # Si ya no existe, ignorar
+        # Eliminar el índice único global si todavía existe
+        conn.execute(text(f"""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_schema = current_schema()
+                      AND constraint_name   = '{old_unique}'
+                      AND table_name        = '{table}'
+                      AND constraint_type   = 'UNIQUE'
+                ) THEN
+                    ALTER TABLE {table} DROP CONSTRAINT {old_unique};
+                END IF;
+            END $$;
+        """))
 
-        # Crear restricción única compuesta (name, tenant_id)
-        op.create_unique_constraint(
-            f"uq_{table}_name_tenant",
-            table,
-            ["name", "tenant_id"],
-        )
+        # Crear constraint único compuesto si no existe todavía
+        conn.execute(text(f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_schema = current_schema()
+                      AND constraint_name   = 'uq_{table}_name_tenant'
+                      AND table_name        = '{table}'
+                      AND constraint_type   = 'UNIQUE'
+                ) THEN
+                    ALTER TABLE {table}
+                        ADD CONSTRAINT uq_{table}_name_tenant UNIQUE (name, tenant_id);
+                END IF;
+            END $$;
+        """))
 
     # 6. User.rut y User.email también deben ser únicos por tenant
-    #    (el mismo RUT puede ser admin de dos empresas distintas).
-    #    Eliminamos los índices únicos globales y creamos compuestos.
-    try:
-        op.drop_constraint("users_rut_key", "users", type_="unique")
-    except Exception:
-        pass
-    op.create_unique_constraint("uq_users_rut_tenant", "users", ["rut", "tenant_id"])
-
-    try:
-        op.drop_constraint("users_email_key", "users", type_="unique")
-    except Exception:
-        pass
-    op.create_unique_constraint("uq_users_email_tenant", "users", ["email", "tenant_id"])
+    for old_constraint, new_constraint, columns in [
+        ("users_rut_key",   "uq_users_rut_tenant",   "rut, tenant_id"),
+        ("users_email_key", "uq_users_email_tenant", "email, tenant_id"),
+    ]:
+        conn.execute(text(f"""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_schema = current_schema()
+                      AND constraint_name   = '{old_constraint}'
+                      AND table_name        = 'users'
+                      AND constraint_type   = 'UNIQUE'
+                ) THEN
+                    ALTER TABLE users DROP CONSTRAINT {old_constraint};
+                END IF;
+            END $$;
+        """))
+        conn.execute(text(f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_schema = current_schema()
+                      AND constraint_name   = '{new_constraint}'
+                      AND table_name        = 'users'
+                      AND constraint_type   = 'UNIQUE'
+                ) THEN
+                    ALTER TABLE users ADD CONSTRAINT {new_constraint} UNIQUE ({columns});
+                END IF;
+            END $$;
+        """))
 
 
 def downgrade() -> None:
+    conn = op.get_bind()
+
     # Restaurar restricciones únicas globales en users
-    op.drop_constraint("uq_users_email_tenant", "users", type_="unique")
-    op.create_unique_constraint("users_email_key", "users", ["email"])
-    op.drop_constraint("uq_users_rut_tenant", "users", type_="unique")
-    op.create_unique_constraint("users_rut_key", "users", ["rut"])
+    for new_constraint, old_constraint, column in [
+        ("uq_users_email_tenant", "users_email_key", "email"),
+        ("uq_users_rut_tenant",   "users_rut_key",   "rut"),
+    ]:
+        conn.execute(text(f"""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_schema = current_schema()
+                      AND constraint_name   = '{new_constraint}'
+                      AND table_name        = 'users'
+                ) THEN
+                    ALTER TABLE users DROP CONSTRAINT {new_constraint};
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_schema = current_schema()
+                      AND constraint_name   = '{old_constraint}'
+                      AND table_name        = 'users'
+                ) THEN
+                    ALTER TABLE users ADD CONSTRAINT {old_constraint} UNIQUE ({column});
+                END IF;
+            END $$;
+        """))
 
     # Restaurar restricciones únicas globales en tablas maestras
     LOOKUP_TABLES = {
@@ -126,9 +195,33 @@ def downgrade() -> None:
         "providers": "providers_name_key",
     }
     for table, old_unique in LOOKUP_TABLES.items():
-        op.drop_constraint(f"uq_{table}_name_tenant", table, type_="unique")
-        op.create_unique_constraint(old_unique, table, ["name"])
+        conn.execute(text(f"""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_schema = current_schema()
+                      AND constraint_name   = 'uq_{table}_name_tenant'
+                      AND table_name        = '{table}'
+                ) THEN
+                    ALTER TABLE {table} DROP CONSTRAINT uq_{table}_name_tenant;
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_schema = current_schema()
+                      AND constraint_name   = '{old_unique}'
+                      AND table_name        = '{table}'
+                ) THEN
+                    ALTER TABLE {table} ADD CONSTRAINT {old_unique} UNIQUE (name);
+                END IF;
+            END $$;
+        """))
 
+    # Eliminar índices y columnas tenant_id
     for table in reversed(TABLES):
-        op.drop_index(f"ix_{table}_tenant_id", table_name=table)
-        op.drop_column(table, "tenant_id")
+        conn.execute(text(
+            f"DROP INDEX IF EXISTS ix_{table}_tenant_id"
+        ))
+        conn.execute(text(
+            f"ALTER TABLE {table} DROP COLUMN IF EXISTS tenant_id"
+        ))
