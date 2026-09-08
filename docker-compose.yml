@@ -60,9 +60,11 @@ services:
       # WhatsApp vía Meta Business API (legacy)
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
-      # WhatsApp vía Evolution API (self-hosted — recomendado)
-      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:8080}
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+      # WhatsApp vía WAHA (self-hosted — recomendado)
+      # Puerto 3000 es el default de WAHA. La key debe coincidir con
+      # WHATSAPP_API_KEY del contenedor evolution-api.
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
       # Entorno: "demo" muestra badge naranja en la UI; "prod" no muestra nada.
       # Cambiar a PANOL_ENV=prod en el .env del servidor de producción.
@@ -108,6 +110,9 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
     depends_on:
       - db
       - redis
@@ -132,8 +137,8 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
-      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:8080}
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
     depends_on:
       - db
