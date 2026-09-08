@@ -9,8 +9,16 @@ de Celery ni el de la API.
 La configuración por tenant (email_enabled, whatsapp_enabled) se lee desde
 notification_config.py — cada empresa puede activar/desactivar canales desde
 la pantalla de Notificaciones en Administración.
+
+WhatsApp — dos backends soportados (en orden de preferencia):
+  1. Evolution API (self-hosted, recomendado): EVOLUTION_API_KEY configurado.
+     El Jefe escanea un QR con su celular una vez y el sistema puede enviar
+     a cualquier número sin cuenta Meta Business.
+  2. Meta Business Cloud API (legacy): WHATSAPP_API_TOKEN + WHATSAPP_PHONE_ID.
+     Requiere cuenta empresarial verificada en Meta for Developers.
 """
 import logging
+import re
 
 import aiosmtplib
 import httpx
@@ -25,8 +33,23 @@ def email_configured() -> bool:
     return bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
 
 
+def evolution_configured() -> bool:
+    """True si Evolution API está habilitada (backend recomendado para WhatsApp)."""
+    return bool(settings.EVOLUTION_API_KEY)
+
+
 def whatsapp_configured() -> bool:
-    return bool(settings.WHATSAPP_API_TOKEN and settings.WHATSAPP_PHONE_ID)
+    """True si hay algún backend de WhatsApp disponible (Evolution o Meta)."""
+    return evolution_configured() or bool(settings.WHATSAPP_API_TOKEN and settings.WHATSAPP_PHONE_ID)
+
+
+def _normalize_phone(phone: str) -> str:
+    """
+    Normaliza un número de teléfono para Evolution API:
+    Elimina espacios, +, guiones, paréntesis.
+    Ejemplo: "+56 9 1234 5678" → "56912345678"
+    """
+    return re.sub(r'[\s\+\-\(\)]', '', phone)
 
 
 def _notification_enabled(channel: str) -> bool:
@@ -94,22 +117,41 @@ async def send_email(to: str, subject: str, body: str, log_event: str = "general
         return False, err
 
 
-async def send_whatsapp(phone: str, message: str, log_event: str = "general") -> bool:
+async def _send_whatsapp_evolution(phone: str, message: str, log_event: str = "general") -> tuple[bool, str]:
     """
-    Envía un mensaje por la API de WhatsApp Business Cloud (Meta).
-    Devuelve False (sin excepción) si no está configurado o falla.
+    Envía un mensaje vía Evolution API (self-hosted WhatsApp Web).
+    Devuelve (True, "") si OK, (False, error_str) si falla.
     """
-    if not whatsapp_configured():
-        logger.info("WhatsApp no configurado — se omite el mensaje a %s", phone)
-        return False
-    if not _notification_enabled("whatsapp"):
-        logger.info("WhatsApp desactivado en config del tenant — se omite mensaje a %s", phone)
-        return False
+    phone_clean = _normalize_phone(phone)
+    url = f"{settings.EVOLUTION_API_URL}/message/sendText/{settings.EVOLUTION_INSTANCE}"
+    headers = {
+        "Content-Type": "application/json",
+        "apikey": settings.EVOLUTION_API_KEY,
+    }
+    payload = {"number": phone_clean, "text": message}
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            res = await client.post(url, json=payload, headers=headers)
+            res.raise_for_status()
+        _log_notification(channel="whatsapp", to=phone, subject="", ok=True, event_type=log_event)
+        return True, ""
+    except Exception as exc:
+        err = str(exc)
+        logger.exception("Error enviando WhatsApp (Evolution) a %s", phone)
+        _log_notification(channel="whatsapp", to=phone, subject="", ok=False, event_type=log_event)
+        return False, err
+
+
+async def _send_whatsapp_meta(phone: str, message: str, log_event: str = "general") -> tuple[bool, str]:
+    """
+    Envía un mensaje vía Meta Business Cloud API (legacy).
+    Devuelve (True, "") si OK, (False, error_str) si falla.
+    """
     url = f"https://graph.facebook.com/v18.0/{settings.WHATSAPP_PHONE_ID}/messages"
     headers = {"Authorization": f"Bearer {settings.WHATSAPP_API_TOKEN}"}
     payload = {
         "messaging_product": "whatsapp",
-        "to": phone,
+        "to": _normalize_phone(phone),
         "type": "text",
         "text": {"body": message},
     }
@@ -118,11 +160,49 @@ async def send_whatsapp(phone: str, message: str, log_event: str = "general") ->
             res = await client.post(url, json=payload, headers=headers)
             res.raise_for_status()
         _log_notification(channel="whatsapp", to=phone, subject="", ok=True, event_type=log_event)
-        return True
-    except Exception:
-        logger.exception("Error enviando WhatsApp a %s", phone)
+        return True, ""
+    except Exception as exc:
+        err = str(exc)
+        logger.exception("Error enviando WhatsApp (Meta) a %s", phone)
         _log_notification(channel="whatsapp", to=phone, subject="", ok=False, event_type=log_event)
+        return False, err
+
+
+async def send_whatsapp(phone: str, message: str, log_event: str = "general") -> bool:
+    """
+    Envía un mensaje de WhatsApp usando el backend disponible:
+      1. Evolution API (si EVOLUTION_API_KEY está configurado)
+      2. Meta Business API (si WHATSAPP_API_TOKEN + WHATSAPP_PHONE_ID están configurados)
+    Devuelve False (sin excepción) si no hay backend disponible o falla.
+    """
+    if not whatsapp_configured():
+        logger.info("WhatsApp no configurado — se omite el mensaje a %s", phone)
         return False
+    if not _notification_enabled("whatsapp"):
+        logger.info("WhatsApp desactivado en config del tenant — se omite mensaje a %s", phone)
+        return False
+
+    if evolution_configured():
+        ok, _ = await _send_whatsapp_evolution(phone, message, log_event)
+        return ok
+    else:
+        ok, _ = await _send_whatsapp_meta(phone, message, log_event)
+        return ok
+
+
+async def send_whatsapp_with_error(phone: str, message: str, log_event: str = "general") -> tuple[bool, str]:
+    """
+    Igual que send_whatsapp pero devuelve (bool, error_str) — para endpoints de prueba.
+    """
+    if not whatsapp_configured():
+        return False, "WhatsApp no configurado en el servidor (falta EVOLUTION_API_KEY o WHATSAPP_API_TOKEN)"
+    if not _notification_enabled("whatsapp"):
+        return False, "WhatsApp desactivado en la configuración de notificaciones del tenant"
+
+    if evolution_configured():
+        return await _send_whatsapp_evolution(phone, message, log_event)
+    else:
+        return await _send_whatsapp_meta(phone, message, log_event)
 
 
 def _log_notification(*, channel: str, to: str, subject: str, ok: bool, event_type: str) -> None:

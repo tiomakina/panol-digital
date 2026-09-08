@@ -54,8 +54,104 @@
           style="padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.78rem;font-weight:600;">
           <span x-text="config.whatsapp_server_configured ? '✓ WhatsApp configurado' : '✗ WhatsApp no configurado'"></span>
         </span>
-        <span style="font-size:0.8rem;color:#64748b;">WhatsApp Business</span>
+        <span style="font-size:0.8rem;color:#64748b;">WhatsApp (Evolution API)</span>
       </div>
+    </div>
+  </div>
+
+  <!-- Sección WhatsApp — conexión QR + prueba -->
+  <div class="card" style="margin-bottom:1.5rem;" x-show="config.whatsapp_server_configured || true">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+      <div style="display:flex;align-items:center;gap:0.6rem;">
+        <span style="font-size:1.3rem;">💬</span>
+        <h2 style="font-size:0.95rem;font-weight:600;margin:0;color:#1e293b;">
+          WhatsApp — Evolution API
+        </h2>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <!-- Badge de estado -->
+        <span x-show="waStatus.connected"
+              style="background:#dcfce7;color:#166534;padding:0.25rem 0.75rem;
+                     border-radius:9999px;font-size:0.78rem;font-weight:600;">
+          ✓ Conectado
+        </span>
+        <span x-show="!waStatus.connected && waStatus.state !== 'not_configured'"
+              style="background:#fef9c3;color:#854d0e;padding:0.25rem 0.75rem;
+                     border-radius:9999px;font-size:0.78rem;font-weight:600;">
+          ⚡ Sin conectar
+        </span>
+        <span x-show="waStatus.state === 'not_configured'"
+              style="background:#fee2e2;color:#991b1b;padding:0.25rem 0.75rem;
+                     border-radius:9999px;font-size:0.78rem;font-weight:600;">
+          ✗ No configurado
+        </span>
+        <button @click="loadWaStatus()" :disabled="loadingWa"
+                style="background:none;border:1px solid #e2e8f0;border-radius:6px;
+                       padding:0.3rem 0.6rem;font-size:0.78rem;cursor:pointer;color:#475569;">
+          <span x-text="loadingWa ? '⏳' : '🔄 Actualizar'"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- No configurado -->
+    <div x-show="waStatus.state === 'not_configured'"
+         style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
+                padding:0.75rem 1rem;font-size:0.82rem;color:#991b1b;margin-bottom:1rem;">
+      <strong>EVOLUTION_API_KEY</strong> no está configurado en el servidor.<br>
+      Agregalo al <code>.env</code> y reiniciá los contenedores:
+      <code style="display:block;margin-top:0.4rem;background:#fee2e2;padding:0.3rem 0.5rem;border-radius:4px;">
+        EVOLUTION_API_KEY=panol360-evolution-key
+      </code>
+    </div>
+
+    <!-- QR para escanear (cuando no está conectado) -->
+    <div x-show="!waStatus.connected && waStatus.qr && waStatus.state !== 'not_configured'"
+         style="margin-bottom:1rem;">
+      <p style="font-size:0.82rem;color:#475569;margin:0 0 0.75rem;">
+        📱 <strong>Escaneá este QR con tu celular</strong> desde WhatsApp → Dispositivos vinculados → Vincular dispositivo:
+      </p>
+      <div style="display:flex;justify-content:center;">
+        <img :src="waStatus.qr" alt="QR WhatsApp"
+             style="width:220px;height:220px;border:2px solid #e2e8f0;border-radius:8px;
+                    image-rendering:pixelated;">
+      </div>
+      <p style="font-size:0.75rem;color:#94a3b8;text-align:center;margin:0.5rem 0 0;">
+        El QR expira en ~60 segundos — presioná 🔄 Actualizar si venció.
+      </p>
+    </div>
+
+    <!-- Sin QR todavía pero tampoco conectado -->
+    <div x-show="!waStatus.connected && !waStatus.qr && waStatus.state !== 'not_configured' && !loadingWa"
+         style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+                padding:1rem;text-align:center;margin-bottom:1rem;">
+      <div style="font-size:1.5rem;margin-bottom:0.4rem;">📱</div>
+      <p style="font-size:0.82rem;color:#64748b;margin:0 0 0.5rem;">
+        Presioná <strong>Actualizar</strong> para obtener el QR de conexión.
+      </p>
+    </div>
+
+    <!-- Sección de prueba (visible si está conectado) -->
+    <div x-show="waStatus.connected" style="border-top:1px solid #f1f5f9;padding-top:1rem;">
+      <p style="font-size:0.8rem;font-weight:600;color:#475569;text-transform:uppercase;
+                letter-spacing:0.05em;margin:0 0 0.5rem;">
+        Enviar mensaje de prueba
+      </p>
+      <div style="display:flex;gap:0.5rem;">
+        <input type="tel" x-model="waTestPhone"
+               placeholder="+56 9 1234 5678"
+               style="flex:1;border:1px solid #e2e8f0;border-radius:8px;
+                      padding:0.45rem 0.75rem;font-size:0.875rem;outline:none;min-width:0;"
+               @focus="$el.style.borderColor='var(--brand-primary,#4f46e5)'"
+               @blur="$el.style.borderColor='#e2e8f0'"
+               @keydown.enter.prevent="sendTestWhatsApp()">
+        <button @click="sendTestWhatsApp()" :disabled="testingWa || !waTestPhone"
+                class="btn-primary" style="white-space:nowrap;flex-shrink:0;">
+          <span x-text="testingWa ? '⏳ Enviando…' : '🧪 Enviar prueba'"></span>
+        </button>
+      </div>
+      <p style="font-size:0.75rem;color:#94a3b8;margin:0.35rem 0 0;">
+        Ingresá un número con código de país (ej: +56912345678)
+      </p>
     </div>
   </div>
 
@@ -312,6 +408,11 @@ function notificationsApp() {
       whatsapp_server_configured: false,
     },
     newAdminEmail: "",   // campo temporal para agregar un email
+    // WhatsApp (Evolution API)
+    waStatus: { connected: false, state: "loading", qr: null },
+    loadingWa: false,
+    waTestPhone: "",
+    testingWa: false,
     logEntries: [],
     toast: { show: false, msg: "", ok: true },
     saving: false,
@@ -319,7 +420,7 @@ function notificationsApp() {
     loadingLog: true,
 
     async init() {
-      await Promise.all([this.loadConfig(), this.loadLog()]);
+      await Promise.all([this.loadConfig(), this.loadLog(), this.loadWaStatus()]);
     },
 
     async loadConfig() {
@@ -350,6 +451,44 @@ function notificationsApp() {
         // fallo silencioso
       } finally {
         this.loadingLog = false;
+      }
+    },
+
+    async loadWaStatus() {
+      this.loadingWa = true;
+      try {
+        const res = await authFetch('/api/v1/notifications/whatsapp/status');
+        if (res.ok) {
+          this.waStatus = await res.json();
+        }
+      } catch (e) {
+        this.waStatus = { connected: false, state: 'error', qr: null };
+      } finally {
+        this.loadingWa = false;
+      }
+    },
+
+    async sendTestWhatsApp() {
+      if (!this.waTestPhone) return;
+      this.testingWa = true;
+      try {
+        const res = await authFetch('/api/v1/notifications/test-whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: this.waTestPhone }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.showToast("✓ " + (data.message || "Mensaje de prueba enviado"), true);
+          await this.loadLog();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          this.showToast("No se pudo enviar: " + (err.detail || "Error de servidor"), false);
+        }
+      } catch (e) {
+        this.showToast("Error de red", false);
+      } finally {
+        this.testingWa = false;
       }
     },
 

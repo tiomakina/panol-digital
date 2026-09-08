@@ -3,6 +3,7 @@ API de Notificaciones — configuración de canales y log de envíos.
 Endpoint: /api/v1/notifications/
 Solo accesible para el rol Jefe.
 """
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -15,6 +16,7 @@ from app.core.notification_config import (
 )
 from app.services.notification_service import (
     email_configured,
+    evolution_configured,
     whatsapp_configured,
 )
 
@@ -33,7 +35,112 @@ class NotificationConfig(BaseModel):
     admin_emails: list[str] = []
 
 
+class WhatsAppTestRequest(BaseModel):
+    phone: str  # Ej: "+56912345678" o "56912345678"
+
+
 # ── Endpoints ──────────────────────────────────────────────────────────────────
+
+@router.get("/whatsapp/status")
+async def get_whatsapp_status(
+    user: User = Depends(require_role("jefe")),
+):
+    """
+    Estado de la conexión de WhatsApp (Evolution API).
+    Devuelve: estado de conexión y, si no está conectado, el QR en base64.
+    """
+    from app.core.config import settings as cfg
+
+    if not evolution_configured():
+        return {
+            "backend": "none",
+            "configured": False,
+            "connected": False,
+            "state": "not_configured",
+            "qr": None,
+        }
+
+    base = cfg.EVOLUTION_API_URL.rstrip("/")
+    instance = cfg.EVOLUTION_INSTANCE
+    headers = {"apikey": cfg.EVOLUTION_API_KEY}
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # 1. Verificar si la instancia existe y su estado
+            r = await client.get(f"{base}/instance/connectionState/{instance}", headers=headers)
+            if r.status_code == 404:
+                # La instancia no existe todavía — crearla
+                create_res = await client.post(
+                    f"{base}/instance/create",
+                    headers=headers,
+                    json={"instanceName": instance, "qrcode": True, "integration": "WHATSAPP-BAILEYS"},
+                )
+                if create_res.status_code not in (200, 201):
+                    return {"backend": "evolution", "configured": True, "connected": False,
+                            "state": "error", "error": create_res.text, "qr": None}
+                # Pedir el QR recién creado
+                qr_res = await client.get(f"{base}/instance/connect/{instance}", headers=headers)
+                qr_data = qr_res.json() if qr_res.status_code == 200 else {}
+                return {
+                    "backend": "evolution",
+                    "configured": True,
+                    "connected": False,
+                    "state": "qr",
+                    "qr": qr_data.get("base64") or qr_data.get("qrcode", {}).get("base64"),
+                }
+
+            data = r.json()
+            state = data.get("instance", {}).get("state", "unknown")
+            connected = state == "open"
+
+            if connected:
+                return {"backend": "evolution", "configured": True, "connected": True,
+                        "state": "open", "qr": None}
+
+            # No conectado — pedir QR
+            qr_res = await client.get(f"{base}/instance/connect/{instance}", headers=headers)
+            qr_data = qr_res.json() if qr_res.status_code == 200 else {}
+            return {
+                "backend": "evolution",
+                "configured": True,
+                "connected": False,
+                "state": state,
+                "qr": qr_data.get("base64") or qr_data.get("qrcode", {}).get("base64"),
+            }
+    except Exception as exc:
+        return {"backend": "evolution", "configured": True, "connected": False,
+                "state": "error", "error": str(exc), "qr": None}
+
+
+@router.post("/test-whatsapp")
+async def send_test_whatsapp(
+    body: WhatsAppTestRequest,
+    user: User = Depends(require_role("jefe")),
+):
+    """
+    Envía un mensaje de WhatsApp de prueba al número indicado.
+    Devuelve el error exacto si falla (útil para diagnóstico).
+    """
+    from app.services.notification_service import send_whatsapp_with_error
+
+    phone = (body.phone or "").strip()
+    if not phone:
+        raise HTTPException(400, "Ingresá un número de teléfono (ej: +56912345678)")
+
+    message = (
+        f"✅ Pañol 360 — Prueba de WhatsApp\n\n"
+        f"Hola {user.full_name},\n"
+        "Este mensaje confirma que la integración de WhatsApp funciona correctamente.\n\n"
+        "— Pañol 360"
+    )
+    ok, err = await send_whatsapp_with_error(phone, message, log_event="test")
+    if not ok:
+        detail = "No se pudo enviar el mensaje de WhatsApp."
+        if err:
+            detail += f" Error: {err}"
+        raise HTTPException(503, detail)
+    return {"ok": True, "message": f"WhatsApp de prueba enviado a {phone}"}
+
 
 @router.get("/config")
 async def get_notification_config(
