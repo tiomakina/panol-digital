@@ -142,24 +142,19 @@ services:
     networks:
       - panol-net
 
-  # Evolution API — WhatsApp self-hosted via WhatsApp Web (Baileys)
-  # Permite enviar mensajes a cualquier número sin cuenta Meta Business.
-  # El Jefe escanea un QR con su celular desde Notificaciones → WhatsApp.
+  # WAHA (WhatsApp HTTP API) — WhatsApp self-hosted via WhatsApp Web
+  # Imagen pública, sin cuenta Meta. El Jefe escanea un QR con su celular
+  # desde Notificaciones → WhatsApp para conectar la sesión.
+  # Docs: https://waha.devlike.pro
   evolution-api:
-    image: evolutionapi/evolution-api:latest
+    image: devlikeapro/waha
     restart: unless-stopped
     expose:
-      - "8080"
+      - "3000"
     environment:
-      SERVER_URL: http://evolution-api:8080
-      AUTHENTICATION_TYPE: apikey
-      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-panol360-evolution-key}
-      DATABASE_ENABLED: "false"
-      CACHE_REDIS_ENABLED: "false"
-      LOG_LEVEL: ERROR
-      DEL_INSTANCE: "false"
+      WHATSAPP_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
     volumes:
-      - evolution_data:/evolution/instances
+      - evolution_data:/app/.sessions
     networks:
       - panol-net
 

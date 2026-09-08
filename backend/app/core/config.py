@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     # EVOLUTION_API_URL apunta al contenedor interno de Docker.
     # EVOLUTION_API_KEY es el apikey configurado en el contenedor.
     # EVOLUTION_INSTANCE es el nombre de la instancia de WhatsApp Web.
-    EVOLUTION_API_URL: str = "http://evolution-api:8080"
+    EVOLUTION_API_URL: str = "http://evolution-api:3000"
     EVOLUTION_API_KEY: str = ""
     EVOLUTION_INSTANCE: str = "panol360"
     COMPANY_NAME: str = "Mi Empresa"

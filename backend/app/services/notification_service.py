@@ -119,16 +119,24 @@ async def send_email(to: str, subject: str, body: str, log_event: str = "general
 
 async def _send_whatsapp_evolution(phone: str, message: str, log_event: str = "general") -> tuple[bool, str]:
     """
-    Envía un mensaje vía Evolution API (self-hosted WhatsApp Web).
+    Envía un mensaje vía WAHA (WhatsApp HTTP API, self-hosted).
+    Formato de número: "56912345678@c.us" (agrega @c.us automáticamente).
     Devuelve (True, "") si OK, (False, error_str) si falla.
     """
     phone_clean = _normalize_phone(phone)
-    url = f"{settings.EVOLUTION_API_URL}/message/sendText/{settings.EVOLUTION_INSTANCE}"
+    # WAHA requiere el sufijo @c.us para chats individuales
+    chat_id = phone_clean if phone_clean.endswith("@c.us") else f"{phone_clean}@c.us"
+
+    url = f"{settings.EVOLUTION_API_URL}/api/sendText"
     headers = {
         "Content-Type": "application/json",
-        "apikey": settings.EVOLUTION_API_KEY,
+        "X-Api-Key": settings.EVOLUTION_API_KEY,
     }
-    payload = {"number": phone_clean, "text": message}
+    payload = {
+        "chatId": chat_id,
+        "text": message,
+        "session": settings.EVOLUTION_INSTANCE,
+    }
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             res = await client.post(url, json=payload, headers=headers)
@@ -137,7 +145,7 @@ async def _send_whatsapp_evolution(phone: str, message: str, log_event: str = "g
         return True, ""
     except Exception as exc:
         err = str(exc)
-        logger.exception("Error enviando WhatsApp (Evolution) a %s", phone)
+        logger.exception("Error enviando WhatsApp (WAHA) a %s", phone)
         _log_notification(channel="whatsapp", to=phone, subject="", ok=False, event_type=log_event)
         return False, err
 

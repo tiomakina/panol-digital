@@ -64,51 +64,56 @@ async def get_whatsapp_status(
     instance = cfg.EVOLUTION_INSTANCE
     headers = {"apikey": cfg.EVOLUTION_API_KEY}
 
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            # 1. Verificar si la instancia existe y su estado
-            r = await client.get(f"{base}/instance/connectionState/{instance}", headers=headers)
-            if r.status_code == 404:
-                # La instancia no existe todavía — crearla
-                create_res = await client.post(
-                    f"{base}/instance/create",
-                    headers=headers,
-                    json={"instanceName": instance, "qrcode": True, "integration": "WHATSAPP-BAILEYS"},
-                )
-                if create_res.status_code not in (200, 201):
-                    return {"backend": "evolution", "configured": True, "connected": False,
-                            "state": "error", "error": create_res.text, "qr": None}
-                # Pedir el QR recién creado
-                qr_res = await client.get(f"{base}/instance/connect/{instance}", headers=headers)
-                qr_data = qr_res.json() if qr_res.status_code == 200 else {}
-                return {
-                    "backend": "evolution",
-                    "configured": True,
-                    "connected": False,
-                    "state": "qr",
-                    "qr": qr_data.get("base64") or qr_data.get("qrcode", {}).get("base64"),
-                }
+    # ── WAHA API (devlikeapro/waha) ──────────────────────────────────────────
+    # Auth: X-Api-Key header
+    # Estado sesión: GET /api/sessions/{instance}  → {"status": "WORKING"|"SCAN_QR_CODE"|...}
+    # QR:           GET /api/{instance}/auth/qr    → {"mimetype":"image/png","data":"base64..."}
+    # Start:        POST /api/sessions             → {"name": instance, "start": true}
+    waha_headers = {"X-Api-Key": cfg.EVOLUTION_API_KEY, "Content-Type": "application/json"}
 
-            data = r.json()
-            state = data.get("instance", {}).get("state", "unknown")
-            connected = state == "open"
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            # 1. Verificar estado de la sesión
+            r = await client.get(f"{base}/api/sessions/{instance}", headers=waha_headers)
+
+            if r.status_code == 404:
+                # Sesión no existe — crearla y arrancarla
+                cr = await client.post(
+                    f"{base}/api/sessions",
+                    headers=waha_headers,
+                    json={"name": instance, "start": True},
+                )
+                if cr.status_code not in (200, 201):
+                    return {"backend": "waha", "configured": True, "connected": False,
+                            "state": "error", "error": cr.text, "qr": None}
+
+            # 2. Leer estado actual
+            r2 = await client.get(f"{base}/api/sessions/{instance}", headers=waha_headers)
+            sess = r2.json() if r2.status_code == 200 else {}
+            status = sess.get("status", "UNKNOWN")
+            connected = status == "WORKING"
 
             if connected:
-                return {"backend": "evolution", "configured": True, "connected": True,
+                return {"backend": "waha", "configured": True, "connected": True,
                         "state": "open", "qr": None}
 
-            # No conectado — pedir QR
-            qr_res = await client.get(f"{base}/instance/connect/{instance}", headers=headers)
+            # 3. No conectado — pedir QR
+            qr_res = await client.get(f"{base}/api/{instance}/auth/qr", headers=waha_headers)
             qr_data = qr_res.json() if qr_res.status_code == 200 else {}
+            # WAHA devuelve {"mimetype": "image/png", "data": "base64..."}
+            qr_b64 = qr_data.get("data")
+            if qr_b64 and not qr_b64.startswith("data:"):
+                qr_b64 = f"data:{qr_data.get('mimetype','image/png')};base64,{qr_b64}"
+
             return {
-                "backend": "evolution",
+                "backend": "waha",
                 "configured": True,
                 "connected": False,
-                "state": state,
-                "qr": qr_data.get("base64") or qr_data.get("qrcode", {}).get("base64"),
+                "state": status,
+                "qr": qr_b64,
             }
     except Exception as exc:
-        return {"backend": "evolution", "configured": True, "connected": False,
+        return {"backend": "waha", "configured": True, "connected": False,
                 "state": "error", "error": str(exc), "qr": None}
 
 
