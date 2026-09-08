@@ -140,8 +140,25 @@ def _log_notification(*, channel: str, to: str, subject: str, ok: bool, event_ty
         pass  # El log no debe interrumpir el flujo principal
 
 
+def _get_admin_emails() -> list[str]:
+    """
+    Devuelve la lista de emails de administración configurados en el tenant activo.
+    Filtra vacíos y duplicados, sin lanzar excepciones.
+    """
+    try:
+        from app.core.notification_config import load_notification_config
+        cfg = load_notification_config()
+        raw = cfg.get("admin_emails", [])
+        return list(dict.fromkeys(e.strip() for e in raw if e and e.strip()))
+    except Exception:
+        return []
+
+
 async def notify_low_stock(tool_name: str, available: int, min_stock: int, recipients: list[str]) -> None:
-    """Avisa a los Encargados/Jefes cuando el stock disponible baja del mínimo configurado."""
+    """
+    Avisa a los Encargados/Jefes cuando el stock disponible baja del mínimo.
+    Envía a los recipients pasados Y a todos los admin_emails configurados.
+    """
     subject = f"⚠ Stock mínimo alcanzado: {tool_name}"
     body = (
         f"Atención:\n\n"
@@ -150,22 +167,38 @@ async def notify_low_stock(tool_name: str, available: int, min_stock: int, recip
         f"Considera devolver o gestionar el reabastecimiento.\n\n"
         f"— Pañol 360"
     )
-    for email in recipients:
+    # Unión sin duplicados: destinatarios directos + lista de admins configurados
+    all_recipients = list(dict.fromkeys(recipients + _get_admin_emails()))
+    for email in all_recipients:
         await send_email(email, subject, body, log_event="low_stock")
 
 
 async def notify_overdue_loan(loan, tool, borrower) -> None:
-    """Avisa al responsable de un préstamo que acaba de marcarse como vencido."""
+    """
+    Avisa al responsable de un préstamo que acaba de marcarse como vencido.
+    Envía copia a todos los admin_emails configurados.
+    """
     subject = f"Préstamo vencido: {tool.name}"
     body = (
         f"Hola {borrower.full_name},\n\n"
         f'El préstamo de "{tool.name}" venció el {loan.due_date.strftime("%d/%m/%Y")}.\n'
         f"Por favor devolvé la herramienta al pañol a la brevedad.\n\n"
-        f"Este es un aviso automático de Pañol."
+        f"Este es un aviso automático de Pañol 360."
     )
+    # Primero al responsable directo
     await send_email(borrower.email, subject, body, log_event="overdue")
     if borrower.phone:
         await send_whatsapp(borrower.phone, body, log_event="overdue")
+
+    # Copia a administradores configurados (sin duplicar si coincide con el responsable)
+    admin_subject = f"[Copia Jefe] Préstamo vencido: {tool.name}"
+    admin_body = (
+        f"Copia de alerta enviada a {borrower.full_name} ({borrower.email}):\n\n"
+        + body
+    )
+    for admin_email in _get_admin_emails():
+        if admin_email != borrower.email:
+            await send_email(admin_email, admin_subject, admin_body, log_event="overdue")
 
 
 async def send_whatsapp_raw(phone: str, message: str, log_event: str = "general") -> tuple[bool, str]:

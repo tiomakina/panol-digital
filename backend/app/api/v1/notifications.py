@@ -29,7 +29,8 @@ class NotificationConfig(BaseModel):
     notify_overdue: bool = True
     notify_reminder: bool = True
     notify_low_stock: bool = True
-    admin_email: str = ""
+    # Lista de emails que reciben copias de las alertas (reemplaza admin_email)
+    admin_emails: list[str] = []
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────

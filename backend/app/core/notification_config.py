@@ -26,7 +26,10 @@ DEFAULT_NOTIFICATION_CONFIG: dict = {
     "notify_overdue": True,    # Avisar cuando préstamo vence
     "notify_reminder": True,   # Recordatorio 1 día antes del vencimiento
     "notify_low_stock": True,  # Avisar cuando stock mínimo se alcanza
-    "admin_email": "",         # Email adicional del Jefe para recibir resúmenes
+    # Lista de emails que reciben copias de las alertas automáticas.
+    # Reemplaza el campo "admin_email" (string único). Al cargar se migra
+    # automáticamente: si existe "admin_email" se mueve aquí.
+    "admin_emails": [],
 }
 
 # Máximo de entradas en el log de notificaciones (rotación FIFO)
@@ -56,12 +59,27 @@ def _get_log_file(tenant_id: Optional[str] = None) -> Path:
 # ── Config ─────────────────────────────────────────────────────────────────────
 
 def load_notification_config(tenant_id: Optional[str] = None) -> dict:
-    """Carga la configuración de notificaciones del tenant activo."""
+    """
+    Carga la configuración de notificaciones del tenant activo.
+
+    Migración automática: si el JSON guardado tiene el campo antiguo
+    "admin_email" (string), lo convierte a "admin_emails" (lista) para
+    mantener compatibilidad con configuraciones existentes.
+    """
     cfg_file = _get_config_file(tenant_id)
     if cfg_file.exists():
         try:
             with open(cfg_file) as f:
-                return {**DEFAULT_NOTIFICATION_CONFIG, **json.load(f)}
+                stored = json.load(f)
+
+            # ── Migración admin_email → admin_emails ──────────────────────
+            if "admin_email" in stored and "admin_emails" not in stored:
+                old_email = stored.pop("admin_email", "")
+                stored["admin_emails"] = [old_email] if old_email else []
+            # Eliminar la clave vieja si aún sobrevivió junto a la nueva
+            stored.pop("admin_email", None)
+
+            return {**DEFAULT_NOTIFICATION_CONFIG, **stored}
         except Exception:
             pass
     return DEFAULT_NOTIFICATION_CONFIG.copy()

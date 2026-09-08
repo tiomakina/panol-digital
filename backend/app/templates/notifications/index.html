@@ -135,20 +135,54 @@
           </label>
         </div>
 
-        <!-- Email adicional del Jefe -->
+        <!-- Emails de administración — lista múltiple -->
         <div style="margin-bottom:1.5rem;">
-          <p style="font-size:0.8rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 0.5rem;">
-            Email de administración (opcional)
+          <p style="font-size:0.8rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 0.4rem;">
+            Emails de administración
           </p>
-          <p style="font-size:0.78rem;color:#64748b;margin:0 0 0.5rem;">
-            Recibe copias de las alertas automáticas en este email adicional.
+          <p style="font-size:0.78rem;color:#64748b;margin:0 0 0.75rem;">
+            Estos emails reciben una copia de cada alerta automática (préstamos vencidos, stock mínimo).
+            Podés agregar el tuyo, el del dueño, el de un supervisor externo, etc.
           </p>
-          <input type="email" x-model="config.admin_email"
-                 placeholder="jefe@empresa.cl"
-                 style="width:100%;border:1px solid #e2e8f0;border-radius:8px;
-                        padding:0.5rem 0.75rem;font-size:0.875rem;outline:none;box-sizing:border-box;"
-                 @focus="$el.style.borderColor='var(--brand-primary,#4f46e5)'"
-                 @blur="$el.style.borderColor='#e2e8f0'">
+
+          <!-- Lista de emails agregados -->
+          <div style="margin-bottom:0.5rem;">
+            <template x-for="(email, idx) in config.admin_emails" :key="idx">
+              <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
+                <span style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;
+                             padding:0.35rem 0.65rem;font-size:0.82rem;color:#334155;
+                             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                      x-text="email"></span>
+                <button @click="removeAdminEmail(idx)"
+                        title="Quitar este email"
+                        style="background:none;border:1px solid #fecaca;border-radius:6px;
+                               padding:0.3rem 0.5rem;cursor:pointer;color:#dc2626;font-size:0.8rem;
+                               flex-shrink:0;line-height:1;"
+                        type="button">✕</button>
+              </div>
+            </template>
+            <div x-show="config.admin_emails.length === 0"
+                 style="font-size:0.78rem;color:#94a3b8;padding:0.4rem 0;">
+              Sin emails de administración — las alertas van solo al responsable del préstamo.
+            </div>
+          </div>
+
+          <!-- Agregar nuevo email -->
+          <div style="display:flex;gap:0.5rem;">
+            <input type="email" x-model="newAdminEmail"
+                   placeholder="nuevo@email.cl"
+                   @keydown.enter.prevent="addAdminEmail()"
+                   style="flex:1;border:1px solid #e2e8f0;border-radius:8px;
+                          padding:0.45rem 0.75rem;font-size:0.875rem;outline:none;min-width:0;"
+                   @focus="$el.style.borderColor='var(--brand-primary,#4f46e5)'"
+                   @blur="$el.style.borderColor='#e2e8f0'">
+            <button @click="addAdminEmail()" type="button"
+                    style="background:var(--brand-primary,#4f46e5);color:#fff;border:none;
+                           border-radius:8px;padding:0.45rem 0.9rem;font-size:0.82rem;
+                           font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+              + Agregar
+            </button>
+          </div>
         </div>
 
         <!-- Botones de acción -->
@@ -273,10 +307,11 @@ function notificationsApp() {
       notify_overdue: true,
       notify_reminder: true,
       notify_low_stock: true,
-      admin_email: "",
+      admin_emails: [],
       smtp_server_configured: false,
       whatsapp_server_configured: false,
     },
+    newAdminEmail: "",   // campo temporal para agregar un email
     logEntries: [],
     toast: { show: false, msg: "", ok: true },
     saving: false,
@@ -291,7 +326,12 @@ function notificationsApp() {
       try {
         const res = await authFetch('/api/v1/notifications/config');
         if (res.ok) {
-          this.config = await res.json();
+          const data = await res.json();
+          // Normalizar: asegurar que admin_emails sea siempre un array
+          if (!Array.isArray(data.admin_emails)) {
+            data.admin_emails = data.admin_emails ? [data.admin_emails] : [];
+          }
+          this.config = data;
         }
       } catch (e) {
         this.showToast("Error cargando configuración", false);
@@ -313,16 +353,40 @@ function notificationsApp() {
       }
     },
 
+    addAdminEmail() {
+      const email = (this.newAdminEmail || "").trim().toLowerCase();
+      if (!email) return;
+      // Validación básica de formato
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        this.showToast("Email inválido — revisá el formato", false);
+        return;
+      }
+      if (this.config.admin_emails.includes(email)) {
+        this.showToast("Ese email ya está en la lista", false);
+        return;
+      }
+      this.config.admin_emails.push(email);
+      this.newAdminEmail = "";
+    },
+
+    removeAdminEmail(idx) {
+      this.config.admin_emails.splice(idx, 1);
+    },
+
     async saveConfig() {
       this.saving = true;
       try {
+        // Filtrar vacíos y deduplicar antes de guardar
+        const cleanEmails = [...new Set(
+          this.config.admin_emails.map(e => e.trim().toLowerCase()).filter(Boolean)
+        )];
         const body = {
           email_enabled: this.config.email_enabled,
           whatsapp_enabled: this.config.whatsapp_enabled,
           notify_overdue: this.config.notify_overdue,
           notify_reminder: this.config.notify_reminder,
           notify_low_stock: this.config.notify_low_stock,
-          admin_email: this.config.admin_email || "",
+          admin_emails: cleanEmails,
         };
         const res = await authFetch('/api/v1/notifications/config', {
           method: 'PUT',
