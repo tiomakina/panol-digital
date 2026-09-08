@@ -124,6 +124,8 @@ Accesible solo vía Tailscale en `http://100.119.167.121:9001/tenants`.
 | Ver usuarios de un tenant | Botón **👥 Usuarios** |
 | Provisionar usuario admin | Botón **👤 Nuevo** |
 | Cambiar contraseña de usuario | En `/tenants/{alias}/users` → 🔑 Cambiar clave |
+| Pasar tenant a Producción | Botón **✅ A Prod** (quita badge DEMO de la app) |
+| Volver tenant a Demo | Botón **🟡 A Demo** (muestra badge DEMO en la app) |
 | Suspender / activar tenant | Botón **⏸ Suspender** / **▶ Activar** |
 
 ### Cómo agregar un nuevo cliente
@@ -233,6 +235,7 @@ panol-digital/
 - Ver usuarios de cada tenant
 - Cambiar contraseña de cualquier usuario desde la consola
 - Suspender / activar tenants
+- **Toggle Demo/Prod por tenant** — campo `env` en `tenants.json`; botón en el panel activa/quita el badge DEMO en la app sin reiniciar el backend
 - Red Docker interna (`panol-net`) para comunicación admin-panel ↔ backend
 - Migración idempotente (IF NOT EXISTS) — reentrante ante fallos parciales
 

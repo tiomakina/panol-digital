@@ -104,6 +104,22 @@ async def robots_txt():
     return FileResponse("app/static/robots.txt", media_type="text/plain")
 
 
+def _tenant_env(request: Request) -> str:
+    """
+    Devuelve el entorno del tenant activo ('demo' o 'prod').
+    Lee el campo 'env' desde tenants.json para que el admin-panel pueda
+    cambiar el estado por empresa sin reiniciar el backend.
+    Cae al PANOL_ENV global si el tenant no tiene el campo definido.
+    """
+    tenant_alias = request.cookies.get("panol_tenant")
+    if tenant_alias:
+        tenants = _load_tenants()
+        env = tenants.get(tenant_alias, {}).get("env")
+        if env in ("demo", "prod"):
+            return env
+    return settings.PANOL_ENV
+
+
 async def _render(request: Request, template_name: str):
     """Arma el contexto común (branding) que necesita cada pantalla server-rendered."""
     brand_css = await get_brand_css_vars()
@@ -115,7 +131,7 @@ async def _render(request: Request, template_name: str):
             "brand_css": brand_css,
             "brand": config,
             "app_name": settings.APP_NAME,
-            "panol_env": settings.PANOL_ENV,  # "demo" | "prod" — muestra badge en header
+            "panol_env": _tenant_env(request),  # "demo" | "prod" — por tenant o global
         },
     )
 
@@ -229,7 +245,7 @@ async def login_page(request: Request, panol_tenant: str = Cookie(default=None))
             "app_name": settings.APP_NAME,
             "tenant_alias": panol_tenant,
             "tenant_name": tenant_name,
-            "panol_env": settings.PANOL_ENV,
+            "panol_env": _tenant_env(request),
         },
     )
 

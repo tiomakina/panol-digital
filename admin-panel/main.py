@@ -429,6 +429,7 @@ async def tenants_list(request: Request, msg: str = "", error: str = ""):
             "alias": alias,
             "name": info.get("name", alias),
             "active": info.get("active", True),
+            "env": info.get("env", "demo"),  # "demo" | "prod"
             "users": s.get("users", "—"),
             "tools": s.get("tools", "—"),
             "active_loans": s.get("active_loans", "—"),
@@ -531,6 +532,33 @@ async def tenant_toggle(request: Request, alias: str):
 
     return RedirectResponse(
         f"/tenants?msg=Tenant+'{alias}'+{action}+correctamente.",
+        status_code=302,
+    )
+
+
+@app.post("/tenants/{alias}/toggle-env")
+async def tenant_toggle_env(request: Request, alias: str):
+    """
+    Alterna el entorno del tenant entre 'demo' y 'prod'.
+    El backend lee este valor desde tenants.json y muestra (o no)
+    el badge DEMO en el header de la aplicación para ese cliente.
+    """
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    alias = alias.strip().lower()
+    tenants = load_tenants()
+    if alias not in tenants:
+        return RedirectResponse("/tenants?error=Tenant+no+encontrado.", status_code=302)
+
+    current_env = tenants[alias].get("env", "demo")
+    new_env = "prod" if current_env == "demo" else "demo"
+    tenants[alias]["env"] = new_env
+    save_tenants(tenants)
+
+    label = "Producción ✅" if new_env == "prod" else "Demo 🟡"
+    return RedirectResponse(
+        f"/tenants?msg=Tenant+'{alias}'+cambiado+a+{label.replace(' ', '+')}.",
         status_code=302,
     )
 
