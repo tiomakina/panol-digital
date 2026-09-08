@@ -38,10 +38,28 @@ MAX_LOG_ENTRIES = 200
 
 # ── Helpers de paths ───────────────────────────────────────────────────────────
 
+def _safe_tenant_id(tenant_id: Optional[str]) -> Optional[str]:
+    """
+    Sanitiza el tenant_id antes de usarlo en rutas del sistema de archivos.
+    El tenant_id proviene de tenants.json (controlado por admin), pero como
+    medida de defensa en profundidad rechazamos cualquier valor que no sea
+    un slug alfanumérico simple, evitando path traversal si el archivo fuera
+    manipulado directamente.
+    """
+    if not tenant_id:
+        return tenant_id
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]{1,64}$', tenant_id):
+        # Alias inválido — no creamos rutas fuera del UPLOAD_DIR
+        return None
+    return tenant_id
+
+
 def _get_config_file(tenant_id: Optional[str] = None) -> Path:
     if tenant_id is None:
         from app.core.tenant import get_current_tenant
         tenant_id = get_current_tenant()
+    tenant_id = _safe_tenant_id(tenant_id)
     if tenant_id:
         return UPLOAD_DIR / tenant_id / "notification_config.json"
     return UPLOAD_DIR / "notification_config.json"
@@ -51,6 +69,7 @@ def _get_log_file(tenant_id: Optional[str] = None) -> Path:
     if tenant_id is None:
         from app.core.tenant import get_current_tenant
         tenant_id = get_current_tenant()
+    tenant_id = _safe_tenant_id(tenant_id)
     if tenant_id:
         return UPLOAD_DIR / tenant_id / "notification_log.json"
     return UPLOAD_DIR / "notification_log.json"

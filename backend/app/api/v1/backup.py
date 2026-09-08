@@ -87,7 +87,15 @@ async def upload_backup(
     bajado de otro servidor) y lo deja listo para restaurar — no lo
     restaura solo, eso es un paso aparte con POST /backup/{name}/restore.
     """
-    file_bytes = await file.read()
+    # Límite de 500 MB: los backups de instalaciones grandes pueden ser voluminosos,
+    # pero sin cota el endpoint es un vector de DoS por agotamiento de RAM/disco.
+    MAX_BACKUP_BYTES = 500 * 1024 * 1024  # 500 MB
+    file_bytes = await file.read(MAX_BACKUP_BYTES + 1)
+    if len(file_bytes) > MAX_BACKUP_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="El archivo es demasiado grande. El límite de subida de backups es 500 MB.",
+        )
     try:
         info = backup_service.save_uploaded_backup(file_bytes)
     except backup_service.BackupError as exc:

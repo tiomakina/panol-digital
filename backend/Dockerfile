@@ -59,4 +59,9 @@ USER appuser
 
 EXPOSE 8000
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --proxy-headers: FastAPI lee X-Real-IP y X-Forwarded-For que Nginx inyecta,
+# en vez de usar la IP del contenedor Nginx (172.x.x.x). Sin esto, el rate
+# limiter ve todos los requests como si vinieran del mismo origen y aplica un
+# único bucket compartido para todos los usuarios en vez de uno por IP real.
+# --forwarded-allow-ips "*": confiar en el proxy Nginx de la red Docker interna.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
