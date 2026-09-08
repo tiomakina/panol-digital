@@ -10,6 +10,7 @@ from app.api.v1 import (
     loans,
     lookups,
     maintenance,
+    notifications,
     reports,
     toolbox_audits,
     toolboxes,
@@ -32,3 +33,4 @@ api_router.include_router(maintenance.router)
 api_router.include_router(toolbox_audits.router)
 api_router.include_router(backup.router)
 api_router.include_router(indicators.router)
+api_router.include_router(notifications.router)

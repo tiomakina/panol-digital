@@ -4,6 +4,7 @@ Endpoint: /api/v1/reports/
 """
 import csv
 import io
+import zipfile
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query
@@ -303,3 +304,76 @@ async def audit_report(
         log.entity_label = labels_by_type.get(log.entity_type, {}).get(log.entity_id)
 
     return logs
+
+
+@router.get("/export.zip")
+async def export_zip(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("jefe")),
+):
+    """
+    Exporta un paquete ZIP con:
+      - inventario.csv   → todas las herramientas con valor en libros
+      - prestamos.csv    → historial completo de préstamos
+      - qr/             → imágenes PNG de los QR de cada herramienta (si existen)
+    Solo accesible para el rol Jefe.
+    """
+    from app.core.config import settings
+    from pathlib import Path
+    from app.core.tenant import get_current_tenant
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+
+        # ── inventario.csv ────────────────────────────────────────────────
+        inv_rows = await _inventory_rows(db)
+        inv_buf = io.StringIO()
+        inv_writer = csv.DictWriter(inv_buf, fieldnames=_INVENTORY_CSV_COLUMNS)
+        inv_writer.writeheader()
+        inv_writer.writerows(inv_rows)
+        zf.writestr("inventario.csv", inv_buf.getvalue())
+
+        # ── prestamos.csv ─────────────────────────────────────────────────
+        loans_stmt = select(Loan).order_by(Loan.loan_date.desc())
+        all_loans = (await db.execute(loans_stmt)).scalars().all()
+        loan_cols = ["id", "herramienta", "serie", "responsable", "fecha_prestamo",
+                     "fecha_devolucion_esperada", "fecha_devolucion_real", "estado", "condicion_devolucion"]
+        loan_buf = io.StringIO()
+        loan_writer = csv.DictWriter(loan_buf, fieldnames=loan_cols)
+        loan_writer.writeheader()
+        for loan in all_loans:
+            loan_writer.writerow({
+                "id": loan.id,
+                "herramienta": loan.tool.name if loan.tool else "",
+                "serie": loan.tool.serial_number if loan.tool else "",
+                "responsable": loan.borrower.full_name if loan.borrower else "",
+                "fecha_prestamo": loan.loan_date.date().isoformat(),
+                "fecha_devolucion_esperada": loan.due_date.date().isoformat(),
+                "fecha_devolucion_real": loan.return_date.date().isoformat() if loan.return_date else "",
+                "estado": loan.status.value,
+                "condicion_devolucion": loan.return_condition.value if loan.return_condition else "",
+            })
+        zf.writestr("prestamos.csv", loan_buf.getvalue())
+
+        # ── qr/*.png ──────────────────────────────────────────────────────
+        # Los QR se sirven desde uploads/qr/tool_{id}.png
+        tenant_id = get_current_tenant()
+        uploads_root = Path(settings.UPLOAD_DIR)
+        qr_dir = uploads_root / tenant_id / "qr" if tenant_id else uploads_root / "qr"
+        if not qr_dir.exists():
+            qr_dir = uploads_root / "qr"  # Fallback al directorio global (legacy)
+        if qr_dir.exists():
+            for qr_file in sorted(qr_dir.glob("tool_*.png")):
+                try:
+                    zf.write(qr_file, f"qr/{qr_file.name}")
+                except Exception:
+                    pass
+
+    buf.seek(0)
+    today = date.today().isoformat()
+    filename = f"panol360_export_{today}.zip"
+    return StreamingResponse(
+        iter([buf.read()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

@@ -295,6 +295,11 @@ async def backup_page(request: Request):
     return await _render(request, "backup/index.html")
 
 
+@app.get("/notifications")
+async def notifications_page(request: Request):
+    return await _render(request, "notifications/index.html")
+
+
 @app.get("/terminos")
 async def terms_page(request: Request):
     """Página de Términos y Condiciones — pública, no requiere cookie de tenant."""

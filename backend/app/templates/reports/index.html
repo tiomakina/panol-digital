@@ -30,9 +30,13 @@
         <div><span style="font-size:0.75rem;color:#64748b;">Costo total de compra</span><div style="font-size:1.25rem;font-weight:700;" x-text="'$' + inventoryTotals.total_purchase_cost.toLocaleString()"></div></div>
         <div><span style="font-size:0.75rem;color:#64748b;">Valor actual del inventario</span><div style="font-size:1.25rem;font-weight:700;" x-text="'$' + inventoryTotals.total_current_value.toLocaleString()"></div></div>
       </div>
-      <div style="display:flex;gap:0.5rem;">
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
         <button @click="downloadInventoryCsv()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ CSV</button>
         <button @click="downloadInventoryPdf()" style="background:var(--brand-primary,#4f46e5);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ PDF</button>
+        <button x-show="isJefe()" @click="downloadFullZip()" :disabled="downloadingZip"
+          style="background:#0f172a;color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;">
+          <span x-text="downloadingZip ? '⏳ Generando…' : '📦 Exportar ZIP completo'"></span>
+        </button>
       </div>
     </div>
 
@@ -238,6 +242,7 @@ function reportsPage() {
     loanStatusFilter: '',
     dateFrom: '',
     dateTo: '',
+    downloadingZip: false,
 
     async init() {
       this.user = await getCurrentUser();
@@ -286,6 +291,24 @@ function reportsPage() {
       a.download = `inventario_${new Date().toISOString().slice(0,10)}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+    },
+
+    async downloadFullZip() {
+      // Genera y descarga el ZIP completo: CSV inventario + CSV préstamos + QR codes
+      this.downloadingZip = true;
+      try {
+        const res = await authFetch('/api/v1/reports/export.zip');
+        if (!res.ok) { alert('No se pudo generar el ZIP. Intentá de nuevo.'); return; }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `panol360_export_${new Date().toISOString().slice(0,10)}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } finally {
+        this.downloadingZip = false;
+      }
     },
 
     async downloadLoansPdf() {
@@ -365,6 +388,7 @@ function reportsPage() {
 
 window.PANOL_TOUR_STEPS = [
   { selector: '#reports-tabs', title: 'Pestañas de reportes', text: 'Inventario, Préstamos, Mantenimiento y (solo Jefe) Auditoría — cada una con su información consolidada y filtros propios.' },
+  { selector: '[x-show="isJefe()"]', title: 'Exportar ZIP completo', text: 'Solo el Jefe puede descargar el paquete ZIP: incluye CSV de inventario con valor en libros, CSV de préstamos e imágenes QR de todas las herramientas.' },
 ];
 </script>
 {% endblock %}

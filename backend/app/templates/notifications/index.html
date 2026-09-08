@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}Notificaciones{% endblock %}
+
+{% block page_title %}Notificaciones{% endblock %}
+{% block page_subtitle %}
+  <span class="page-subtitle-sep">·</span>
+  <span class="page-subtitle-text">Configuración de alertas automáticas</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="notificationsApp()" x-init="init()">
+
+  <!-- Toast de feedback -->
+  <div x-show="toast.show" x-cloak x-transition
+       style="position:fixed;top:1.25rem;right:1.5rem;z-index:9999;
+              padding:0.75rem 1.25rem;border-radius:8px;font-size:0.85rem;font-weight:500;
+              box-shadow:0 4px 14px rgba(0,0,0,0.12);max-width:340px;"
+       :style="toast.ok
+         ? 'background:#dcfce7;color:#166534;border:1px solid #bbf7d0;'
+         : 'background:#fee2e2;color:#991b1b;border:1px solid #fecaca;'"
+       x-text="toast.msg">
+  </div>
+
+  <!-- Estado del servidor (solo lectura, informativo) -->
+  <div class="card" style="margin-bottom:1.5rem;">
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+           style="color:var(--brand-primary,#4f46e5);flex-shrink:0;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+      <h2 style="font-size:0.95rem;font-weight:600;margin:0;color:#1e293b;">
+        Estado del servidor
+      </h2>
+    </div>
+    <p style="font-size:0.8rem;color:#64748b;margin:0 0 1rem;">
+      Estos indicadores muestran si los canales están configurados en el servidor
+      (variables de entorno). Para activarlos contacta al administrador del sistema.
+    </p>
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <span :style="config.smtp_server_configured
+          ? 'background:#dcfce7;color:#166534;'
+          : 'background:#fee2e2;color:#991b1b;'"
+          style="padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.78rem;font-weight:600;">
+          <span x-text="config.smtp_server_configured ? '✓ SMTP configurado' : '✗ SMTP no configurado'"></span>
+        </span>
+        <span style="font-size:0.8rem;color:#64748b;">Email / SMTP</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <span :style="config.whatsapp_server_configured
+          ? 'background:#dcfce7;color:#166534;'
+          : 'background:#fee2e2;color:#991b1b;'"
+          style="padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.78rem;font-weight:600;">
+          <span x-text="config.whatsapp_server_configured ? '✓ WhatsApp configurado' : '✗ WhatsApp no configurado'"></span>
+        </span>
+        <span style="font-size:0.8rem;color:#64748b;">WhatsApp Business</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Layout de dos columnas -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+
+    <!-- ── Columna izquierda: Configuración ── -->
+    <div>
+      <div class="card">
+        <h2 style="font-size:0.95rem;font-weight:600;margin:0 0 1.25rem;color:#1e293b;">
+          ⚙️ Configuración de canales
+        </h2>
+
+        <!-- Canales -->
+        <div style="margin-bottom:1.5rem;">
+          <p style="font-size:0.8rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 0.75rem;">
+            Canales activos
+          </p>
+
+          <label style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;
+                        border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;cursor:pointer;">
+            <div>
+              <div style="font-size:0.875rem;font-weight:500;color:#1e293b;">📧 Email (SMTP)</div>
+              <div style="font-size:0.78rem;color:#64748b;">Envía alertas al email del responsable del préstamo</div>
+            </div>
+            <div style="position:relative;width:44px;height:24px;flex-shrink:0;">
+              <input type="checkbox" x-model="config.email_enabled"
+                     style="opacity:0;position:absolute;width:0;height:0;">
+              <div @click="config.email_enabled = !config.email_enabled"
+                   :style="config.email_enabled
+                     ? 'background:var(--brand-primary,#4f46e5);'
+                     : 'background:#cbd5e1;'"
+                   style="width:44px;height:24px;border-radius:12px;cursor:pointer;transition:background 0.2s;position:relative;">
+                <div :style="config.email_enabled ? 'left:22px;' : 'left:2px;'"
+                     style="position:absolute;top:2px;width:20px;height:20px;background:#fff;
+                            border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+              </div>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;
+                        border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;cursor:pointer;">
+            <div>
+              <div style="font-size:0.875rem;font-weight:500;color:#1e293b;">💬 WhatsApp Business</div>
+              <div style="font-size:0.78rem;color:#64748b;">Envía mensajes al teléfono del responsable</div>
+            </div>
+            <div style="position:relative;width:44px;height:24px;flex-shrink:0;">
+              <div @click="config.whatsapp_enabled = !config.whatsapp_enabled"
+                   :style="config.whatsapp_enabled
+                     ? 'background:var(--brand-primary,#4f46e5);'
+                     : 'background:#cbd5e1;'"
+                   style="width:44px;height:24px;border-radius:12px;cursor:pointer;transition:background 0.2s;position:relative;">
+                <div :style="config.whatsapp_enabled ? 'left:22px;' : 'left:2px;'"
+                     style="position:absolute;top:2px;width:20px;height:20px;background:#fff;
+                            border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <!-- Tipos de alertas -->
+        <div style="margin-bottom:1.5rem;">
+          <p style="font-size:0.8rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 0.75rem;">
+            Tipos de alertas
+          </p>
+
+          <label style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;
+                        border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;cursor:pointer;">
+            <input type="checkbox" x-model="config.notify_overdue"
+                   style="width:16px;height:16px;accent-color:var(--brand-primary,#4f46e5);">
+            <div>
+              <div style="font-size:0.875rem;font-weight:500;color:#1e293b;">Préstamo vencido</div>
+              <div style="font-size:0.78rem;color:#64748b;">Alerta cuando un préstamo supera la fecha de devolución</div>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;
+                        border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;cursor:pointer;">
+            <input type="checkbox" x-model="config.notify_reminder"
+                   style="width:16px;height:16px;accent-color:var(--brand-primary,#4f46e5);">
+            <div>
+              <div style="font-size:0.875rem;font-weight:500;color:#1e293b;">Recordatorio de vencimiento</div>
+              <div style="font-size:0.78rem;color:#64748b;">Aviso 1 día antes de que venza un préstamo</div>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;
+                        border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;">
+            <input type="checkbox" x-model="config.notify_low_stock"
+                   style="width:16px;height:16px;accent-color:var(--brand-primary,#4f46e5);">
+            <div>
+              <div style="font-size:0.875rem;font-weight:500;color:#1e293b;">Stock mínimo alcanzado</div>
+              <div style="font-size:0.78rem;color:#64748b;">Alerta cuando las unidades disponibles bajan del mínimo</div>
+            </div>
+          </label>
+        </div>
+
+        <!-- Email adicional del Jefe -->
+        <div style="margin-bottom:1.5rem;">
+          <p style="font-size:0.8rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 0.5rem;">
+            Email de administración (opcional)
+          </p>
+          <p style="font-size:0.78rem;color:#64748b;margin:0 0 0.5rem;">
+            Recibe copias de las alertas automáticas en este email adicional.
+          </p>
+          <input type="email" x-model="config.admin_email"
+                 placeholder="jefe@empresa.cl"
+                 style="width:100%;border:1px solid #e2e8f0;border-radius:8px;
+                        padding:0.5rem 0.75rem;font-size:0.875rem;outline:none;box-sizing:border-box;"
+                 @focus="$el.style.borderColor='var(--brand-primary,#4f46e5)'"
+                 @blur="$el.style.borderColor='#e2e8f0'">
+        </div>
+
+        <!-- Botones de acción -->
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <button @click="saveConfig()" :disabled="saving"
+                  class="btn-primary" style="flex:1;">
+            <span x-text="saving ? '⏳ Guardando…' : '💾 Guardar configuración'"></span>
+          </button>
+          <button @click="sendTestEmail()" :disabled="testingEmail || !config.smtp_server_configured"
+                  style="flex:1;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;
+                         border-radius:8px;padding:0.5rem 1rem;font-size:0.875rem;
+                         font-weight:500;cursor:pointer;transition:all 0.15s;"
+                  :title="!config.smtp_server_configured ? 'SMTP no configurado en el servidor' : 'Enviar test al email del Jefe'">
+            <span x-text="testingEmail ? '⏳ Enviando…' : '🧪 Enviar email de prueba'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Columna derecha: Log de notificaciones ── -->
+    <div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+          <h2 style="font-size:0.95rem;font-weight:600;margin:0;color:#1e293b;">
+            📋 Historial de notificaciones
+          </h2>
+          <button @click="loadLog()" style="background:none;border:1px solid #e2e8f0;
+                  border-radius:6px;padding:0.35rem 0.6rem;font-size:0.78rem;cursor:pointer;color:#475569;">
+            🔄 Actualizar
+          </button>
+        </div>
+
+        <!-- Loading -->
+        <div x-show="loadingLog" style="text-align:center;padding:2rem;color:#94a3b8;font-size:0.85rem;">
+          Cargando historial…
+        </div>
+
+        <!-- Sin entradas -->
+        <div x-show="!loadingLog && logEntries.length === 0"
+             style="text-align:center;padding:2.5rem 1rem;">
+          <div style="font-size:2rem;margin-bottom:0.5rem;">🔔</div>
+          <p style="color:#94a3b8;font-size:0.85rem;margin:0;">
+            Aún no hay notificaciones enviadas.<br>
+            Se registrarán automáticamente cuando se activen las alertas.
+          </p>
+        </div>
+
+        <!-- Tabla de log -->
+        <div x-show="!loadingLog && logEntries.length > 0"
+             style="overflow-x:auto;max-height:520px;overflow-y:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+            <thead>
+              <tr style="border-bottom:2px solid #e2e8f0;">
+                <th style="text-align:left;padding:0.5rem 0.4rem;color:#64748b;font-weight:600;white-space:nowrap;">Fecha/Hora</th>
+                <th style="text-align:left;padding:0.5rem 0.4rem;color:#64748b;font-weight:600;">Tipo</th>
+                <th style="text-align:left;padding:0.5rem 0.4rem;color:#64748b;font-weight:600;">Canal</th>
+                <th style="text-align:left;padding:0.5rem 0.4rem;color:#64748b;font-weight:600;">Destinatario</th>
+                <th style="text-align:center;padding:0.5rem 0.4rem;color:#64748b;font-weight:600;">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(entry, idx) in logEntries" :key="idx">
+                <tr style="border-bottom:1px solid #f1f5f9;" :style="idx % 2 === 0 ? '' : 'background:#fafafa;'">
+                  <td style="padding:0.45rem 0.4rem;white-space:nowrap;color:#475569;"
+                      x-text="formatTs(entry.ts)"></td>
+                  <td style="padding:0.45rem 0.4rem;">
+                    <span x-text="typeLabel(entry.type)"
+                          :style="typeStyle(entry.type)"
+                          style="padding:0.15rem 0.5rem;border-radius:9999px;font-size:0.72rem;font-weight:600;"></span>
+                  </td>
+                  <td style="padding:0.45rem 0.4rem;">
+                    <span x-text="entry.channel === 'email' ? '📧 Email' : '💬 WhatsApp'"
+                          style="font-size:0.78rem;color:#334155;"></span>
+                  </td>
+                  <td style="padding:0.45rem 0.4rem;color:#334155;max-width:160px;
+                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                      :title="entry.to" x-text="entry.to"></td>
+                  <td style="padding:0.45rem 0.4rem;text-align:center;">
+                    <span x-text="entry.ok ? '✓' : '✗'"
+                          :style="entry.ok
+                            ? 'color:#166534;font-weight:700;'
+                            : 'color:#991b1b;font-weight:700;'"></span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Contador -->
+        <div x-show="logEntries.length > 0"
+             style="margin-top:0.75rem;font-size:0.75rem;color:#94a3b8;text-align:right;">
+          Mostrando las últimas <span x-text="logEntries.length"></span> notificaciones
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.PANOL_TOUR_STEPS = [
+  {
+    selector: null,
+    title: "Centro de Notificaciones",
+    text: "Configura qué alertas automáticas envía Pañol 360 y por qué canales."
+  },
+  {
+    selector: ".card",
+    title: "Estado del servidor",
+    text: "Indica si SMTP y WhatsApp están habilitados en el servidor. El administrador del sistema debe configurar las credenciales en el archivo .env."
+  }
+];
+
+function notificationsApp() {
+  return {
+    config: {
+      email_enabled: true,
+      whatsapp_enabled: false,
+      notify_overdue: true,
+      notify_reminder: true,
+      notify_low_stock: true,
+      admin_email: "",
+      smtp_server_configured: false,
+      whatsapp_server_configured: false,
+    },
+    logEntries: [],
+    toast: { show: false, msg: "", ok: true },
+    saving: false,
+    testingEmail: false,
+    loadingLog: true,
+
+    async init() {
+      await Promise.all([this.loadConfig(), this.loadLog()]);
+    },
+
+    async loadConfig() {
+      try {
+        const res = await authFetch('/api/v1/notifications/config');
+        if (res.ok) {
+          this.config = await res.json();
+        }
+      } catch (e) {
+        this.showToast("Error cargando configuración", false);
+      }
+    },
+
+    async loadLog() {
+      this.loadingLog = true;
+      try {
+        const res = await authFetch('/api/v1/notifications/log?limit=100');
+        if (res.ok) {
+          const data = await res.json();
+          this.logEntries = data.entries || [];
+        }
+      } catch (e) {
+        // fallo silencioso
+      } finally {
+        this.loadingLog = false;
+      }
+    },
+
+    async saveConfig() {
+      this.saving = true;
+      try {
+        const body = {
+          email_enabled: this.config.email_enabled,
+          whatsapp_enabled: this.config.whatsapp_enabled,
+          notify_overdue: this.config.notify_overdue,
+          notify_reminder: this.config.notify_reminder,
+          notify_low_stock: this.config.notify_low_stock,
+          admin_email: this.config.admin_email || "",
+        };
+        const res = await authFetch('/api/v1/notifications/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          this.showToast("✓ Configuración guardada", true);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          this.showToast("Error al guardar: " + (err.detail || res.status), false);
+        }
+      } catch (e) {
+        this.showToast("Error de red al guardar", false);
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async sendTestEmail() {
+      this.testingEmail = true;
+      try {
+        const res = await authFetch('/api/v1/notifications/test', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          this.showToast("✓ " + (data.message || "Email de prueba enviado"), true);
+          await this.loadLog(); // refrescar el log
+        } else {
+          const err = await res.json().catch(() => ({}));
+          this.showToast("No se pudo enviar: " + (err.detail || "Error de servidor"), false);
+        }
+      } catch (e) {
+        this.showToast("Error de red", false);
+      } finally {
+        this.testingEmail = false;
+      }
+    },
+
+    showToast(msg, ok = true) {
+      this.toast = { show: true, msg, ok };
+      setTimeout(() => { this.toast.show = false; }, 4000);
+    },
+
+    formatTs(ts) {
+      if (!ts) return "—";
+      // ts es ISO 8601: "2026-09-08T14:30:00"
+      const d = new Date(ts);
+      if (isNaN(d)) return ts;
+      return d.toLocaleString('es-CL', {
+        day:'2-digit', month:'2-digit', year:'2-digit',
+        hour:'2-digit', minute:'2-digit'
+      });
+    },
+
+    typeLabel(type) {
+      const labels = {
+        overdue: "Vencido",
+        reminder: "Recordatorio",
+        low_stock: "Stock mínimo",
+        test: "Prueba",
+        general: "General",
+      };
+      return labels[type] || type;
+    },
+
+    typeStyle(type) {
+      const styles = {
+        overdue:    "background:#fee2e2;color:#991b1b;",
+        reminder:   "background:#fef9c3;color:#854d0e;",
+        low_stock:  "background:#ffedd5;color:#9a3412;",
+        test:       "background:#e0e7ff;color:#3730a3;",
+        general:    "background:#f1f5f9;color:#475569;",
+      };
+      return styles[type] || styles.general;
+    },
+  };
+}
+</script>
+{% endblock %}
