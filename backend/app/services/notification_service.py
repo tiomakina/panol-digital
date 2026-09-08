@@ -46,34 +46,52 @@ def _notification_enabled(channel: str) -> bool:
     return True
 
 
-async def send_email(to: str, subject: str, body: str, log_event: str = "general") -> bool:
-    """Envía un email por SMTP. Devuelve False (sin excepción) si no está configurado o falla."""
+async def send_email(to: str, subject: str, body: str, log_event: str = "general") -> tuple[bool, str]:
+    """
+    Envía un email por SMTP.
+    Devuelve (True, "") si OK, o (False, "mensaje de error") si falla.
+    Nunca lanza excepción — los fallos se registran en el log del tenant.
+
+    Modo TLS automático:
+      - Puerto 465 → use_tls=True  (SSL/TLS implícito)
+      - Cualquier otro puerto → start_tls=True (STARTTLS, típico en 587)
+    """
     if not email_configured():
+        msg = "SMTP no configurado en el servidor (faltan SMTP_HOST, SMTP_USER o SMTP_PASSWORD en .env)"
         logger.info("SMTP no configurado — se omite el email a %s (%s)", to, subject)
-        return False
+        return False, msg
     if not _notification_enabled("email"):
+        msg = "Email desactivado en la configuración de notificaciones del tenant"
         logger.info("Email desactivado en config del tenant — se omite email a %s (%s)", to, subject)
-        return False
+        return False, msg
     try:
         message = EmailMessage()
         message["From"] = settings.SMTP_FROM or settings.SMTP_USER
         message["To"] = to
         message["Subject"] = subject
         message.set_content(body)
-        await aiosmtplib.send(
-            message,
+
+        # Puerto 465 = SSL/TLS directo; 587 u otros = STARTTLS
+        use_ssl = int(settings.SMTP_PORT or 587) == 465
+        kwargs: dict = dict(
             hostname=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
+            port=int(settings.SMTP_PORT or 587),
             username=settings.SMTP_USER,
             password=settings.SMTP_PASSWORD,
-            start_tls=True,
         )
+        if use_ssl:
+            kwargs["use_tls"] = True
+        else:
+            kwargs["start_tls"] = True
+
+        await aiosmtplib.send(message, **kwargs)
         _log_notification(channel="email", to=to, subject=subject, ok=True, event_type=log_event)
-        return True
-    except Exception:
+        return True, ""
+    except Exception as exc:
+        err = str(exc)
         logger.exception("Error enviando email a %s", to)
         _log_notification(channel="email", to=to, subject=subject, ok=False, event_type=log_event)
-        return False
+        return False, err
 
 
 async def send_whatsapp(phone: str, message: str, log_event: str = "general") -> bool:
@@ -148,3 +166,9 @@ async def notify_overdue_loan(loan, tool, borrower) -> None:
     await send_email(borrower.email, subject, body, log_event="overdue")
     if borrower.phone:
         await send_whatsapp(borrower.phone, body, log_event="overdue")
+
+
+async def send_whatsapp_raw(phone: str, message: str, log_event: str = "general") -> tuple[bool, str]:
+    """Alias con firma consistente (bool, error_str) para send_whatsapp."""
+    ok = await send_whatsapp(phone, message, log_event=log_event)
+    return ok, ""

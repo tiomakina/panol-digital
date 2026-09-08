@@ -84,11 +84,14 @@ async def send_test_notification(
     user: User = Depends(require_role("jefe")),
 ):
     """
-    Envía una notificación de prueba al email del Jefe activo
-    para verificar que el canal de email funciona.
+    Envía una notificación de prueba al email del Jefe activo.
+    El log se escribe automáticamente dentro de send_email.
+    Devuelve el error exacto de SMTP para facilitar el diagnóstico.
     """
     from app.services.notification_service import send_email
-    from app.core.notification_config import append_notification_log
+
+    if not user.email:
+        raise HTTPException(400, "Tu perfil no tiene email configurado — agrégalo en Usuarios primero.")
 
     subject = "✅ Pañol 360 — Prueba de notificación"
     body = (
@@ -97,18 +100,10 @@ async def send_test_notification(
         "Si recibiste este email, el canal de email está funcionando correctamente.\n\n"
         "— Pañol 360"
     )
-    ok = await send_email(user.email, subject, body, log_event="test")
-    append_notification_log(
-        event_type="test",
-        channel="email",
-        to=user.email,
-        subject=subject,
-        ok=ok,
-    )
+    ok, err = await send_email(user.email, subject, body, log_event="test")
     if not ok:
-        raise HTTPException(
-            503,
-            "No se pudo enviar el email de prueba. "
-            "Verifica que SMTP esté configurado en el servidor.",
-        )
+        detail = "No se pudo enviar el email de prueba."
+        if err:
+            detail += f" Error SMTP: {err}"
+        raise HTTPException(503, detail)
     return {"ok": True, "message": f"Email de prueba enviado a {user.email}"}
