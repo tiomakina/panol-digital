@@ -365,6 +365,29 @@ async def fetch_backend_stats() -> dict:
         return {"tenants": {}, "stats": {}, "error": str(exc)}
 
 
+async def backend_tenant_users(tenant_id: str) -> list:
+    """Llama al endpoint /api/v1/admin/tenant-users/{tenant_id} del backend."""
+    async with httpx.AsyncClient(base_url=BACKEND_URL, timeout=8.0) as client:
+        resp = await client.get(
+            f"/api/v1/admin/tenant-users/{tenant_id}",
+            headers={"x-admin-token": ADMIN_API_SECRET},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def backend_change_password(tenant_id: str, rut: str, new_password: str) -> dict:
+    """Llama a POST /api/v1/admin/change-password en el backend."""
+    async with httpx.AsyncClient(base_url=BACKEND_URL, timeout=8.0) as client:
+        resp = await client.post(
+            "/api/v1/admin/change-password",
+            headers={"x-admin-token": ADMIN_API_SECRET},
+            json={"tenant_id": tenant_id, "rut": rut, "new_password": new_password},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
 async def backend_provision(tenant_id: str, rut: str, email: str, full_name: str, password: str) -> dict:
     """Llama a POST /api/v1/admin/provision en el backend."""
     async with httpx.AsyncClient(base_url=BACKEND_URL, timeout=10.0) as client:
@@ -549,5 +572,74 @@ async def tenant_add_user(
 
     return RedirectResponse(
         f"/tenants?msg=Usuario+provisionado+en+'{alias}'+correctamente.",
+        status_code=302,
+    )
+
+
+@app.get("/tenants/{alias}/users", response_class=HTMLResponse)
+async def tenant_users_list(request: Request, alias: str, msg: str = "", error: str = ""):
+    """Muestra los usuarios de un tenant y permite cambiar contraseñas."""
+    if not is_authenticated(request):
+        return RedirectResponse(f"/login?next=/tenants/{alias}/users", status_code=302)
+
+    alias = alias.strip().lower()
+    tenants = load_tenants()
+    if alias not in tenants:
+        return RedirectResponse("/tenants?error=Tenant+no+encontrado.", status_code=302)
+
+    tenant_info = tenants[alias]
+    users = []
+    fetch_error = ""
+    try:
+        users = await backend_tenant_users(alias)
+    except Exception as exc:
+        fetch_error = str(exc)
+
+    return templates.TemplateResponse("tenant_users.html", {
+        "request": request,
+        "title": APP_TITLE,
+        "user": request.session.get("user", "admin"),
+        "alias": alias,
+        "tenant_name": tenant_info.get("name", alias),
+        "users": users,
+        "msg": msg,
+        "error": error,
+        "fetch_error": fetch_error,
+    })
+
+
+@app.post("/tenants/{alias}/users/{rut}/set-password")
+async def tenant_set_password(
+    request: Request,
+    alias: str,
+    rut: str,
+    new_password: str = Form(...),
+):
+    """Cambia la contraseña de un usuario específico en un tenant."""
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    alias = alias.strip().lower()
+    rut = rut.strip()
+
+    if len(new_password) < 8:
+        return RedirectResponse(
+            f"/tenants/{alias}/users?error=La+contraseña+debe+tener+al+menos+8+caracteres.",
+            status_code=302,
+        )
+
+    try:
+        await backend_change_password(alias, rut, new_password)
+    except httpx.HTTPStatusError as exc:
+        err = exc.response.text.replace(" ", "+")[:200]
+        return RedirectResponse(f"/tenants/{alias}/users?error={err}", status_code=302)
+    except Exception as exc:
+        return RedirectResponse(
+            f"/tenants/{alias}/users?error={str(exc).replace(' ', '+')[:200]}",
+            status_code=302,
+        )
+
+    return RedirectResponse(
+        f"/tenants/{alias}/users?msg=Contraseña+actualizada+correctamente.",
         status_code=302,
     )

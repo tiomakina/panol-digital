@@ -58,6 +58,12 @@ class ProvisionRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    tenant_id: str
+    rut: str
+    new_password: str
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def load_tenants() -> dict:
@@ -133,6 +139,66 @@ async def get_stats(
         "tenants": tenants,
         "stats": stats,
     }
+
+
+@router.get("/tenant-users/{tenant_id}")
+async def list_tenant_users(
+    tenant_id: str,
+    _: AdminAuth,
+    db: AsyncSession = Depends(get_superuser_db),
+):
+    """Lista todos los usuarios de un tenant con sus datos básicos."""
+    from app.models.user import User
+
+    result = await db.execute(
+        select(User).where(User.tenant_id == tenant_id).order_by(User.full_name)
+    )
+    users = result.scalars().all()
+    return [
+        {
+            "id": u.id,
+            "rut": u.rut,
+            "full_name": u.full_name,
+            "email": u.email,
+            "role": u.role,
+            "is_active": u.is_active,
+        }
+        for u in users
+    ]
+
+
+@router.post("/change-password", status_code=200)
+async def change_user_password(
+    body: ChangePasswordRequest,
+    _: AdminAuth,
+    db: AsyncSession = Depends(get_superuser_db),
+):
+    """Cambia la contraseña de un usuario en un tenant."""
+    from app.core.security import hash_password
+    from app.models.user import User
+
+    result = await db.execute(
+        select(User).where(
+            User.rut == body.rut,
+            User.tenant_id == body.tenant_id,
+        )
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Usuario con RUT {body.rut} no encontrado en tenant {body.tenant_id}.",
+        )
+
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="La contraseña debe tener al menos 8 caracteres.",
+        )
+
+    user.hashed_password = hash_password(body.new_password)
+    await db.flush()
+    return {"ok": True, "rut": user.rut, "tenant_id": body.tenant_id}
 
 
 @router.post("/provision", status_code=201)

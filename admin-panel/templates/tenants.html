@@ -213,11 +213,16 @@
         <td class="num-cell {% if t.active_loans == 0 %}zero{% endif %}">{{ t.active_loans }}</td>
         <td>
           <div class="action-row">
+            <!-- Ver usuarios -->
+            <a href="/tenants/{{ t.alias }}/users" class="btn btn-ghost btn-sm"
+              title="Ver y gestionar usuarios">
+              👥 Usuarios
+            </a>
             <!-- Agregar usuario -->
             <button class="btn btn-ghost btn-sm"
               onclick="openAddUser('{{ t.alias }}', '{{ t.name }}')"
               title="Provisionar usuario admin">
-              👤 Usuario
+              👤 Nuevo
             </button>
             <!-- Toggle estado -->
             <form method="post" action="/tenants/{{ t.alias }}/toggle" style="display:inline;">
