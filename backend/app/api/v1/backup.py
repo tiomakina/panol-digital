@@ -25,8 +25,15 @@ def _client_ip(request: Request) -> str | None:
 
 def _to_out(info: backup_service.BackupInfo) -> BackupOut:
     return BackupOut(
-        name=info.name, created_at=info.created_at,
-        database_size=info.database_size, uploads_size=info.uploads_size,
+        name=info.name,
+        created_at=info.created_at,
+        database_size=info.database_size,
+        uploads_size=info.uploads_size,
+        verified=info.verified,
+        table_count=info.table_count,
+        upload_file_count=info.upload_file_count,
+        includes_tenants=info.includes_tenants,
+        verification_errors=info.verification_errors,
     )
 
 
@@ -92,6 +99,24 @@ async def upload_backup(
     )
     await db.commit()
     return _to_out(info)
+
+
+@router.post("/{name}/verify", response_model=BackupOut)
+async def verify_backup(name: str, user: User = Depends(require_role("jefe"))):
+    """
+    Verifica la integridad de un backup ya existente sin hacer restore.
+    Comprueba que database.sql tenga tablas y que uploads.tar.gz se pueda abrir.
+    Guarda el resultado en manifest.json dentro del backup.
+    """
+    try:
+        backup_service.verify_backup(name)
+    except backup_service.BackupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    # Recargar la lista para devolver el BackupInfo actualizado
+    for b in backup_service.list_backups():
+        if b.name == name:
+            return _to_out(b)
+    raise HTTPException(status_code=404, detail="Backup no encontrado tras verificar")
 
 
 @router.post("/{name}/restore")

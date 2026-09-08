@@ -10,47 +10,114 @@
 <div x-data="backupPage()" x-init="init()">
 
   <div x-show="message" x-transition style="margin-bottom:1rem;">
-    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'" style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
+    <div class="badge" :class="messageType === 'error' ? 'badge-danger' : 'badge-success'"
+         style="padding:0.5rem 0.9rem;font-size:0.85rem;" x-text="message"></div>
   </div>
 
-  <p style="font-size:0.82rem;color:#64748b;margin:0 0 1rem;">
-    Un respaldo incluye toda la base de datos (herramientas, préstamos, cajas, usuarios, todo) y los archivos
-    subidos (logos, fotos, códigos QR, vales). Restaurar uno reemplaza lo que hay ahora — usalo solo ante una
-    catástrofe real.
-  </p>
+  <!-- Descripción de qué incluye el respaldo -->
+  <div class="card" style="margin-bottom:1rem;background:#f8fafc;border-color:#e2e8f0;padding:1rem 1.25rem;">
+    <p style="font-size:0.82rem;color:#475569;margin:0 0 0.5rem;font-weight:600;">¿Qué incluye cada respaldo?</p>
+    <div style="display:flex;flex-wrap:wrap;gap:0.75rem;font-size:0.8rem;color:#64748b;">
+      <span>🗄️ <strong>Base de datos completa</strong> — herramientas, préstamos, cajas, usuarios, mantenimiento, auditoría</span>
+      <span>·</span>
+      <span>📁 <strong>Archivos subidos</strong> — logos, fotos, QR, vales PDF, documentos de mantenimiento</span>
+      <span>·</span>
+      <span>🏢 <strong>Registro de clientes</strong> — tenants.json (multi-empresa)</span>
+    </div>
+    <p style="font-size:0.78rem;color:#94a3b8;margin:0.5rem 0 0;">
+      Restaurar uno <strong>reemplaza todo lo que hay ahora</strong> — usalo solo ante una catástrofe real o para migrar el sistema a otro servidor.
+    </p>
+  </div>
 
+  <!-- Acciones -->
   <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
     <button id="backup-btn-generar" @click="createBackup()" class="btn-primary" :disabled="creating">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-      <span x-text="creating ? 'Generando...' : 'Generar respaldo ahora'"></span>
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      <span x-text="creating ? 'Generando y verificando…' : 'Generar respaldo ahora'"></span>
     </button>
-    <label style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">
-      Subir un respaldo (.zip)
-      <input type="file" accept=".zip" style="display:none;" @change="uploadBackup($event.target.files[0]); $event.target.value = ''">
+    <label style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;
+                  cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;">
+      📤 Subir un respaldo (.zip)
+      <input type="file" accept=".zip" style="display:none;"
+             @change="uploadBackup($event.target.files[0]); $event.target.value = ''">
     </label>
   </div>
 
+  <!-- Tabla de respaldos -->
   <div id="backup-table" class="card" style="padding:0;overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
       <thead>
-        <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
-          <th style="padding:0.75rem 1rem;">Fecha</th><th style="padding:0.75rem 1rem;">Nombre</th>
-          <th style="padding:0.75rem 1rem;">Base de datos</th><th style="padding:0.75rem 1rem;">Archivos subidos</th>
-          <th style="padding:0.75rem 1rem;"></th>
+        <tr style="text-align:left;border-bottom:2px solid #e2e8f0;color:#64748b;background:#f8fafc;">
+          <th style="padding:0.75rem 1rem;font-weight:600;">Fecha (hora Chile)</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Nombre</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Base de datos</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Archivos</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;">Estado</th>
+          <th style="padding:0.75rem 1rem;font-weight:600;"></th>
         </tr>
       </thead>
       <tbody>
-        <template x-if="loading"><tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando...</td></tr></template>
-        <template x-if="!loading && backups.length === 0"><tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Todavía no hay respaldos generados.</td></tr></template>
+        <template x-if="loading">
+          <tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Cargando…</td></tr>
+        </template>
+        <template x-if="!loading && backups.length === 0">
+          <tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Todavía no hay respaldos generados.</td></tr>
+        </template>
         <template x-for="b in backups" :key="b.name">
           <tr style="border-bottom:1px solid #f1f5f9;">
             <td style="padding:0.65rem 1rem;font-weight:600;" x-text="formatDateTime(b.created_at)"></td>
-            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="b.name"></td>
-            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatSize(b.database_size)"></td>
-            <td style="padding:0.65rem 1rem;color:#64748b;" x-text="formatSize(b.uploads_size)"></td>
+            <td style="padding:0.65rem 1rem;color:#64748b;font-size:0.78rem;">
+              <span x-text="b.name"></span>
+              <template x-if="b.includes_tenants">
+                <span title="Incluye tenants.json" style="margin-left:0.3rem;font-size:0.7rem;background:#e0f2fe;color:#0369a1;padding:0.1rem 0.35rem;border-radius:4px;">+tenants</span>
+              </template>
+            </td>
+            <td style="padding:0.65rem 1rem;color:#64748b;">
+              <span x-text="formatSize(b.database_size)"></span>
+              <template x-if="b.table_count != null">
+                <span :title="b.table_count + ' tablas encontradas en el SQL'"
+                      style="display:block;font-size:0.72rem;color:#94a3b8;"
+                      x-text="b.table_count + ' tablas'"></span>
+              </template>
+            </td>
+            <td style="padding:0.65rem 1rem;color:#64748b;">
+              <span x-text="formatSize(b.uploads_size)"></span>
+              <template x-if="b.upload_file_count != null">
+                <span :title="b.upload_file_count + ' archivos en uploads.tar.gz'"
+                      style="display:block;font-size:0.72rem;color:#94a3b8;"
+                      x-text="b.upload_file_count + ' archivos'"></span>
+              </template>
+            </td>
+            <td style="padding:0.65rem 1rem;">
+              <template x-if="b.verified === true">
+                <span style="color:#166534;font-weight:600;font-size:0.8rem;" title="Backup verificado: el SQL y el tar.gz son válidos">✅ Verificado</span>
+              </template>
+              <template x-if="b.verified === false">
+                <span style="color:#991b1b;font-weight:600;font-size:0.8rem;"
+                      :title="b.verification_errors.join(' | ')">❌ Error</span>
+              </template>
+              <template x-if="b.verified === null || b.verified === undefined">
+                <button @click="verifyOne(b)"
+                        style="background:none;border:1px dashed #cbd5e1;border-radius:5px;
+                               padding:0.2rem 0.5rem;font-size:0.75rem;color:#64748b;cursor:pointer;"
+                        title="Verificar integridad de este backup">
+                  🔍 Verificar
+                </button>
+              </template>
+            </td>
             <td style="padding:0.65rem 1rem;text-align:right;white-space:nowrap;">
-              <button @click="downloadBackup(b)" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">Descargar</button>
-              <button @click="openRestore(b)" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">Restaurar</button>
+              <button @click="downloadBackup(b)"
+                      style="background:none;border:1px solid #e2e8f0;border-radius:6px;
+                             padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;margin-right:0.35rem;">
+                💾 Descargar
+              </button>
+              <button @click="openRestore(b)"
+                      style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;
+                             padding:0.3rem 0.6rem;cursor:pointer;font-size:0.75rem;">
+                🔄 Restaurar
+              </button>
             </td>
           </tr>
         </template>
@@ -59,20 +126,37 @@
   </div>
 
   <!-- Modal restaurar -->
-  <div x-show="showRestoreModal" x-cloak style="position:fixed;inset:0;background:rgba(15,23,42,0.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;" @click.self="showRestoreModal = false">
+  <div x-show="showRestoreModal" x-cloak
+       style="position:fixed;inset:0;background:rgba(15,23,42,0.6);display:flex;
+              align-items:center;justify-content:center;z-index:50;padding:1rem;"
+       @click.self="showRestoreModal = false">
     <div class="card" style="max-width:440px;width:100%;" x-show="restoring">
       <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.5rem;color:#991b1b;">⚠ Restaurar respaldo</h2>
       <p style="font-size:0.85rem;color:#475569;margin:0 0 1rem;">
-        Esto va a <strong>reemplazar toda la base de datos y los archivos subidos actuales</strong> por lo que
-        había en el respaldo "<span x-text="restoring ? restoring.name : ''"></span>" (<span x-text="restoring ? formatDateTime(restoring.created_at) : ''"></span>).
+        Esto va a <strong>reemplazar toda la base de datos y los archivos subidos actuales</strong>
+        por lo que había en el respaldo "<span x-text="restoring ? restoring.name : ''"></span>"
+        (<span x-text="restoring ? formatDateTime(restoring.created_at) : ''"></span>).
         No se puede deshacer. Todo lo que se haya cargado después de ese respaldo se pierde.
       </p>
+      <template x-if="restoring && restoring.verified === false">
+        <div style="background:#fee2e2;border:1px solid #fecaca;border-radius:6px;
+                    padding:0.6rem 0.8rem;margin-bottom:1rem;font-size:0.8rem;color:#991b1b;">
+          ⚠ Este backup <strong>no pasó la verificación</strong>. Restaurarlo puede dejar el sistema en un estado inconsistente.
+          <br><span x-text="(restoring.verification_errors || []).join(' · ')"></span>
+        </div>
+      </template>
       <label class="field-label">Ingresá tu contraseña para confirmar *</label>
-      <input type="password" x-model="restoreForm.current_password" class="field-input" style="margin-bottom:1rem;" @keydown.enter.prevent="confirmRestore()">
+      <input type="password" x-model="restoreForm.current_password" class="field-input"
+             style="margin-bottom:1rem;" @keydown.enter.prevent="confirmRestore()">
       <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
-        <button @click="showRestoreModal = false" style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">Cancelar</button>
-        <button @click="confirmRestore()" :disabled="restoringInProgress" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
-          <span x-text="restoringInProgress ? 'Restaurando...' : 'Restaurar ahora'"></span>
+        <button @click="showRestoreModal = false"
+                style="background:#f1f5f9;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
+          Cancelar
+        </button>
+        <button @click="confirmRestore()" :disabled="restoringInProgress"
+                style="background:#dc2626;color:#fff;border:none;border-radius:6px;
+                       padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
+          <span x-text="restoringInProgress ? 'Restaurando…' : 'Restaurar ahora'"></span>
         </button>
       </div>
     </div>
@@ -81,7 +165,8 @@
 
 <style>
 .field-label { display:block;font-size:0.75rem;font-weight:500;color:#475569;margin-bottom:0.25rem; }
-.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
+.field-input { width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;
+               font-size:0.85rem;font-family:inherit;box-sizing:border-box; }
 [x-cloak] { display:none !important; }
 </style>
 {% endblock %}
@@ -120,8 +205,29 @@ function backupPage() {
         this.showMessage(err.detail || 'No se pudo generar el respaldo', 'error');
         return;
       }
-      this.showMessage('Respaldo generado correctamente');
+      const info = await res.json();
+      const estado = info.verified === true
+        ? '✅ Verificado (' + (info.table_count || 0) + ' tablas, ' + (info.upload_file_count || 0) + ' archivos)'
+        : (info.verified === false ? '❌ Generado pero con errores: ' + (info.verification_errors || []).join(', ') : '');
+      this.showMessage('Respaldo generado correctamente. ' + estado);
       await this.loadBackups();
+    },
+
+    async verifyOne(b) {
+      const res = await authFetch(`/api/v1/backup/${b.name}/verify`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        this.showMessage(err.detail || 'Error al verificar', 'error');
+        return;
+      }
+      const updated = await res.json();
+      // Actualizar la fila en memoria sin recargar toda la tabla
+      const idx = this.backups.findIndex(x => x.name === b.name);
+      if (idx !== -1) this.backups[idx] = updated;
+      this.showMessage(updated.verified
+        ? `✅ Verificado: ${updated.table_count} tablas, ${updated.upload_file_count} archivos`
+        : `❌ Falló: ${(updated.verification_errors || []).join(' · ')}`
+      , updated.verified ? 'success' : 'error');
     },
 
     async uploadBackup(file) {
@@ -134,7 +240,7 @@ function backupPage() {
         this.showMessage(err.detail || 'No se pudo subir el respaldo', 'error');
         return;
       }
-      this.showMessage('Respaldo subido — ya aparece en la lista para restaurarlo');
+      this.showMessage('Respaldo subido y verificado — ya aparece en la lista para restaurarlo');
       await this.loadBackups();
     },
 
@@ -163,7 +269,9 @@ function backupPage() {
       }
       this.restoringInProgress = true;
       const res = await authFetch(`/api/v1/backup/${this.restoring.name}/restore`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.restoreForm),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.restoreForm),
       });
       this.restoringInProgress = false;
       if (!res.ok) {
@@ -175,7 +283,16 @@ function backupPage() {
       this.showMessage('Sistema restaurado correctamente');
     },
 
-    formatDateTime(value) { return value ? new Date(value).toLocaleString('es-AR') : '—'; },
+    formatDateTime(value) {
+      if (!value) return '—';
+      // El backend envía ISO con offset de zona horaria Chile (p.ej. "2026-09-08T11:34:00-04:00")
+      // El navegador lo interpreta automáticamente y toLocaleString lo muestra en hora local.
+      return new Date(value).toLocaleString('es-CL', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      });
+    },
+
     formatSize(bytes) {
       if (bytes == null) return '—';
       if (bytes < 1024) return bytes + ' B';
@@ -186,14 +303,22 @@ function backupPage() {
     showMessage(msg, type = 'success') {
       this.message = msg;
       this.messageType = type;
-      setTimeout(() => { this.message = ''; }, 4000);
+      setTimeout(() => { this.message = ''; }, 6000);
     },
   };
 }
 
 window.PANOL_TOUR_STEPS = [
-  { selector: '#backup-btn-generar', title: 'Generar respaldo', text: 'Crea un archivo descargable con toda la base de datos y los archivos subidos (fotos, logos, documentos).' },
-  { selector: '#backup-table', title: 'Historial de respaldos', text: 'Descargá cualquiera, o restauralo — te va a pedir confirmar con tu contraseña antes, porque reemplaza los datos actuales.' },
+  {
+    selector: '#backup-btn-generar',
+    title: 'Generar respaldo',
+    text: 'Crea un archivo con la base de datos completa + fotos + logos + registro de clientes. Se verifica automáticamente al generarse.'
+  },
+  {
+    selector: '#backup-table',
+    title: 'Historial de respaldos',
+    text: 'La columna Estado confirma que el archivo es válido. Descargalo para guardarlo en otro lugar, o Restauralo para volver a ese punto — te pide la contraseña antes.'
+  },
 ];
 </script>
 {% endblock %}
