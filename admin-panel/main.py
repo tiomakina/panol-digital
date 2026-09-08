@@ -388,19 +388,30 @@ async def backend_change_password(tenant_id: str, rut: str, new_password: str) -
         return resp.json()
 
 
-async def backend_provision(tenant_id: str, rut: str, email: str, full_name: str, password: str) -> dict:
+async def backend_provision(
+    tenant_id: str,
+    rut: str,
+    email: str,
+    full_name: str,
+    password: str,
+    company_name: str | None = None,
+) -> dict:
     """Llama a POST /api/v1/admin/provision en el backend."""
+    payload: dict = {
+        "tenant_id": tenant_id,
+        "rut": rut,
+        "email": email,
+        "full_name": full_name,
+        "password": password,
+    }
+    if company_name:
+        payload["company_name"] = company_name
+
     async with httpx.AsyncClient(base_url=BACKEND_URL, timeout=10.0) as client:
         resp = await client.post(
             "/api/v1/admin/provision",
             headers={"x-admin-token": ADMIN_API_SECRET},
-            json={
-                "tenant_id": tenant_id,
-                "rut": rut,
-                "email": email,
-                "full_name": full_name,
-                "password": password,
-            },
+            json=payload,
         )
         resp.raise_for_status()
         return resp.json()
@@ -496,6 +507,7 @@ async def tenant_create(
                 email=email_final,
                 full_name=f"Administrador {name.strip()}",
                 password=password,
+                company_name=name.strip(),  # Inicializa branding con nombre real de empresa
             )
         except httpx.HTTPStatusError as exc:
             body = exc.response.text

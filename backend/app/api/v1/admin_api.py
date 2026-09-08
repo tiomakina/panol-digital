@@ -56,6 +56,7 @@ class ProvisionRequest(BaseModel):
     email: str
     full_name: str
     password: str
+    company_name: str | None = None  # Si se pasa, inicializa brand_config con ese nombre
 
 
 class ChangePasswordRequest(BaseModel):
@@ -246,6 +247,16 @@ async def provision_tenant_user(
     db.add(user)
     await db.flush()
     await db.refresh(user)
+
+    # Inicializar branding del tenant con el nombre de empresa si se proporcionó.
+    # Esto evita que el nuevo cliente vea "Mi Empresa" (el default) en su panel.
+    if body.company_name:
+        from app.core.branding import init_brand_for_tenant
+        try:
+            init_brand_for_tenant(body.tenant_id, body.company_name)
+        except Exception:
+            # No fatal: el usuario podrá configurar el branding desde el panel
+            pass
 
     return {
         "id": user.id,
