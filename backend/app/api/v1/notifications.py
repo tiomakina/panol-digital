@@ -99,11 +99,26 @@ async def get_whatsapp_status(
 
             # 3. No conectado — pedir QR
             qr_res = await client.get(f"{base}/api/{instance}/auth/qr", headers=waha_headers)
-            qr_data = qr_res.json() if qr_res.status_code == 200 else {}
-            # WAHA devuelve {"mimetype": "image/png", "data": "base64..."}
-            qr_b64 = qr_data.get("data")
-            if qr_b64 and not qr_b64.startswith("data:"):
-                qr_b64 = f"data:{qr_data.get('mimetype','image/png')};base64,{qr_b64}"
+            qr_b64 = None
+            if qr_res.status_code == 200:
+                ct = qr_res.headers.get("content-type", "")
+                if "image" in ct:
+                    # WAHA devuelve PNG crudo — lo convertimos a data URI
+                    import base64 as _b64
+                    mime = ct.split(";")[0].strip() or "image/png"
+                    qr_b64 = f"data:{mime};base64,{_b64.b64encode(qr_res.content).decode()}"
+                else:
+                    # Respuesta JSON: {"mimetype": "image/png", "data": "base64..."}
+                    try:
+                        qr_data = qr_res.json()
+                        raw = qr_data.get("data") or qr_data.get("qr") or ""
+                        if raw and not raw.startswith("data:"):
+                            mime = qr_data.get("mimetype") or qr_data.get("mime") or "image/png"
+                            qr_b64 = f"data:{mime};base64,{raw}"
+                        elif raw:
+                            qr_b64 = raw
+                    except Exception:
+                        pass
 
             return {
                 "backend": "waha",
