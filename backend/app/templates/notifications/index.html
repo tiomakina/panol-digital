@@ -75,45 +75,44 @@
             Canales activos
           </p>
 
-          <!-- Toggle Email — @click en el contenedor externo, hijos con pointer-events:none -->
-          <div @click="config.email_enabled = !config.email_enabled"
-               role="switch" :aria-checked="config.email_enabled" tabindex="0"
-               @keydown.space.prevent="config.email_enabled = !config.email_enabled"
-               style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;
-                      border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;cursor:pointer;
-                      user-select:none;">
-            <div style="pointer-events:none;">
+          <!-- Toggle Email: label+checkbox oculto con x-model (mismo patrón que los checkboxes de alertas) -->
+          <label for="tog-email"
+                 style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;
+                        border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;cursor:pointer;">
+            <div>
               <div style="font-size:0.875rem;font-weight:500;color:#1e293b;">📧 Email (SMTP)</div>
               <div style="font-size:0.78rem;color:#64748b;">Envía alertas al email del responsable del préstamo</div>
             </div>
+            <input id="tog-email" type="checkbox" x-model="config.email_enabled"
+                   style="display:none;">
+            <!-- pill visual: solo Alpine lo mueve, no tiene handler propio -->
             <div :style="config.email_enabled ? 'background:var(--brand-primary,#4f46e5);' : 'background:#cbd5e1;'"
                  style="width:44px;height:24px;border-radius:12px;transition:background 0.2s;
-                        position:relative;flex-shrink:0;pointer-events:none;">
+                        position:relative;flex-shrink:0;">
               <div :style="config.email_enabled ? 'left:22px;' : 'left:2px;'"
                    style="position:absolute;top:2px;width:20px;height:20px;background:#fff;
                           border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
             </div>
-          </div>
+          </label>
 
           <!-- Toggle WhatsApp -->
-          <div @click="config.whatsapp_enabled = !config.whatsapp_enabled"
-               role="switch" :aria-checked="config.whatsapp_enabled" tabindex="0"
-               @keydown.space.prevent="config.whatsapp_enabled = !config.whatsapp_enabled"
-               style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;
-                      border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;cursor:pointer;
-                      user-select:none;">
-            <div style="pointer-events:none;">
+          <label for="tog-whatsapp"
+                 style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;
+                        border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;cursor:pointer;">
+            <div>
               <div style="font-size:0.875rem;font-weight:500;color:#1e293b;">💬 WhatsApp Business</div>
               <div style="font-size:0.78rem;color:#64748b;">Envía mensajes al teléfono del responsable</div>
             </div>
+            <input id="tog-whatsapp" type="checkbox" x-model="config.whatsapp_enabled"
+                   style="display:none;">
             <div :style="config.whatsapp_enabled ? 'background:var(--brand-primary,#4f46e5);' : 'background:#cbd5e1;'"
                  style="width:44px;height:24px;border-radius:12px;transition:background 0.2s;
-                        position:relative;flex-shrink:0;pointer-events:none;">
+                        position:relative;flex-shrink:0;">
               <div :style="config.whatsapp_enabled ? 'left:22px;' : 'left:2px;'"
                    style="position:absolute;top:2px;width:20px;height:20px;background:#fff;
                           border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
             </div>
-          </div>
+          </label>
         </div>
 
         <!-- Tipos de alertas -->
