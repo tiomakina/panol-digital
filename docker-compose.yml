@@ -146,7 +146,7 @@ services:
   # Permite enviar mensajes a cualquier número sin cuenta Meta Business.
   # El Jefe escanea un QR con su celular desde Notificaciones → WhatsApp.
   evolution-api:
-    image: atendai/evolution-api:latest
+    image: evolutionapi/evolution-api:latest
     restart: unless-stopped
     expose:
       - "8080"
