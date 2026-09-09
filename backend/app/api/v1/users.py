@@ -63,18 +63,14 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("jefe")),
 ):
-    """Crea un nuevo usuario. Solo el Jefe puede dar de alta cuentas."""
-    # Verificar duplicados DENTRO DEL MISMO TENANT (email y RUT son únicos
-    # por tenant, no globalmente — el mismo email puede existir en dos empresas).
-    existing = await db.execute(
-        select(User).where(
-            User.email == payload.email,
-            User.tenant_id == current_user.tenant_id,
-        )
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email en esta empresa")
+    """Crea un nuevo usuario. Solo el Jefe puede dar de alta cuentas.
 
+    Reglas de unicidad:
+    - RUT: único por empresa (una persona solo puede tener un usuario por tenant).
+    - Email y teléfono: SIN restricción de unicidad — varias personas de la
+      misma empresa pueden compartir una cuenta de correo o un teléfono.
+    """
+    # Solo validamos que el RUT no esté repetido DENTRO del mismo tenant.
     existing_rut = await db.execute(
         select(User).where(
             User.rut == payload.rut,
@@ -139,17 +135,8 @@ async def update_user(
 
     updates = payload.model_dump(exclude_unset=True)
 
-    if "email" in updates and updates["email"] != target.email:
-        dup = await db.execute(
-            select(User).where(
-                User.email == updates["email"],
-                User.id != target.id,
-                User.tenant_id == target.tenant_id,
-            )
-        )
-        if dup.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email en esta empresa")
-
+    # Email y teléfono no tienen restricción de unicidad — pueden repetirse.
+    # Solo el RUT es único por empresa.
     if "rut" in updates and updates["rut"] != target.rut:
         dup = await db.execute(
             select(User).where(
@@ -181,17 +168,12 @@ async def update_user(
     except IntegrityError as exc:
         await db.rollback()
         err_str = str(exc).lower()
-        if "email" in err_str:
-            raise HTTPException(
-                status_code=400,
-                detail="Ese email ya está en uso en esta empresa — usá uno diferente.",
-            )
         if "rut" in err_str:
             raise HTTPException(
                 status_code=400,
                 detail="Ese RUT ya está registrado en esta empresa.",
             )
-        raise HTTPException(status_code=400, detail="Error de duplicado al guardar — revisá email y RUT.")
+        raise HTTPException(status_code=400, detail="Error al guardar — revisá los datos ingresados.")
     await db.refresh(target)
     return target
 
