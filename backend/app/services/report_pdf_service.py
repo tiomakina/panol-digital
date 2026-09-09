@@ -265,32 +265,28 @@ def generate_maintenance_pdf(rows: list[dict]) -> bytes:
         return f"${float(v):,.0f}"
 
     def _status_label(s: str) -> str:
+        # Valores reales del enum MaintenanceStatus
         return {
             "en_proceso": "En proceso",
-            "completado": "Completado",
-            "cancelado": "Cancelado",
-        }.get(s, s)
+            "resuelto": "Resuelto",
+            "sin_solucion": "Sin solución",
+        }.get(s, s or "—")
 
-    headers = ["#", "Herramienta", "Título", "Técnico", "Fecha envío", "Fecha retorno", "Costo", "Estado"]
+    headers = ["#", "Herramienta", "Motivo", "Proveedor / Técnico", "Fecha envío", "Fecha retorno", "Estado"]
     data_rows = [
         [
             str(r.get("id", "")),
             r.get("tool_name") or "—",
-            (r.get("title") or "Sin título")[:40],
-            r.get("technician") or "—",
+            (r.get("reason") or "—")[:50],
+            r.get("provider") or "—",
             _fmt_date(r.get("sent_date")),
-            _fmt_date(r.get("return_date")),
-            _fmt_money(r.get("cost")),
+            _fmt_date(r.get("resolved_date")),
             _status_label(r.get("status", "")),
         ]
         for r in rows
     ]
 
-    total_cost = sum(float(r.get("cost") or 0) for r in rows)
-    summary = (
-        f"Total registros: {len(rows)}    "
-        f"Costo total: ${total_cost:,.0f}"
-    )
+    summary = f"Total registros: {len(rows)}"
 
     story = [
         _header_table("Reporte de Mantenimiento", f"Al {date.today().strftime('%d/%m/%Y')}"),

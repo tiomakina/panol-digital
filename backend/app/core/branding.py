@@ -1,16 +1,18 @@
 """
 Motor de Branding Dinámico — componente central del sistema.
 Gestiona logos, paletas de colores y CSS custom properties por empresa.
+
+Multi-tenant: cada empresa tiene su propia carpeta dentro de UPLOAD_DIR.
+  Ruta por tenant: {UPLOAD_DIR}/{tenant_id}/brand_config.json
+  Ruta global (fallback sin tenant): {UPLOAD_DIR}/brand_config.json
 """
-import os
 import json
 from pathlib import Path
 from typing import Optional
 from app.core.config import settings
 
 
-# Ruta al archivo de configuración de branding
-BRAND_CONFIG_FILE = Path(settings.UPLOAD_DIR) / "brand_config.json"
+UPLOAD_DIR = Path(settings.UPLOAD_DIR)
 
 DEFAULT_BRAND = {
     "company_name": settings.COMPANY_NAME,
@@ -29,19 +31,63 @@ DEFAULT_BRAND = {
 }
 
 
-def load_brand_config() -> dict:
-    """Carga la configuración de branding desde disco."""
-    if BRAND_CONFIG_FILE.exists():
-        with open(BRAND_CONFIG_FILE) as f:
-            return {**DEFAULT_BRAND, **json.load(f)}
+def _get_brand_config_file(tenant_id: Optional[str] = None) -> Path:
+    """
+    Devuelve la ruta del brand_config.json para el tenant dado.
+    Si no se pasa tenant_id, lo lee del contexto activo de la petición.
+    """
+    if tenant_id is None:
+        # Import diferido para evitar ciclo con tenant.py al cargar el módulo
+        from app.core.tenant import get_current_tenant
+        tenant_id = get_current_tenant()
+
+    if tenant_id:
+        # Ruta per-tenant: uploads/{tenant_id}/brand_config.json
+        return UPLOAD_DIR / tenant_id / "brand_config.json"
+    # Fallback para peticiones sin tenant (portal, legales, etc.)
+    return UPLOAD_DIR / "brand_config.json"
+
+
+def load_brand_config(tenant_id: Optional[str] = None) -> dict:
+    """
+    Carga la configuración de branding del tenant activo desde disco.
+    Si no existe un archivo para ese tenant, devuelve los valores por defecto.
+    """
+    cfg_file = _get_brand_config_file(tenant_id)
+    if cfg_file.exists():
+        try:
+            with open(cfg_file) as f:
+                return {**DEFAULT_BRAND, **json.load(f)}
+        except Exception:
+            pass
     return DEFAULT_BRAND.copy()
 
 
-def save_brand_config(config: dict) -> None:
-    """Guarda la configuración de branding en disco."""
-    BRAND_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(BRAND_CONFIG_FILE, "w") as f:
+def save_brand_config(config: dict, tenant_id: Optional[str] = None) -> None:
+    """
+    Guarda la configuración de branding del tenant activo en disco.
+    Crea el directorio del tenant si no existe.
+    """
+    cfg_file = _get_brand_config_file(tenant_id)
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cfg_file, "w") as f:
         json.dump(config, f, indent=2)
+
+
+def init_brand_for_tenant(tenant_id: str, company_name: str) -> None:
+    """
+    Inicializa el brand_config.json para un nuevo tenant con su nombre de empresa.
+    Se llama al provisionar un nuevo cliente para que no vea "Mi Empresa" por defecto.
+    No sobreescribe si ya existe configuración propia del tenant.
+    """
+    cfg_file = _get_brand_config_file(tenant_id)
+    if cfg_file.exists():
+        return  # Ya tiene configuración propia, no tocar
+    brand = DEFAULT_BRAND.copy()
+    brand["company_name"] = company_name
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cfg_file, "w") as f:
+        json.dump(brand, f, indent=2)
 
 
 async def get_brand_css_vars() -> str:

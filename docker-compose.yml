@@ -57,9 +57,15 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
-      # WhatsApp Business API (opcional)
+      # WhatsApp vía Meta Business API (legacy)
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      # WhatsApp vía WAHA (self-hosted — recomendado)
+      # Puerto 3000 es el default de WAHA. La key debe coincidir con
+      # WHATSAPP_API_KEY del contenedor evolution-api.
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
       # Entorno: "demo" muestra badge naranja en la UI; "prod" no muestra nada.
       # Cambiar a PANOL_ENV=prod en el .env del servidor de producción.
       PANOL_ENV: ${PANOL_ENV:-demo}
@@ -104,6 +110,9 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
     depends_on:
       - db
       - redis
@@ -128,10 +137,29 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
     depends_on:
       - db
       - redis
       - celery_worker
+    networks:
+      - panol-net
+
+  # WAHA (WhatsApp HTTP API) — WhatsApp self-hosted via WhatsApp Web
+  # Imagen pública, sin cuenta Meta. El Jefe escanea un QR con su celular
+  # desde Notificaciones → WhatsApp para conectar la sesión.
+  # Docs: https://waha.devlike.pro
+  evolution-api:
+    image: devlikeapro/waha
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      WHATSAPP_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
+    volumes:
+      - evolution_data:/app/.sessions
     networks:
       - panol-net
 
@@ -215,6 +243,7 @@ volumes:
   postgres_data:
   redis_data:
   portainer_data:
+  evolution_data:   # Sesiones de WhatsApp Web (Evolution API)
 
 # Red interna explícita — todos los servicios que necesitan comunicarse
 # entre sí (backend ↔ admin-panel, backend ↔ celery, etc.) deben declarar

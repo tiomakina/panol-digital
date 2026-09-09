@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -151,7 +152,22 @@ async def update_user(
             ip_address=_client_ip(request),
         )
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        err_str = str(exc).lower()
+        if "email" in err_str:
+            raise HTTPException(
+                status_code=400,
+                detail="Ese email ya está en uso por otra cuenta del sistema — usá uno diferente.",
+            )
+        if "rut" in err_str:
+            raise HTTPException(
+                status_code=400,
+                detail="Ese RUT ya está registrado en otra cuenta del sistema.",
+            )
+        raise HTTPException(status_code=400, detail="Error de duplicado al guardar — revisá email y RUT.")
     await db.refresh(target)
     return target
 

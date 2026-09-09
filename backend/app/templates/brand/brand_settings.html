@@ -222,9 +222,12 @@
         </button>
       </div>
 
-      <!-- Mensaje de confirmación -->
-      <div x-show="saveMessage" x-transition style="margin-top:1rem;padding:0.75rem 1rem;background:#dcfce7;color:#166534;border-radius:8px;font-size:0.875rem;">
-        ✓ <span x-text="saveMessage"></span>
+      <!-- Mensaje de confirmación / error -->
+      <div x-show="saveMessage" x-transition
+        :style="saveIsError
+          ? 'margin-top:1rem;padding:0.75rem 1rem;background:#fee2e2;color:#991b1b;border-radius:8px;font-size:0.875rem;'
+          : 'margin-top:1rem;padding:0.75rem 1rem;background:#dcfce7;color:#166534;border-radius:8px;font-size:0.875rem;'">
+        <span x-text="saveIsError ? '✗ ' : '✓ '"></span><span x-text="saveMessage"></span>
       </div>
     </div>
 
@@ -314,6 +317,7 @@ function brandEditor() {
     uploading: false,
     saving: false,
     saveMessage: "",
+    saveIsError: false,
     
     colorPresets: [
       { name: "Índigo", primary: "#4f46e5", secondary: "#06b6d4", accent: "#f59e0b", sidebar: "#1e1b4b" },
@@ -409,7 +413,7 @@ function brandEditor() {
           this.showMessage("Logo subido correctamente");
         }
       } catch (err) {
-        this.showMessage("Error al subir el logo");
+        this.showMessage("Error al subir el logo. Verificá el formato y tamaño.", true);
       }
       this.uploading = false;
     },
@@ -422,14 +426,22 @@ function brandEditor() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(this.brand)
         });
+        if (!res.ok) {
+          // Respuesta HTTP de error (4xx / 5xx)
+          const err = await res.json().catch(() => ({}));
+          this.showMessage(err.detail || `Error del servidor (${res.status})`, true);
+          return;
+        }
         const data = await res.json();
         if (data.success) {
           this.showMessage("Cambios guardados. La paleta se aplicará en toda la aplicación.");
         }
       } catch (err) {
-        this.showMessage("Error al guardar");
+        // Error de red o JSON inválido
+        this.showMessage("Error de conexión. Recargá la página e intentá de nuevo.", true);
+      } finally {
+        this.saving = false;
       }
-      this.saving = false;
     },
 
     async resetBrand() {
@@ -439,9 +451,10 @@ function brandEditor() {
       if (data.success) location.reload();
     },
 
-    showMessage(msg) {
+    showMessage(msg, isError = false) {
+      this.saveIsError = isError;
       this.saveMessage = msg;
-      setTimeout(() => { this.saveMessage = ""; }, 4000);
+      setTimeout(() => { this.saveMessage = ""; this.saveIsError = false; }, 5000);
     }
   }
 }

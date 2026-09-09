@@ -76,30 +76,40 @@ def extract_dominant_colors(image_bytes: bytes) -> list:
         return []
 
 async def save_logo(file_bytes: bytes, filename: str) -> Optional[str]:
-    """Guarda el logo y retorna la URL."""
+    """Guarda el logo del tenant activo y retorna la URL."""
     valid, mime_type = validate_image_magic_bytes(file_bytes)
     if not valid:
         return None
-    
+
     # Verificar tamaño
     if len(file_bytes) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         return None
-    
+
     # Redimensionar si es imagen bitmap (no SVG)
     if mime_type != "image/svg+xml":
         file_bytes = resize_logo(file_bytes)
-    
+
+    # Directorio del tenant activo (multi-tenant)
+    from app.core.tenant import get_current_tenant
+    tenant_id = get_current_tenant()
+    if tenant_id:
+        logo_dir = UPLOAD_DIR / tenant_id
+        url_prefix = f"/static/uploads/{tenant_id}"
+    else:
+        logo_dir = UPLOAD_DIR
+        url_prefix = "/static/uploads"
+
     # Generar nombre seguro
     ext = filename.rsplit(".", 1)[-1].lower()
     safe_name = f"logo.{ext}"
-    
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    logo_path = UPLOAD_DIR / safe_name
-    
+
+    logo_dir.mkdir(parents=True, exist_ok=True)
+    logo_path = logo_dir / safe_name
+
     with open(logo_path, "wb") as f:
         f.write(file_bytes)
-    
-    return f"/static/uploads/{safe_name}"
+
+    return f"{url_prefix}/{safe_name}"
 
 async def update_brand_from_logo(logo_bytes: bytes) -> dict:
     """Extrae colores del logo y genera paleta de branding."""

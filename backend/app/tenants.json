@@ -1,10 +1,12 @@
 {
   "vms-ingenieria": {
     "name": "VMS Ingeniería",
-    "active": true
+    "active": true,
+    "env": "demo"
   },
   "ah": {
     "name": "Comercializadora AH Ltda.",
-    "active": true
+    "active": true,
+    "env": "demo"
   }
 }

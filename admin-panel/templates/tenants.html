@@ -134,6 +134,16 @@
   .btn-success { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
   .btn-success:hover { background: var(--green); color: #fff; border-color: transparent; }
 
+  /* Badges de entorno */
+  .env-badge {
+    display: inline-flex; align-items: center; gap: .25rem;
+    padding: .1rem .45rem; border-radius: 20px;
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; white-space: nowrap;
+  }
+  .env-demo { background: rgba(245,158,11,.15); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
+  .env-prod { background: rgba(34,197,94,.12); color: #4ade80; border: 1px solid rgba(34,197,94,.25); }
+
   @media (max-width: 640px) {
     .tenants-table th:nth-child(3),
     .tenants-table td:nth-child(3),
@@ -198,7 +208,14 @@
       {% for t in tenant_list %}
       <tr>
         <td>
-          <div class="tenant-name">{{ t.name }}</div>
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+            <span class="tenant-name">{{ t.name }}</span>
+            {% if t.env == "prod" %}
+            <span class="env-badge env-prod">✅ Prod</span>
+            {% else %}
+            <span class="env-badge env-demo">🟡 Demo</span>
+            {% endif %}
+          </div>
           <div class="tenant-alias">{{ t.alias }}</div>
         </td>
         <td>
@@ -212,27 +229,37 @@
         <td class="num-cell {% if t.tools == 0 %}zero{% endif %}">{{ t.tools }}</td>
         <td class="num-cell {% if t.active_loans == 0 %}zero{% endif %}">{{ t.active_loans }}</td>
         <td>
-          <div class="action-row">
-            <!-- Ver usuarios -->
-            <a href="/tenants/{{ t.alias }}/users" class="btn btn-ghost btn-sm"
-              title="Ver y gestionar usuarios">
-              👥 Usuarios
-            </a>
-            <!-- Agregar usuario -->
-            <button class="btn btn-ghost btn-sm"
-              onclick="openAddUser('{{ t.alias }}', '{{ t.name }}')"
-              title="Provisionar usuario admin">
-              👤 Nuevo
-            </button>
-            <!-- Toggle estado -->
-            <form method="post" action="/tenants/{{ t.alias }}/toggle" style="display:inline;">
+          <div style="display:flex;flex-direction:column;gap:.35rem;">
+            <!-- Fila 1: acciones principales -->
+            <div class="action-row" style="flex-wrap:nowrap;">
+              <a href="/tenants/{{ t.alias }}/users" class="btn btn-ghost btn-sm"
+                title="Ver y gestionar usuarios">👥 Usuarios</a>
+              <button class="btn btn-ghost btn-sm"
+                onclick="openAddUser('{{ t.alias }}', '{{ t.name }}')"
+                title="Provisionar usuario">👤 Nuevo</button>
+              <form method="post" action="/tenants/{{ t.alias }}/toggle-env" style="margin:0;">
+                {% if t.env == "prod" %}
+                <button type="submit" class="btn btn-sm btn-danger"
+                  onclick="return confirm('¿Volver {{ t.alias }} a DEMO?\nEl badge naranja aparecerá en la app.')"
+                  title="Pasar a Demo" style="white-space:nowrap;">🟡 A Demo</button>
+                {% else %}
+                <button type="submit" class="btn btn-sm btn-success"
+                  onclick="return confirm('¿Pasar {{ t.alias }} a PRODUCCIÓN?\nEl badge DEMO desaparecerá de su app.')"
+                  title="Activar producción" style="white-space:nowrap;">✅ A Prod</button>
+                {% endif %}
+              </form>
+            </div>
+            <!-- Fila 2: acción destructiva separada -->
+            <form method="post" action="/tenants/{{ t.alias }}/toggle" style="margin:0;">
               {% if t.active %}
-              <button type="submit" class="btn btn-sm btn-danger"
-                onclick="return confirm('¿Suspender {{ t.alias }}? Los usuarios no podrán iniciar sesión.')"
-                title="Suspender tenant">⏸ Suspender</button>
+              <button type="submit" class="btn btn-sm btn-danger" style="width:100%;"
+                onclick="return confirm('¿Suspender {{ t.alias }}? Los usuarios no podrán iniciar sesión.')">
+                ⏸ Suspender acceso
+              </button>
               {% else %}
-              <button type="submit" class="btn btn-sm btn-success"
-                title="Reactivar tenant">▶ Activar</button>
+              <button type="submit" class="btn btn-sm btn-success" style="width:100%;">
+                ▶ Reactivar acceso
+              </button>
               {% endif %}
             </form>
           </div>

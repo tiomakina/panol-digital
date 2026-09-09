@@ -69,8 +69,17 @@ class Settings(BaseSettings):
     # Dirección que aparece como remitente en los emails. Si está vacía, usa SMTP_USER.
     # Con Resend: SMTP_USER="resend" pero SMTP_FROM="noreply@tudominio.cl"
     SMTP_FROM: str = ""
+    # WhatsApp vía Meta Business API (legacy — usar Evolution API en su lugar)
     WHATSAPP_API_TOKEN: str = ""
     WHATSAPP_PHONE_ID: str = ""
+
+    # WhatsApp vía Evolution API (self-hosted, recomendado)
+    # EVOLUTION_API_URL apunta al contenedor interno de Docker.
+    # EVOLUTION_API_KEY es el apikey configurado en el contenedor.
+    # EVOLUTION_INSTANCE es el nombre de la instancia de WhatsApp Web.
+    EVOLUTION_API_URL: str = "http://evolution-api:3000"
+    EVOLUTION_API_KEY: str = ""
+    EVOLUTION_INSTANCE: str = "panol360"
     COMPANY_NAME: str = "Mi Empresa"
     COMPANY_PRIMARY_COLOR: str = "#4f46e5"
     COMPANY_SECONDARY_COLOR: str = "#06b6d4"

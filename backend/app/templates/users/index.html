@@ -401,7 +401,14 @@ function usersPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        this.showMessage(err.detail || 'Error al guardar', 'error');
+        // err.detail puede ser string (HTTPException) o array (Pydantic 422)
+        let msg = 'Error al guardar';
+        if (err.detail) {
+          msg = Array.isArray(err.detail)
+            ? err.detail.map(e => e.msg || JSON.stringify(e)).join(' · ')
+            : String(err.detail);
+        }
+        this.showMessage(msg, 'error');
         return;
       }
       this.showEditModal = false;
