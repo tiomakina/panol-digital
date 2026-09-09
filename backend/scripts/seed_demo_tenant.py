@@ -63,21 +63,21 @@ PROVIDERS_DATA = [
 # (name, brand, category, location, status, price)
 TOOLS_DATA = [
     # Disponibles
-    ("Taladro percutor 18V", "Makita", "Eléctricas",  "Bodega Principal", "available",    189_990),
-    ("Amoladora angular 7\"","Bosch",  "Eléctricas",  "Bodega Principal", "available",    124_990),
-    ("Nivel láser de línea", "Leica",  "Medición",    "Bodega Principal", "available",    459_990),
-    ("Multímetro digital",   "Fluke",  "Medición",    "Bodega Principal", "available",    89_990),
-    ("Martillo demoledor",   "Hilti",  "Eléctricas",  "Taller Central",   "available",    389_990),
-    ("Llave de torque 3/4\"","Stanley","Manuales",    "Bodega Principal", "available",    67_990),
-    ("Compresor 50L",        "Schulz", "Neumáticas",  "Taller Central",   "available",    329_990),
-    # Prestadas (status assigned below after loan creation)
-    ("Sierra circular 7 1/4\"","DeWalt","Eléctricas", "Bodega Principal", "available",    215_990),
-    ("Pistola de impacto 1/2\"","Gedore","Neumáticas","Bodega Principal", "available",    178_990),
-    ("Cinta métrica 10m",    "Stanley","Manuales",    "Bodega Principal", "available",    12_990),
-    # En mantenimiento (assigned below)
-    ("Pulidora de banco",    "Bosch",  "Eléctricas",  "Taller Central",   "available",    145_990),
+    ("Taladro percutor 18V", "Makita", "Eléctricas",  "Bodega Principal", "disponible",   189_990),
+    ("Amoladora angular 7\"","Bosch",  "Eléctricas",  "Bodega Principal", "disponible",   124_990),
+    ("Nivel láser de línea", "Leica",  "Medición",    "Bodega Principal", "disponible",   459_990),
+    ("Multímetro digital",   "Fluke",  "Medición",    "Bodega Principal", "disponible",   89_990),
+    ("Martillo demoledor",   "Hilti",  "Eléctricas",  "Taller Central",   "disponible",   389_990),
+    ("Llave de torque 3/4\"","Stanley","Manuales",    "Bodega Principal", "disponible",   67_990),
+    ("Compresor 50L",        "Schulz", "Neumáticas",  "Taller Central",   "disponible",   329_990),
+    # Prestadas (status asignado luego al crear el préstamo)
+    ("Sierra circular 7 1/4\"","DeWalt","Eléctricas", "Bodega Principal", "disponible",   215_990),
+    ("Pistola de impacto 1/2\"","Gedore","Neumáticas","Bodega Principal", "disponible",   178_990),
+    ("Cinta métrica 10m",    "Stanley","Manuales",    "Bodega Principal", "disponible",   12_990),
+    # En mantenimiento (status asignado luego)
+    ("Pulidora de banco",    "Bosch",  "Eléctricas",  "Taller Central",   "disponible",   145_990),
     # Dada de baja
-    ("Taladro antiguo 12V",  "Makita", "Eléctricas",  "Bodega Principal", "retired",      0),
+    ("Taladro antiguo 12V",  "Makita", "Eléctricas",  "Bodega Principal", "baja",         0),
 ]
 
 
@@ -211,7 +211,7 @@ async def seed():
                     status=lstatus, notes="Préstamo de demo",
                 )
                 db.add(loan)
-                tool.status = ToolStatus.prestada
+                tool.status = ToolStatus.prestado
                 print(f"  ✅ {tname} → {borrower.full_name} ({lstatus.value})")
 
         await db.flush()
@@ -236,7 +236,7 @@ async def seed():
                     status=MaintenanceStatus.en_proceso,
                 )
                 db.add(rec)
-                maint_tool.status = ToolStatus.en_mantenimiento
+                maint_tool.status = ToolStatus.mantenimiento
                 print("  ✅ Pulidora de banco → en mantenimiento (Bosch)")
 
         await db.flush()
