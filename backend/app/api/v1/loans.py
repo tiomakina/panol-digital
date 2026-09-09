@@ -112,32 +112,41 @@ async def create_loan(
     # cayó por debajo del mínimo configurado. Se hace fuera de la transacción
     # para no bloquear la respuesta si la notificación tarda.
     if tool.min_stock is not None and tool.min_stock > 0:
-        # Clave de agrupación igual que en tools.py::_group_key
+        # Clave de agrupación igual que en tools.py::_group_key, filtrada por tenant
         if tool.product_code:
             avail_stmt = select(Tool).where(
                 Tool.product_code == tool.product_code,
+                Tool.tenant_id == tool.tenant_id,
                 Tool.status == ToolStatus.disponible,
             )
         else:
             avail_stmt = select(Tool).where(
                 Tool.name == tool.name,
                 Tool.brand == tool.brand,
+                Tool.tenant_id == tool.tenant_id,
                 Tool.status == ToolStatus.disponible,
             )
         avail_result = await db.execute(avail_stmt)
         available = len(avail_result.scalars().all())
         if available < tool.min_stock:
-            # Obtener emails de Encargados y Jefes para avisar
+            # Encargados y Jefes del MISMO tenant — emails y teléfonos para
+            # notificar por email Y por WhatsApp
             managers_result = await db.execute(
                 select(User).where(
                     User.role.in_(["encargado", "jefe"]),
                     User.is_active == True,  # noqa: E712
+                    User.tenant_id == tool.tenant_id,
                 )
             )
-            recipients = [u.email for u in managers_result.scalars().all() if u.email]
+            managers = managers_result.scalars().all()
+            email_recipients = [u.email for u in managers if u.email]
+            phone_recipients = [u.phone for u in managers if u.phone]
             import asyncio as _asyncio
             _asyncio.ensure_future(
-                notify_low_stock(tool.name, available, tool.min_stock, recipients)
+                notify_low_stock(
+                    tool.name, available, tool.min_stock,
+                    email_recipients, phone_recipients,
+                )
             )
 
     return loan

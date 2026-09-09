@@ -242,23 +242,59 @@ def _get_admin_emails() -> list[str]:
         return []
 
 
-async def notify_low_stock(tool_name: str, available: int, min_stock: int, recipients: list[str]) -> None:
+async def notify_low_stock(
+    tool_name: str,
+    available: int,
+    min_stock: int,
+    email_recipients: list[str],
+    phone_recipients: list[str] | None = None,
+) -> None:
     """
     Avisa a los Encargados/Jefes cuando el stock disponible baja del mínimo.
-    Envía a los recipients pasados Y a todos los admin_emails configurados.
+
+    - Email: a email_recipients + admin_emails configurados en el tenant.
+    - WhatsApp: a phone_recipients (si WhatsApp está configurado y habilitado).
+
+    Respeta la flag notify_low_stock de la configuración del tenant.
     """
+    # Verificar que las notificaciones de stock mínimo estén activas en el tenant
+    try:
+        from app.core.notification_config import load_notification_config
+        cfg = load_notification_config()
+        if not cfg.get("notify_low_stock", True):
+            logger.info("notify_low_stock desactivado en config del tenant — se omite alerta para '%s'", tool_name)
+            return
+    except Exception:
+        pass  # Si no se puede leer la config, enviar igual (fail-open)
+
     subject = f"⚠ Stock mínimo alcanzado: {tool_name}"
     body = (
         f"Atención:\n\n"
         f'La herramienta "{tool_name}" tiene solo {available} unidad(es) disponible(s), '
         f"que está por debajo del mínimo configurado ({min_stock}).\n\n"
-        f"Considera devolver o gestionar el reabastecimiento.\n\n"
+        f"Considera gestionar el reabastecimiento.\n\n"
         f"— Pañol 360"
     )
-    # Unión sin duplicados: destinatarios directos + lista de admins configurados
-    all_recipients = list(dict.fromkeys(recipients + _get_admin_emails()))
-    for email in all_recipients:
+
+    # ── Email ──────────────────────────────────────────────────────────────
+    # Unión sin duplicados: destinatarios directos + admin_emails del tenant
+    all_emails = list(dict.fromkeys(email_recipients + _get_admin_emails()))
+    for email in all_emails:
         await send_email(email, subject, body, log_event="low_stock")
+
+    # ── WhatsApp ───────────────────────────────────────────────────────────
+    # Solo se envía si WhatsApp está configurado en el servidor Y habilitado
+    # en la configuración del tenant.
+    if phone_recipients:
+        wa_message = (
+            f"⚠ *Stock mínimo alcanzado* — Pañol 360\n\n"
+            f'Herramienta: *{tool_name}*\n'
+            f"Disponibles: *{available}* (mínimo: {min_stock})\n\n"
+            f"Considera gestionar el reabastecimiento."
+        )
+        all_phones = list(dict.fromkeys(p for p in phone_recipients if p))
+        for phone in all_phones:
+            await send_whatsapp(phone, wa_message, log_event="low_stock")
 
 
 async def notify_overdue_loan(loan, tool, borrower) -> None:
