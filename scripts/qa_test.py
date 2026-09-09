@@ -126,12 +126,12 @@ test("Sin token → 401 en endpoint protegido", st == 401, f"status={st}")
 # ─── 2. Dashboard ────────────────────────────────────────────────────────────
 print("\n── DASHBOARD ─────────────────────────────────────────────")
 if tk_j:
-    st, d = req("GET", "/api/v1/dashboard/stats", token=tk_j)
+    st, d = req("GET", "/api/v1/dashboard/kpis", token=tk_j)
     test("Stats dashboard (Jefe)", st == 200, f"tools={d.get('total_tools')} loans={d.get('active_loans')} overdue={d.get('overdue_loans')}")
     test("inventory_value presente para Jefe", "inventory_value" in d, f"valor={d.get('inventory_value')}")
 
 if tk_m:
-    st, d = req("GET", "/api/v1/dashboard/stats", token=tk_m)
+    st, d = req("GET", "/api/v1/dashboard/kpis", token=tk_m)
     test("Stats dashboard (Mecánico)", st == 200, f"status={st}")
     test("[RBAC] inventory_value OCULTO para Mecánico", not d.get("inventory_value"), f"valor={d.get('inventory_value')}")
 
@@ -150,7 +150,8 @@ if tk_j:
     brand_id = brands[0]["id"] if isinstance(brands, list) and brands else None
     loc_id   = locs[0]["id"]   if isinstance(locs, list)   and locs   else None
 
-    nueva = {"code":"QA-AUTO-001","name":"Herramienta QA Automatizada",
+    _ts = datetime.datetime.now().strftime("%H%M%S")
+    nueva = {"code":f"QA-AUTO-{_ts}","name":"Herramienta QA Automatizada",
              "serial_number":"SN-QA-001","status":"available","purchase_price":25000,
              "category_id":cat_id,"brand_id":brand_id,"location_id":loc_id}
     st, d = req("POST", "/api/v1/tools", body=nueva, token=tk_j)
@@ -192,7 +193,7 @@ if tk_m:
 print("\n── TABLAS MAESTRAS ───────────────────────────────────────")
 if tk_j:
     for path, lbl in [("/api/v1/lookups/categories","Categorías"),("/api/v1/lookups/brands","Marcas"),
-                      ("/api/v1/lookups/locations","Ubicaciones"),("/api/v1/lookups/suppliers","Proveedores")]:
+                      ("/api/v1/lookups/locations","Ubicaciones"),("/api/v1/lookups/providers","Proveedores")]:
         st, d = req("GET", path, token=tk_j)
         count = len(d) if isinstance(d,list) else "?"
         test(f"Listar {lbl}", st == 200, f"count={count}")
@@ -202,7 +203,7 @@ print("\n── REPORTES ──────────────────�
 if tk_j:
     for path, lbl in [("/api/v1/reports/inventory","Inventario"),
                       ("/api/v1/reports/loans","Préstamos"),
-                      ("/api/v1/reports/maintenance","Mantenimiento")]:
+                      ("/api/v1/reports/maintenance.pdf","Mantenimiento PDF")]:
         st, _ = req("GET", path, token=tk_j)
         test(f"Reporte {lbl} (Jefe)", st == 200, f"status={st}")
 
