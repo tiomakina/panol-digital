@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}Tenants Eliminados — {{ title }}{% endblock %}
+
+{% block content %}
+<style>
+  .alert { padding:.75rem 1rem; border-radius:var(--radius); font-size:.875rem; margin-bottom:1rem; display:flex; align-items:flex-start; gap:.5rem; }
+  .alert-success { background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.3); color:#4ade80; }
+  .alert-error   { background:rgba(239,68,68,.12);  border:1px solid rgba(239,68,68,.3);  color:#f87171; }
+  .alert-warn    { background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.3); color:#fbbf24; }
+
+  .del-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem; flex-wrap:wrap; gap:.5rem; }
+  .del-title  { font-size:1rem; font-weight:600; }
+
+  .del-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .del-card-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;
+  }
+  .del-name { font-size: 1rem; font-weight: 700; margin-bottom: .2rem; }
+  .del-alias { font-family: var(--font-mono); font-size: .8rem; color: var(--text3); }
+  .del-meta  { font-size: .78rem; color: var(--text3); margin-top: .35rem; line-height:1.6; }
+  .del-meta strong { color: var(--text2); }
+
+  .del-stats {
+    display: flex; gap: .75rem; flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .del-stat {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: .35rem .65rem;
+    font-size: .75rem; color: var(--text2);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+  }
+  .del-stat .n { font-weight: 700; color: var(--accent); }
+
+  .del-actions { display:flex; gap:.5rem; flex-wrap:wrap; border-top: 1px solid var(--border); padding-top:1rem; }
+
+  /* Modales */
+  .modal-overlay {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.65);
+    z-index:300; align-items:center; justify-content:center; padding:1rem;
+  }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
+    padding:1.5rem; width:100%; max-width:460px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .modal-title { font-size:1rem; font-weight:700; margin-bottom:1.25rem; display:flex; align-items:center; gap:.5rem; }
+  .modal-footer { display:flex; gap:.5rem; justify-content:flex-end; margin-top:1.25rem; }
+
+  .danger-box {
+    background: rgba(127,29,29,.18); border: 1px solid rgba(239,68,68,.3);
+    border-radius: var(--radius); padding: .875rem 1rem; margin-bottom:1.25rem;
+  }
+  .danger-box h4 { font-size:.875rem; color:#f87171; font-weight:700; margin-bottom:.5rem; }
+  .danger-box p  { font-size:.8rem; color:var(--text2); line-height:1.55; margin-bottom:.4rem; }
+
+  .empty-state {
+    text-align:center; padding:4rem 1rem; color:var(--text3);
+  }
+  .empty-state .icon { font-size:3.5rem; display:block; margin-bottom:1rem; }
+</style>
+
+<!-- Breadcrumb -->
+<div style="font-size:.8rem;color:var(--text3);margin-bottom:1.25rem;">
+  <a href="/tenants" style="color:var(--accent);text-decoration:none;">← Tenants</a>
+  &nbsp;/&nbsp; Tenants Eliminados
+</div>
+
+{% if msg %}
+<div class="alert alert-success">✅ {{ msg }}</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-error">❌ {{ error }}</div>
+{% endif %}
+{% if fetch_error %}
+<div class="alert alert-warn">⚠️ No se pudo conectar al backend: {{ fetch_error }}</div>
+{% endif %}
+
+<div class="del-header">
+  <div>
+    <h2 class="del-title">🗑 Tenants Eliminados</h2>
+    <p style="font-size:.8rem;color:var(--text3);margin-top:.2rem;">
+      Tenants con respaldo disponible — pueden restaurarse o purgarse definitivamente.
+    </p>
+  </div>
+  <span style="font-size:.75rem;color:var(--text3);">{{ now }}</span>
+</div>
+
+{% if deleted %}
+
+{% for d in deleted %}
+<div class="del-card">
+  <div class="del-card-header">
+    <div>
+      <div class="del-name">{{ d.tenant_name }}</div>
+      <div class="del-alias">{{ d.alias }}</div>
+      <div class="del-meta">
+        Eliminado el <strong>{{ d.deleted_at[:10] if d.deleted_at else '—' }}</strong>
+        a las <strong>{{ d.deleted_at[11:16] if d.deleted_at and 'T' in d.deleted_at else '' }}</strong>
+        &nbsp;·&nbsp; Operador: <strong>{{ d.deleted_by }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resumen de filas respaldadas -->
+  {% if d.stats %}
+  <div class="del-stats">
+    {% for tbl, n in d.stats.items() %}{% if n > 0 %}
+    <div class="del-stat"><span class="n">{{ n }}</span> {{ tbl }}</div>
+    {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="del-actions">
+    <!-- Restaurar -->
+    <button class="btn btn-sm btn-success"
+      onclick="openRestoreModal('{{ d.alias }}', '{{ d.tenant_name | replace("'", "\\'") }}', '{{ d.backup_file | replace("'", "\\'") }}')">
+      ♻️ Restaurar
+    </button>
+
+    <!-- Purga definitiva -->
+    <button class="btn btn-sm"
+      style="background:rgba(127,29,29,.2);color:#f87171;border:1px solid rgba(239,68,68,.25);"
+      onclick="openPurgeModal('{{ d.alias }}', '{{ d.tenant_name | replace("'", "\\'") }}', '{{ d.backup_file | replace("'", "\\'") }}')">
+      💀 Purga definitiva…
+    </button>
+  </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="icon">🗑</span>
+    <p style="font-size:1rem;font-weight:600;margin-bottom:.5rem;">No hay tenants eliminados</p>
+    <p style="font-size:.85rem;">Los tenants que elimines aparecerán aquí con su respaldo disponible.</p>
+    <a href="/tenants" class="btn btn-primary btn-sm" style="margin-top:1.5rem;">← Volver a Tenants</a>
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ── Modal: Restaurar ───────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-restore">
+  <div class="modal">
+    <div class="modal-title" style="color:#4ade80;">♻️ Restaurar tenant</div>
+    <p style="font-size:.875rem;color:var(--text2);margin-bottom:1rem;">
+      Se restaurarán <strong>todos los datos</strong> del tenant <strong id="restore-name"></strong>
+      (<span id="restore-alias" style="font-family:var(--font-mono);font-size:.8rem;"></span>)
+      desde el archivo de respaldo y el tenant quedará activo nuevamente.
+    </p>
+    <p style="font-size:.8rem;color:var(--text3);margin-bottom:1.25rem;">
+      Se enviará un email de confirmación de la restauración.
+    </p>
+    <form method="post" id="form-restore" action="">
+      <input type="hidden" name="backup_file" id="restore-backup-file">
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-restore')">Cancelar</button>
+        <button type="submit" class="btn btn-sm btn-success">♻️ Confirmar restauración</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ── Modal: Purga definitiva ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-purge">
+  <div class="modal">
+    <div class="modal-title" style="color:#f87171;">💀 Purga definitiva</div>
+
+    <div class="danger-box">
+      <h4>⚠️ Esta acción es IRREVERSIBLE</h4>
+      <p>Se eliminarán <strong>todos los registros de la base de datos</strong> del tenant, se borrará
+         el archivo de respaldo y esta operación <strong>no podrá deshacerse</strong>.</p>
+      <p>Se enviará un email de notificación de auditoría y se dejará registro permanente en el servidor.</p>
+    </div>
+
+    <p style="font-size:.875rem;color:var(--text2);margin-bottom:.75rem;">
+      Tenant: <strong id="purge-name"></strong><br>
+      <span style="font-family:var(--font-mono);font-size:.8rem;color:var(--text3);" id="purge-alias-display"></span>
+    </p>
+
+    <p style="font-size:.8rem;color:var(--text2);margin-bottom:.4rem;">
+      Para confirmar, escribe el alias <strong id="purge-confirm-hint"></strong>:
+    </p>
+    <input type="text" id="purge-confirm-input" class="form-input"
+      placeholder="alias exacto del tenant"
+      oninput="checkPurgeConfirm()"
+      style="margin-bottom:1.25rem;">
+
+    <form method="post" id="form-purge" action="">
+      <input type="hidden" name="backup_file" id="purge-backup-file">
+      <input type="hidden" name="tenant_name" id="purge-tenant-name">
+      <input type="hidden" name="confirm_alias" id="purge-confirm-hidden">
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-purge')">Cancelar</button>
+        <button type="submit" id="btn-confirm-purge" class="btn btn-sm"
+          style="background:var(--red);color:#fff;opacity:.4;cursor:not-allowed;" disabled
+          onclick="document.getElementById('purge-confirm-hidden').value = document.getElementById('purge-confirm-input').value.trim()">
+          💀 Purgar definitivamente
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  }
+});
+
+/* ── Restaurar ─────────────────────────────────────────────────────────── */
+function openRestoreModal(alias, name, backupFile) {
+  document.getElementById('restore-name').textContent = name;
+  document.getElementById('restore-alias').textContent = alias;
+  document.getElementById('restore-backup-file').value = backupFile;
+  document.getElementById('form-restore').action = '/tenants/' + alias + '/restore-tenant';
+  openModal('modal-restore');
+}
+
+/* ── Purga definitiva ──────────────────────────────────────────────────── */
+function openPurgeModal(alias, name, backupFile) {
+  document.getElementById('purge-name').textContent = name;
+  document.getElementById('purge-alias-display').textContent = alias;
+  document.getElementById('purge-confirm-hint').textContent = alias;
+  document.getElementById('purge-backup-file').value = backupFile;
+  document.getElementById('purge-tenant-name').value = name;
+  document.getElementById('purge-confirm-input').value = '';
+  document.getElementById('form-purge').action = '/tenants/' + alias + '/purge-tenant';
+  const btn = document.getElementById('btn-confirm-purge');
+  btn.disabled = true;
+  btn.style.opacity = '.4';
+  btn.style.cursor = 'not-allowed';
+  openModal('modal-purge');
+  setTimeout(() => document.getElementById('purge-confirm-input').focus(), 100);
+}
+
+function checkPurgeConfirm() {
+  const alias = document.getElementById('purge-alias-display').textContent.trim();
+  const val   = document.getElementById('purge-confirm-input').value.trim();
+  const btn   = document.getElementById('btn-confirm-purge');
+  const ok    = val === alias;
+  btn.disabled     = !ok;
+  btn.style.opacity = ok ? '1' : '.4';
+  btn.style.cursor  = ok ? 'pointer' : 'not-allowed';
+}
+</script>
+{% endblock %}
