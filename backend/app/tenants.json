@@ -8,5 +8,10 @@
     "name": "Comercializadora AH Ltda.",
     "active": true,
     "env": "demo"
+  },
+  "demo": {
+    "name": "Constructora Demo S.A.",
+    "active": true,
+    "env": "demo"
   }
 }
