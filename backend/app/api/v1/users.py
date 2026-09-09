@@ -64,13 +64,25 @@ async def create_user(
     current_user: User = Depends(require_role("jefe")),
 ):
     """Crea un nuevo usuario. Solo el Jefe puede dar de alta cuentas."""
-    existing = await db.execute(select(User).where(User.email == payload.email))
+    # Verificar duplicados DENTRO DEL MISMO TENANT (email y RUT son únicos
+    # por tenant, no globalmente — el mismo email puede existir en dos empresas).
+    existing = await db.execute(
+        select(User).where(
+            User.email == payload.email,
+            User.tenant_id == current_user.tenant_id,
+        )
+    )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email")
+        raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email en esta empresa")
 
-    existing_rut = await db.execute(select(User).where(User.rut == payload.rut))
+    existing_rut = await db.execute(
+        select(User).where(
+            User.rut == payload.rut,
+            User.tenant_id == current_user.tenant_id,
+        )
+    )
     if existing_rut.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Ya existe un usuario con ese RUT")
+        raise HTTPException(status_code=400, detail="Ya existe un usuario con ese RUT en esta empresa")
 
     new_user = User(
         email=payload.email,
@@ -128,14 +140,26 @@ async def update_user(
     updates = payload.model_dump(exclude_unset=True)
 
     if "email" in updates and updates["email"] != target.email:
-        dup = await db.execute(select(User).where(User.email == updates["email"], User.id != target.id))
+        dup = await db.execute(
+            select(User).where(
+                User.email == updates["email"],
+                User.id != target.id,
+                User.tenant_id == target.tenant_id,
+            )
+        )
         if dup.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email")
+            raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email en esta empresa")
 
     if "rut" in updates and updates["rut"] != target.rut:
-        dup = await db.execute(select(User).where(User.rut == updates["rut"], User.id != target.id))
+        dup = await db.execute(
+            select(User).where(
+                User.rut == updates["rut"],
+                User.id != target.id,
+                User.tenant_id == target.tenant_id,
+            )
+        )
         if dup.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Ya existe un usuario con ese RUT")
+            raise HTTPException(status_code=400, detail="Ya existe un usuario con ese RUT en esta empresa")
 
     changed_fields = list(updates.keys())
     for field, value in updates.items():
@@ -160,12 +184,12 @@ async def update_user(
         if "email" in err_str:
             raise HTTPException(
                 status_code=400,
-                detail="Ese email ya está en uso por otra cuenta del sistema — usá uno diferente.",
+                detail="Ese email ya está en uso en esta empresa — usá uno diferente.",
             )
         if "rut" in err_str:
             raise HTTPException(
                 status_code=400,
-                detail="Ese RUT ya está registrado en otra cuenta del sistema.",
+                detail="Ese RUT ya está registrado en esta empresa.",
             )
         raise HTTPException(status_code=400, detail="Error de duplicado al guardar — revisá email y RUT.")
     await db.refresh(target)
