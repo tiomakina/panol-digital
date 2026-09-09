@@ -15,11 +15,12 @@ class UserRole(str, enum.Enum):
 
 class User(TenantMixin, Base):
     __tablename__ = "users"
-    # Multi-tenant: RUT y email únicos POR TENANT, no globalmente.
-    # Un mismo RUT puede ser admin en dos empresas distintas.
+    # Identificador único: el RUT es único por tenant.
+    # Una misma persona puede tener usuario en varias empresas (un registro
+    # por empresa). El email y el teléfono NO son únicos: varias personas de
+    # una misma empresa pueden compartir una cuenta de correo o un teléfono.
     __table_args__ = (
         UniqueConstraint("rut", "tenant_id", name="uq_users_rut_tenant"),
-        UniqueConstraint("email", "tenant_id", name="uq_users_email_tenant"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
