@@ -20,6 +20,24 @@ TENANT = "vms-ingenieria"
 
 results = []
 
+# ── Limpiar rate limit en Redis antes de correr ──────────────────────────────
+# Evita que el bucket de 127.0.0.1 (desde dentro del contenedor) bloquee
+# los intentos de login del test y distorsione los resultados.
+def _clear_rate_limits():
+    try:
+        import redis as _redis
+        r = _redis.from_url("redis://redis:6379/0", decode_responses=True)
+        keys = r.keys("ratelimit:login:*") + r.keys("ratelimit:2fa:*")
+        if keys:
+            r.delete(*keys)
+            print(f"  [setup] Limpiados {len(keys)} buckets de rate limit en Redis")
+        else:
+            print("  [setup] Rate limit: ningún bucket previo en Redis")
+    except Exception as ex:
+        print(f"  [setup] No se pudo limpiar rate limit (continúa igualmente): {ex}")
+
+_clear_rate_limits()
+
 def req(method, path, body=None, token=None):
     url = BASE + path
     data = json.dumps(body).encode() if body else None
@@ -29,7 +47,12 @@ def req(method, path, body=None, token=None):
     r = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(r, timeout=15) as resp:
-            return resp.status, json.loads(resp.read())
+            raw = resp.read()
+            try:
+                return resp.status, json.loads(raw)
+            except Exception:
+                # Respuesta no-JSON (ej: /health devuelve texto plano "ok")
+                return resp.status, {"_text": raw.decode(errors="replace")}
     except urllib.error.HTTPError as e:
         try: body_data = json.loads(e.read())
         except: body_data = {}
@@ -46,7 +69,8 @@ def test(name, passed, detail=""):
 
 def login(rut, password):
     st, data = req("POST", "/api/v1/auth/login", {"rut": rut, "password": password})
-    return data.get("access_token") if st == 200 else None
+    token = data.get("access_token") if st == 200 else None
+    return token, st, data.get("detail", "")
 
 print("\n" + "═"*62)
 print("  Pañol 360 — Suite de QA automatizada")
@@ -56,14 +80,14 @@ print("═"*62 + "\n")
 # ─── 1. Autenticación ────────────────────────────────────────────────────────
 print("── AUTENTICACIÓN ─────────────────────────────────────────")
 
-tk_j = login("1-9", "Admin123!")
-test("Login Jefe  (1-9 / Admin123!)", bool(tk_j), f"token={'OK' if tk_j else 'NONE'}")
+tk_j, st_j, det_j = login("1-9", "Admin123!")
+test("Login Jefe  (1-9 / Admin123!)", bool(tk_j), f"status={st_j} {'OK' if tk_j else det_j}")
 
-tk_e = login("2-7", "Admin123!")
-test("Login Encargado (2-7)", bool(tk_e))
+tk_e, st_e, det_e = login("2-7", "Admin123!")
+test("Login Encargado (2-7 / Admin123!)", bool(tk_e), f"status={st_e} {'' if tk_e else det_e}")
 
-tk_m = login("3-5", "Admin123!")
-test("Login Mecánico (3-5)", bool(tk_m))
+tk_m, st_m, det_m = login("3-5", "Admin123!")
+test("Login Mecánico (3-5 / Admin123!)", bool(tk_m), f"status={st_m} {'' if tk_m else det_m}")
 
 st, d = req("POST", "/api/v1/auth/login", {"rut": "1-9", "password": "MalaClave!"})
 test("Contraseña incorrecta → 401", st == 401, f"status={st} detail={d.get('detail','')}")
@@ -200,8 +224,8 @@ if tk_j:
 
 # ─── 12. Health ──────────────────────────────────────────────────────────────
 print("\n── SISTEMA ───────────────────────────────────────────────")
-st, _ = req("GET", "/health")
-test("Health check", st == 200, f"status={st}")
+st, d = req("GET", "/health")
+test("Health check", st == 200, f"status={st} body={d.get('_text','')[:20]}")
 
 # Verificar que proxy-headers funciona (IP real, no Docker IP)
 if tk_j:
