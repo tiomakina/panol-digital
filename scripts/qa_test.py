@@ -12,11 +12,15 @@ O copiando primero:
 """
 import urllib.request
 import urllib.error
+import urllib.parse
 import json
 import sys
+import datetime
+import os
 
 BASE = "http://localhost:8000"
 TENANT = "vms-ingenieria"
+OUTPUT_FILE = "/tmp/qa_results.json"   # archivo de resultados para copiar después
 
 results = []
 
@@ -68,9 +72,30 @@ def test(name, passed, detail=""):
     return passed
 
 def login(rut, password):
-    st, data = req("POST", "/api/v1/auth/login", {"rut": rut, "password": password})
-    token = data.get("access_token") if st == 200 else None
-    return token, st, data.get("detail", "")
+    """
+    El endpoint /api/v1/auth/login usa OAuth2PasswordRequestForm:
+    - Content-Type: application/x-www-form-urlencoded  (no JSON)
+    - campo 'username' = el RUT  (el backend lo convierte a formato canónico)
+    - campo 'password' = la contraseña
+    """
+    url = BASE + "/api/v1/auth/login"
+    form = urllib.parse.urlencode({"username": rut, "password": password}).encode()
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Cookie": f"panol_tenant={TENANT}",
+    }
+    r = urllib.request.Request(url, data=form, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(r, timeout=15) as resp:
+            data = json.loads(resp.read())
+            return data.get("access_token"), resp.status, data.get("detail", "")
+    except urllib.error.HTTPError as e:
+        try: body = json.loads(e.read())
+        except: body = {}
+        detail = body.get("detail", str(body))
+        return None, e.code, detail
+    except Exception as ex:
+        return None, 0, str(ex)
 
 print("\n" + "═"*62)
 print("  Pañol 360 — Suite de QA automatizada")
@@ -89,10 +114,10 @@ test("Login Encargado (2-7 / Admin123!)", bool(tk_e), f"status={st_e} {'' if tk_
 tk_m, st_m, det_m = login("3-5", "Admin123!")
 test("Login Mecánico (3-5 / Admin123!)", bool(tk_m), f"status={st_m} {'' if tk_m else det_m}")
 
-st, d = req("POST", "/api/v1/auth/login", {"rut": "1-9", "password": "MalaClave!"})
-test("Contraseña incorrecta → 401", st == 401, f"status={st} detail={d.get('detail','')}")
+_, st, det = login("1-9", "MalaClave!")
+test("Contraseña incorrecta → 401", st == 401, f"status={st} detail={det}")
 
-st, d = req("POST", "/api/v1/auth/login", {"rut": "99-0", "password": "Admin123!"})
+_, st, _ = login("99-0", "Admin123!")
 test("RUT inexistente → 401", st == 401, f"status={st}")
 
 st, _ = req("GET", "/api/v1/tools")
@@ -249,4 +274,22 @@ if failed:
             print(f"  • {r['name']}")
             if r["detail"]: print(f"    {r['detail']}")
 print()
+
+# ─── Guardar resultados a archivo JSON ───────────────────────────────────────
+output = {
+    "run_at": datetime.datetime.now().isoformat(timespec="seconds"),
+    "tenant": TENANT,
+    "base_url": BASE,
+    "summary": {"total": total, "passed": passed, "failed": failed,
+                 "pct": round(passed / total * 100) if total else 0},
+    "results": results,
+}
+try:
+    with open(OUTPUT_FILE, "w") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+    print(f"📄 Resultados guardados en {OUTPUT_FILE}")
+    print(f"   Para copiar al host: docker cp panol-digital-backend-1:{OUTPUT_FILE} ./qa_results.json")
+except Exception as ex:
+    print(f"  [warn] No se pudo guardar resultados: {ex}")
+
 sys.exit(0 if failed == 0 else 1)
