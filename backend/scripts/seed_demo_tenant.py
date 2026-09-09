@@ -15,7 +15,7 @@ Credenciales del tenant demo:
 """
 import asyncio
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -50,7 +50,7 @@ USERS = [
 ]
 
 # ─── Tablas maestras ──────────────────────────────────────────────────────────
-BRANDS_DATA = ["Bosch", "Makita", "Stanley", "Gedore", "Fluke", "DeWalt", "Leica", "Hilti", "Schulz"]
+BRANDS_DATA = ["Bosch", "Makita", "Stanley", "Gedore", "Fluke", "DeWalt", "Leica", "Hilti"]
 CATEGORIES_DATA = ["Eléctricas", "Manuales", "Medición", "Neumáticas", "Seguridad"]
 LOCATIONS_DATA = ["Bodega Principal", "Faena Norte", "Faena Sur", "Taller Central", "Vehículo 1"]
 PROVIDERS_DATA = [
@@ -60,26 +60,24 @@ PROVIDERS_DATA = [
 ]
 
 # ─── Herramientas ─────────────────────────────────────────────────────────────
-# (name, brand, category, location, status, purchase_cost)
-# Los estados en español coinciden con ToolStatus:
-#   disponible | prestado | mantenimiento | mantenimiento_solicitada | baja | en_caja
+# (name, brand, category, location, status, price)
 TOOLS_DATA = [
     # Disponibles
-    ("Taladro percutor 18V",     "Makita",  "Eléctricas",  "Bodega Principal", "disponible", 189_990),
-    ("Amoladora angular 7\"",    "Bosch",   "Eléctricas",  "Bodega Principal", "disponible", 124_990),
-    ("Nivel láser de línea",     "Leica",   "Medición",    "Bodega Principal", "disponible", 459_990),
-    ("Multímetro digital",       "Fluke",   "Medición",    "Bodega Principal", "disponible",  89_990),
-    ("Martillo demoledor",       "Hilti",   "Eléctricas",  "Taller Central",   "disponible", 389_990),
-    ("Llave de torque 3/4\"",    "Stanley", "Manuales",    "Bodega Principal", "disponible",  67_990),
-    ("Compresor 50L",            "Schulz",  "Neumáticas",  "Taller Central",   "disponible", 329_990),
-    # Serán marcadas como prestadas al crear los préstamos
-    ("Sierra circular 7 1/4\"",  "DeWalt",  "Eléctricas",  "Bodega Principal", "disponible", 215_990),
-    ("Pistola de impacto 1/2\"", "Gedore",  "Neumáticas",  "Bodega Principal", "disponible", 178_990),
-    ("Cinta métrica 10m",        "Stanley", "Manuales",    "Bodega Principal", "disponible",  12_990),
-    # Será marcada en mantenimiento al crear el registro
-    ("Pulidora de banco",        "Bosch",   "Eléctricas",  "Taller Central",   "disponible", 145_990),
-    # Dada de baja definitiva
-    ("Taladro antiguo 12V",      "Makita",  "Eléctricas",  "Bodega Principal", "baja",             0),
+    ("Taladro percutor 18V", "Makita", "Eléctricas",  "Bodega Principal", "disponible",   189_990),
+    ("Amoladora angular 7\"","Bosch",  "Eléctricas",  "Bodega Principal", "disponible",   124_990),
+    ("Nivel láser de línea", "Leica",  "Medición",    "Bodega Principal", "disponible",   459_990),
+    ("Multímetro digital",   "Fluke",  "Medición",    "Bodega Principal", "disponible",   89_990),
+    ("Martillo demoledor",   "Hilti",  "Eléctricas",  "Taller Central",   "disponible",   389_990),
+    ("Llave de torque 3/4\"","Stanley","Manuales",    "Bodega Principal", "disponible",   67_990),
+    ("Compresor 50L",        "Schulz", "Neumáticas",  "Taller Central",   "disponible",   329_990),
+    # Prestadas (status asignado luego al crear el préstamo)
+    ("Sierra circular 7 1/4\"","DeWalt","Eléctricas", "Bodega Principal", "disponible",   215_990),
+    ("Pistola de impacto 1/2\"","Gedore","Neumáticas","Bodega Principal", "disponible",   178_990),
+    ("Cinta métrica 10m",    "Stanley","Manuales",    "Bodega Principal", "disponible",   12_990),
+    # En mantenimiento (status asignado luego)
+    ("Pulidora de banco",    "Bosch",  "Eléctricas",  "Taller Central",   "disponible",   145_990),
+    # Dada de baja
+    ("Taladro antiguo 12V",  "Makita", "Eléctricas",  "Bodega Principal", "baja",         0),
 ]
 
 
@@ -115,20 +113,29 @@ async def seed():
 
         # ── Tablas maestras ───────────────────────────────────────────────────
         print("\n── Tablas maestras ───────────────────────────────────")
+        brand_map: dict[str, Brand] = {}
         for name in BRANDS_DATA:
             r = await db.execute(select(Brand).where(Brand.name == name, Brand.tenant_id == TENANT))
-            if not r.scalar_one_or_none():
-                db.add(Brand(name=name, tenant_id=TENANT))
+            b = r.scalar_one_or_none()
+            if not b:
+                b = Brand(name=name, tenant_id=TENANT); db.add(b); await db.flush()
+            brand_map[name] = b
 
+        cat_map: dict[str, Category] = {}
         for name in CATEGORIES_DATA:
             r = await db.execute(select(Category).where(Category.name == name, Category.tenant_id == TENANT))
-            if not r.scalar_one_or_none():
-                db.add(Category(name=name, tenant_id=TENANT))
+            c = r.scalar_one_or_none()
+            if not c:
+                c = Category(name=name, tenant_id=TENANT); db.add(c); await db.flush()
+            cat_map[name] = c
 
+        loc_map: dict[str, Location] = {}
         for name in LOCATIONS_DATA:
             r = await db.execute(select(Location).where(Location.name == name, Location.tenant_id == TENANT))
-            if not r.scalar_one_or_none():
-                db.add(Location(name=name, tenant_id=TENANT))
+            l = r.scalar_one_or_none()
+            if not l:
+                l = Location(name=name, tenant_id=TENANT); db.add(l); await db.flush()
+            loc_map[name] = l
 
         for pdata in PROVIDERS_DATA:
             r = await db.execute(select(Provider).where(Provider.name == pdata["name"], Provider.tenant_id == TENANT))
@@ -144,7 +151,7 @@ async def seed():
         # ── Herramientas ──────────────────────────────────────────────────────
         print("\n── Herramientas ──────────────────────────────────────")
         tool_map: dict[str, Tool] = {}
-        for i, (tname, brand, cat, loc, status, cost) in enumerate(TOOLS_DATA):
+        for i, (tname, brand, cat, loc, status, price) in enumerate(TOOLS_DATA):
             r = await db.execute(
                 select(Tool).where(Tool.name == tname, Tool.tenant_id == TENANT)
             )
@@ -154,16 +161,16 @@ async def seed():
             else:
                 t = Tool(
                     name=tname,
-                    product_code=f"DEMO-{i+1:03d}",
+                    code=f"DEMO-{i+1:03d}",
                     serial_number=f"SN-DEMO-{i+1:04d}",
-                    brand=brand,
-                    category=cat,
-                    location=loc,
                     status=ToolStatus(status),
-                    purchase_cost=cost,
+                    purchase_price=price,
                     purchase_date=date.today() - timedelta(days=365 * 2),
                     depreciation_method=DepreciationMethod.lineal,
                     useful_life_years=5,
+                    brand_id=brand_map[brand].id,
+                    category_id=cat_map[cat].id,
+                    location_id=loc_map[loc].id,
                     tenant_id=TENANT,
                 )
                 db.add(t)
@@ -179,6 +186,7 @@ async def seed():
         jefe     = user_map.get("jefe")
         today    = date.today()
 
+        # Herramientas a prestar
         to_loan = [
             ("Sierra circular 7 1/4\"",   mecanico, today - timedelta(days=3), today + timedelta(days=4), LoanStatus.activo),
             ("Pistola de impacto 1/2\"",  mecanico, today - timedelta(days=7), today - timedelta(days=1), LoanStatus.vencido),
@@ -197,14 +205,10 @@ async def seed():
                 print(f"  ⏭  préstamo {tname}")
             else:
                 loan = Loan(
-                    tool_id=tool.id,
-                    borrower_id=borrower.id,
-                    issued_by_id=jefe.id,
-                    tenant_id=TENANT,
-                    loan_date=datetime.combine(loan_date, datetime.min.time()),
-                    due_date=due_date,
-                    status=lstatus,
-                    notes="Préstamo de demo",
+                    tool_id=tool.id, borrower_id=borrower.id,
+                    lender_id=jefe.id, tenant_id=TENANT,
+                    loan_date=loan_date, due_date=due_date,
+                    status=lstatus, notes="Préstamo de demo",
                 )
                 db.add(loan)
                 tool.status = ToolStatus.prestado
