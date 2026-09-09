@@ -21,6 +21,10 @@ import os
 BASE = os.environ.get("PANOL_BASE", "http://localhost:8000")
 TENANT = os.environ.get("PANOL_TENANT", "vms-ingenieria")
 OUTPUT_FILE = os.environ.get("PANOL_QA_OUTPUT", "/tmp/qa_results.json")
+# Contraseña de los usuarios QA — se sobreescribe según el entorno del tenant:
+#   Admin123!  → tenants de producción (seed.py)
+#   Demo1234!  → tenant demo público (seed_demo_tenant.py)
+QA_PASSWORD = os.environ.get("PANOL_QA_PASSWORD", "Admin123!")
 
 results = []
 
@@ -105,19 +109,19 @@ print("═"*62 + "\n")
 # ─── 1. Autenticación ────────────────────────────────────────────────────────
 print("── AUTENTICACIÓN ─────────────────────────────────────────")
 
-tk_j, st_j, det_j = login("1-9", "Admin123!")
-test("Login Jefe  (1-9 / Admin123!)", bool(tk_j), f"status={st_j} {'OK' if tk_j else det_j}")
+tk_j, st_j, det_j = login("1-9", QA_PASSWORD)
+test(f"Login Jefe  (1-9 / {QA_PASSWORD})", bool(tk_j), f"status={st_j} {'OK' if tk_j else det_j}")
 
-tk_e, st_e, det_e = login("2-7", "Admin123!")
-test("Login Encargado (2-7 / Admin123!)", bool(tk_e), f"status={st_e} {'' if tk_e else det_e}")
+tk_e, st_e, det_e = login("2-7", QA_PASSWORD)
+test(f"Login Encargado (2-7 / {QA_PASSWORD})", bool(tk_e), f"status={st_e} {'' if tk_e else det_e}")
 
-tk_m, st_m, det_m = login("3-5", "Admin123!")
-test("Login Mecánico (3-5 / Admin123!)", bool(tk_m), f"status={st_m} {'' if tk_m else det_m}")
+tk_m, st_m, det_m = login("3-5", QA_PASSWORD)
+test(f"Login Mecánico (3-5 / {QA_PASSWORD})", bool(tk_m), f"status={st_m} {'' if tk_m else det_m}")
 
 _, st, det = login("1-9", "MalaClave!")
 test("Contraseña incorrecta → 401", st == 401, f"status={st} detail={det}")
 
-_, st, _ = login("99-0", "Admin123!")
+_, st, _ = login("99-0", QA_PASSWORD)
 test("RUT inexistente → 401", st == 401, f"status={st}")
 
 st, _ = req("GET", "/api/v1/tools")

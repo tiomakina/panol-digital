@@ -468,8 +468,8 @@ async def tenant_create(
     request: Request,
     alias: str = Form(...),
     name: str = Form(...),
-    rut: str = Form(...),
-    password: str = Form(...),
+    rut: str = Form(default=""),
+    password: str = Form(default=""),
     email: str = Form(default=""),
     provision_user: str = Form(default="on"),
 ):
