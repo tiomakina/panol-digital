@@ -295,7 +295,26 @@ async def run_qa(tenant_id: str, _: AdminAuth):
         )
 
     output_file = f"/tmp/qa_{tenant_id}.json"
-    env = dict(os.environ, PANOL_TENANT=tenant_id, PANOL_QA_OUTPUT=output_file)
+
+    # Determinar la contraseña de QA según el entorno del tenant.
+    # Los tenants demo usan Demo1234! (seeded por seed_demo_tenant.py);
+    # los tenants de producción usan Admin123! (seeded por seed.py).
+    qa_password = "Admin123!"
+    if TENANTS_FILE.exists():
+        try:
+            tenants_data = json.loads(TENANTS_FILE.read_text(encoding="utf-8"))
+            tenant_env = tenants_data.get(tenant_id, {}).get("env", "prod")
+            if tenant_env == "demo":
+                qa_password = "Demo1234!"
+        except Exception:
+            pass
+
+    env = dict(
+        os.environ,
+        PANOL_TENANT=tenant_id,
+        PANOL_QA_OUTPUT=output_file,
+        PANOL_QA_PASSWORD=qa_password,
+    )
 
     try:
         proc = await asyncio.create_subprocess_exec(
