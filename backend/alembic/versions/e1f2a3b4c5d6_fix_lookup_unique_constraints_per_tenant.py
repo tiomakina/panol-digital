@@ -11,6 +11,10 @@ una marca con el mismo nombre (ej. "Bosch").
 
 Fix: eliminar los índices únicos por nombre solo y crear UniqueConstraints
 compuestos sobre (name, tenant_id), que es la semántica correcta multi-tenant.
+
+Nota: usa SQL condicional (DO $$ ... END $$) para ser idempotente — si los
+constraints ya fueron creados manualmente, esta migración los detecta y los
+omite sin fallar.
 """
 from typing import Sequence, Union
 
@@ -24,41 +28,68 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _idempotent_unique_constraint(table: str, constraint: str, columns: list[str]) -> None:
+    """Crea el constraint solo si no existe ya (soporta re-runs y fixes manuales previos)."""
+    cols = ", ".join(columns)
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = '{constraint}'
+            ) THEN
+                ALTER TABLE {table}
+                    ADD CONSTRAINT {constraint} UNIQUE ({cols});
+            END IF;
+        END
+        $$;
+        """
+    )
+
+
+def _idempotent_nonunique_index(index: str, table: str, column: str) -> None:
+    """Crea el índice no-único solo si no existe ya."""
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_indexes
+                WHERE indexname = '{index}' AND tablename = '{table}'
+            ) THEN
+                CREATE INDEX {index} ON {table} ({column});
+            END IF;
+        END
+        $$;
+        """
+    )
+
+
 def upgrade() -> None:
-    # brands
-    op.drop_index('ix_brands_name', table_name='brands', if_exists=True)
-    op.create_unique_constraint('uq_brands_name_tenant', 'brands', ['name', 'tenant_id'])
-    op.create_index('ix_brands_name', 'brands', ['name'], unique=False)
+    # Eliminar índices únicos por nombre solo (si existen)
+    for tbl in ("brands", "categories", "locations", "providers"):
+        op.drop_index(f"ix_{tbl}_name", table_name=tbl, if_exists=True)
 
-    # categories
-    op.drop_index('ix_categories_name', table_name='categories', if_exists=True)
-    op.create_unique_constraint('uq_categories_name_tenant', 'categories', ['name', 'tenant_id'])
-    op.create_index('ix_categories_name', 'categories', ['name'], unique=False)
+    # Crear constraints compuestos (name, tenant_id) — idempotente
+    _idempotent_unique_constraint("brands",     "uq_brands_name_tenant",     ["name", "tenant_id"])
+    _idempotent_unique_constraint("categories", "uq_categories_name_tenant", ["name", "tenant_id"])
+    _idempotent_unique_constraint("locations",  "uq_locations_name_tenant",  ["name", "tenant_id"])
+    _idempotent_unique_constraint("providers",  "uq_providers_name_tenant",  ["name", "tenant_id"])
 
-    # locations
-    op.drop_index('ix_locations_name', table_name='locations', if_exists=True)
-    op.create_unique_constraint('uq_locations_name_tenant', 'locations', ['name', 'tenant_id'])
-    op.create_index('ix_locations_name', 'locations', ['name'], unique=False)
-
-    # providers
-    op.drop_index('ix_providers_name', table_name='providers', if_exists=True)
-    op.create_unique_constraint('uq_providers_name_tenant', 'providers', ['name', 'tenant_id'])
-    op.create_index('ix_providers_name', 'providers', ['name'], unique=False)
+    # Recrear índices no-únicos para búsquedas por nombre — idempotente
+    _idempotent_nonunique_index("ix_brands_name",     "brands",     "name")
+    _idempotent_nonunique_index("ix_categories_name", "categories", "name")
+    _idempotent_nonunique_index("ix_locations_name",  "locations",  "name")
+    _idempotent_nonunique_index("ix_providers_name",  "providers",  "name")
 
 
 def downgrade() -> None:
-    op.drop_constraint('uq_providers_name_tenant', 'providers', type_='unique')
-    op.drop_index('ix_providers_name', table_name='providers')
-    op.create_index('ix_providers_name', 'providers', ['name'], unique=True)
-
-    op.drop_constraint('uq_locations_name_tenant', 'locations', type_='unique')
-    op.drop_index('ix_locations_name', table_name='locations')
-    op.create_index('ix_locations_name', 'locations', ['name'], unique=True)
-
-    op.drop_constraint('uq_categories_name_tenant', 'categories', type_='unique')
-    op.drop_index('ix_categories_name', table_name='categories')
-    op.create_index('ix_categories_name', 'categories', ['name'], unique=True)
-
-    op.drop_constraint('uq_brands_name_tenant', 'brands', type_='unique')
-    op.drop_index('ix_brands_name', table_name='brands')
-    op.create_index('ix_brands_name', 'brands', ['name'], unique=True)
+    for tbl, cname in [
+        ("providers",  "uq_providers_name_tenant"),
+        ("locations",  "uq_locations_name_tenant"),
+        ("categories", "uq_categories_name_tenant"),
+        ("brands",     "uq_brands_name_tenant"),
+    ]:
+        op.drop_constraint(cname, tbl, type_="unique")
+        op.drop_index(f"ix_{tbl}_name", table_name=tbl)
+        op.create_index(f"ix_{tbl}_name", tbl, ["name"], unique=True)
