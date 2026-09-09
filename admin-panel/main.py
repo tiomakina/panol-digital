@@ -680,6 +680,188 @@ async def tenant_users_list(request: Request, alias: str, msg: str = "", error: 
     })
 
 
+async def _backend_call(method: str, path: str, json_body=None, timeout: float = 60.0) -> dict | list:
+    """Helper genérico para llamadas al backend admin-API."""
+    async with httpx.AsyncClient(base_url=BACKEND_URL, timeout=timeout) as client:
+        resp = await client.request(
+            method, path,
+            headers={"x-admin-token": ADMIN_API_SECRET},
+            json=json_body,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+# ── Eliminación, restauración y purga de tenants ──────────────────────────────
+
+@app.post("/tenants/{alias}/delete-tenant")
+async def tenant_delete(request: Request, alias: str):
+    """
+    Elimina un tenant del sistema:
+    1. Llama al backend para exportar todos los datos a un JSON.
+    2. Quita el tenant de tenants.json.
+    3. El tenant queda en 'Eliminados' disponible para restaurar.
+    """
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    alias = alias.strip().lower()
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,49}$", alias):
+        return RedirectResponse("/tenants?error=Alias+inválido.", status_code=302)
+
+    tenants = load_tenants()
+    if alias not in tenants:
+        return RedirectResponse("/tenants?error=Tenant+no+encontrado.", status_code=302)
+
+    tenant_info = tenants[alias]
+    tenant_name = tenant_info.get("name", alias)
+    operator = request.session.get("user", "admin")
+
+    # Respaldar + registrar en backend
+    try:
+        result = await _backend_call(
+            "POST", f"/api/v1/admin/delete-tenant/{alias}",
+            json_body={"operator": operator, "tenant_name": tenant_name, "original_config": tenant_info},
+            timeout=120.0,
+        )
+    except httpx.HTTPStatusError as exc:
+        err = (exc.response.json().get("detail", exc.response.text) if exc.response.headers.get("content-type","").startswith("application/json") else exc.response.text)[:200].replace(" ", "+")
+        return RedirectResponse(f"/tenants?error=Error+al+respaldar:+{err}", status_code=302)
+    except Exception as exc:
+        return RedirectResponse(f"/tenants?error={str(exc)[:200].replace(' ', '+')}", status_code=302)
+
+    # Quitar de tenants.json (el backend ya no lo expone)
+    del tenants[alias]
+    save_tenants(tenants)
+
+    rows = result.get("total_rows", 0)
+    return RedirectResponse(
+        f"/tenants?msg=Tenant+'{alias}'+eliminado.+Respaldo:+{rows}+registros.+Ver+en+Eliminados.",
+        status_code=302,
+    )
+
+
+@app.get("/tenants/deleted", response_class=HTMLResponse)
+async def tenants_deleted_list(request: Request, msg: str = "", error: str = ""):
+    """Muestra los tenants eliminados con opción de restaurar o purgar definitivamente."""
+    if not is_authenticated(request):
+        return RedirectResponse("/login?next=/tenants/deleted", status_code=302)
+
+    deleted: list = []
+    fetch_error = ""
+    try:
+        deleted = await _backend_call("GET", "/api/v1/admin/deleted-tenants", timeout=10.0)  # type: ignore
+    except Exception as exc:
+        fetch_error = str(exc)
+
+    return templates.TemplateResponse("deleted_tenants.html", {
+        "request": request,
+        "title": APP_TITLE,
+        "user": request.session.get("user", "admin"),
+        "deleted": deleted,
+        "msg": msg,
+        "error": error,
+        "fetch_error": fetch_error,
+        "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
+    })
+
+
+@app.post("/tenants/{alias}/restore-tenant")
+async def tenant_restore(request: Request, alias: str, backup_file: str = Form(...)):
+    """Restaura un tenant eliminado desde su respaldo JSON."""
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    alias = alias.strip().lower()
+    operator = request.session.get("user", "admin")
+
+    try:
+        result = await _backend_call(
+            "POST", f"/api/v1/admin/restore-tenant/{alias}",
+            json_body={"backup_file": backup_file, "operator": operator},
+            timeout=180.0,
+        )
+    except httpx.HTTPStatusError as exc:
+        try:
+            detail = exc.response.json().get("detail", exc.response.text)
+        except Exception:
+            detail = exc.response.text
+        return RedirectResponse(
+            f"/tenants/deleted?error=Error+al+restaurar:+{str(detail)[:200].replace(' ', '+')}",
+            status_code=302,
+        )
+    except Exception as exc:
+        return RedirectResponse(
+            f"/tenants/deleted?error={str(exc)[:200].replace(' ', '+')}",
+            status_code=302,
+        )
+
+    # Re-agregar a tenants.json con la configuración original
+    tenants = load_tenants()
+    original_config = result.get("original_config") or {}
+    if not original_config:
+        original_config = {"name": result.get("tenant_name", alias), "active": True}
+    tenants[alias] = original_config
+    save_tenants(tenants)
+
+    name = result.get("tenant_name", alias)
+    return RedirectResponse(
+        f"/tenants?msg=Tenant+'{alias}'+({name})+restaurado+correctamente.+Ya+está+activo.",
+        status_code=302,
+    )
+
+
+@app.post("/tenants/{alias}/purge-tenant")
+async def tenant_purge(
+    request: Request,
+    alias: str,
+    backup_file: str = Form(default=""),
+    tenant_name: str = Form(default=""),
+    confirm_alias: str = Form(default=""),
+):
+    """Purga definitiva e irreversible de un tenant. Requiere confirmar el alias exacto."""
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    alias = alias.strip().lower()
+
+    # Verificación de seguridad: el operador debe escribir el alias exacto
+    if confirm_alias.strip().lower() != alias:
+        return RedirectResponse(
+            f"/tenants/deleted?error=Confirmación+incorrecta.+Escribe+el+alias+exacto+para+confirmar.",
+            status_code=302,
+        )
+
+    operator = request.session.get("user", "admin")
+
+    try:
+        result = await _backend_call(
+            "DELETE", f"/api/v1/admin/purge-tenant/{alias}",
+            json_body={"backup_file": backup_file, "tenant_name": tenant_name, "operator": operator},
+            timeout=60.0,
+        )
+    except httpx.HTTPStatusError as exc:
+        try:
+            detail = exc.response.json().get("detail", exc.response.text)
+        except Exception:
+            detail = exc.response.text
+        return RedirectResponse(
+            f"/tenants/deleted?error=Error+al+purgar:+{str(detail)[:200].replace(' ', '+')}",
+            status_code=302,
+        )
+    except Exception as exc:
+        return RedirectResponse(
+            f"/tenants/deleted?error={str(exc)[:200].replace(' ', '+')}",
+            status_code=302,
+        )
+
+    total = result.get("total_deleted", 0)
+    return RedirectResponse(
+        f"/tenants/deleted?msg=Tenant+'{alias}'+PURGADO+definitivamente.+{total}+registros+eliminados.",
+        status_code=302,
+    )
+
+
 @app.post("/tenants/{alias}/users/{rut}/set-password")
 async def tenant_set_password(
     request: Request,

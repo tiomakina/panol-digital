@@ -214,8 +214,11 @@
 <!-- Header -->
 <div class="section-header">
   <h2 class="section-title">🏢 Tenants registrados</h2>
-  <div style="display:flex;gap:.5rem;align-items:center;">
+  <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
     <span style="font-size:.75rem;color:var(--text3);">{{ now }}</span>
+    <a href="/tenants/deleted" class="btn btn-ghost btn-sm" style="color:var(--text3);">
+      🗑 Eliminados
+    </a>
     <button class="btn btn-primary btn-sm" onclick="openModal('modal-new')">＋ Nuevo tenant</button>
   </div>
 </div>
@@ -282,7 +285,7 @@
                 {% endif %}
               </form>
             </div>
-            <!-- Fila 2: acción destructiva separada -->
+            <!-- Fila 2: suspender / reactivar -->
             <form method="post" action="/tenants/{{ t.alias }}/toggle" style="margin:0;">
               {% if t.active %}
               <button type="submit" class="btn btn-sm btn-danger" style="width:100%;"
@@ -295,6 +298,11 @@
               </button>
               {% endif %}
             </form>
+            <!-- Fila 3: eliminar tenant (abre modal de confirmación) -->
+            <button class="btn btn-sm" style="width:100%;background:rgba(127,29,29,.25);color:#fca5a5;border:1px solid rgba(239,68,68,.25);"
+              onclick="openDeleteModal('{{ t.alias }}', '{{ t.name | replace("'", "\\'") }}')">
+              🗑 Eliminar tenant…
+            </button>
           </div>
         </td>
       </tr>
@@ -402,6 +410,52 @@
   </div>
 </div>
 
+<!-- ── Modal: Confirmar eliminación de tenant ─────────────────────────────── -->
+<div class="modal-overlay" id="modal-delete-tenant">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-title" style="color:#f87171;">
+      🗑 Eliminar tenant
+    </div>
+
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius);padding:.875rem 1rem;margin-bottom:1.25rem;">
+      <p style="font-size:.875rem;font-weight:600;color:#f87171;margin-bottom:.5rem;">⚠️ Esta acción requiere confirmación</p>
+      <p style="font-size:.8rem;color:var(--text2);line-height:1.5;">
+        Se creará un <strong>respaldo completo</strong> de todos los datos del tenant y se
+        eliminará del sistema. El tenant quedará en <strong>Eliminados</strong> y podrás
+        restaurarlo o purgarlo definitivamente desde allí.
+      </p>
+      <p style="font-size:.8rem;color:var(--text2);margin-top:.5rem;">
+        Se enviará un email de notificación a <code style="font-size:.75rem;">hablemos@valentinmorales.cl</code>.
+      </p>
+    </div>
+
+    <div id="delete-tenant-info" style="margin-bottom:1rem;">
+      <p style="font-size:.875rem;color:var(--text2);">
+        Tenant: <strong id="delete-tenant-name"></strong><br>
+        <span style="font-family:var(--font-mono);font-size:.8rem;color:var(--text3);" id="delete-tenant-alias-display"></span>
+      </p>
+    </div>
+
+    <p style="font-size:.8rem;color:var(--text2);margin-bottom:.4rem;">
+      Escribe el alias <strong id="delete-confirm-hint"></strong> para confirmar:
+    </p>
+    <input type="text" id="delete-confirm-input" class="form-input"
+      placeholder="alias exacto del tenant"
+      oninput="checkDeleteConfirm()"
+      style="margin-bottom:1rem;">
+
+    <form method="post" id="form-delete-tenant" action="">
+      <div class="modal-footer" style="margin-top:0;">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-delete-tenant')">Cancelar</button>
+        <button type="submit" id="btn-confirm-delete" class="btn btn-sm"
+          style="background:var(--red);color:#fff;opacity:.4;cursor:not-allowed;" disabled>
+          🗑 Sí, eliminar y respaldar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -424,6 +478,30 @@ document.addEventListener('keydown', e => {
     document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
   }
 });
+
+function openDeleteModal(alias, name) {
+  document.getElementById('delete-tenant-name').textContent = name;
+  document.getElementById('delete-tenant-alias-display').textContent = alias;
+  document.getElementById('delete-confirm-hint').textContent = alias;
+  document.getElementById('delete-confirm-input').value = '';
+  document.getElementById('form-delete-tenant').action = '/tenants/' + alias + '/delete-tenant';
+  const btn = document.getElementById('btn-confirm-delete');
+  btn.disabled = true;
+  btn.style.opacity = '.4';
+  btn.style.cursor = 'not-allowed';
+  openModal('modal-delete-tenant');
+  setTimeout(() => document.getElementById('delete-confirm-input').focus(), 100);
+}
+
+function checkDeleteConfirm() {
+  const alias = document.getElementById('delete-tenant-alias-display').textContent.trim();
+  const val = document.getElementById('delete-confirm-input').value.trim();
+  const btn = document.getElementById('btn-confirm-delete');
+  const ok = val === alias;
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '.4';
+  btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+}
 
 function openAddUser(alias, name) {
   document.getElementById('add-user-title').textContent = 'Provisionar usuario en ' + name;
