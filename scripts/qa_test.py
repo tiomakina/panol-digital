@@ -152,7 +152,7 @@ if tk_j:
 
     _ts = datetime.datetime.now().strftime("%H%M%S")
     nueva = {"code":f"QA-AUTO-{_ts}","name":"Herramienta QA Automatizada",
-             "serial_number":"SN-QA-001","status":"available","purchase_price":25000,
+             "serial_number":f"SN-QA-{_ts}","status":"available","purchase_price":25000,
              "category_id":cat_id,"brand_id":brand_id,"location_id":loc_id}
     st, d = req("POST", "/api/v1/tools", body=nueva, token=tk_j)
     created_id = d.get("id") if st in (200,201) else None

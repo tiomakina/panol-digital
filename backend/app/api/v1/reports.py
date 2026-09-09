@@ -10,6 +10,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -168,7 +169,11 @@ async def loans_report_pdf(
 
 async def _maintenance_rows(db: AsyncSession, status_filter: str | None = None) -> list[dict]:
     """Filas de mantenimiento para PDF y futuras exportaciones."""
-    stmt = select(MaintenanceRecord).order_by(MaintenanceRecord.sent_date.desc())
+    stmt = (
+        select(MaintenanceRecord)
+        .options(joinedload(MaintenanceRecord.tool))
+        .order_by(MaintenanceRecord.sent_date.desc())
+    )
     if status_filter:
         stmt = stmt.where(MaintenanceRecord.status == status_filter)
     records = (await db.execute(stmt)).scalars().all()
