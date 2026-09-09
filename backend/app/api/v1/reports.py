@@ -181,11 +181,13 @@ async def _maintenance_rows(db: AsyncSession, status_filter: str | None = None) 
         {
             "id": r.id,
             "tool_name": r.tool.name if r.tool else None,
-            "title": r.title,
-            "technician": r.technician,
+            # Los campos del modelo real: provider (proveedor/técnico), reason
+            # (motivo), resolved_date (fecha de retorno). El campo "cost" no
+            # existe en MaintenanceRecord — se omite en el reporte.
+            "reason": r.reason or "",
+            "provider": r.provider or "—",
             "sent_date": r.sent_date.isoformat() if r.sent_date else None,
-            "return_date": r.return_date.isoformat() if r.return_date else None,
-            "cost": float(r.cost) if r.cost is not None else None,
+            "resolved_date": r.resolved_date.isoformat() if r.resolved_date else None,
             "status": r.status.value if r.status else None,
         }
         for r in records
