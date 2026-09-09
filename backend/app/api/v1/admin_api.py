@@ -10,8 +10,10 @@ Rutas:
   GET  /admin/stats       → métricas globales + por tenant
   POST /admin/provision   → crea usuario admin en un tenant
 """
+import asyncio
 import json
 import os
+import re
 from pathlib import Path
 from typing import Annotated
 
@@ -265,3 +267,59 @@ async def provision_tenant_user(
         "tenant_id": user.tenant_id,
         "role": user.role,
     }
+
+
+# ── Suite QA ──────────────────────────────────────────────────────────────────
+
+QA_SCRIPT = Path("/app/scripts/qa_test.py")
+_SAFE_ALIAS = re.compile(r"^[a-z0-9][a-z0-9-]{0,49}$")
+
+
+@router.post("/run-qa")
+async def run_qa(tenant_id: str, _: AdminAuth):
+    """
+    Ejecuta la suite de QA automatizada (scripts/qa_test.py) para el tenant
+    indicado y retorna el informe JSON con los resultados.
+
+    Solo accesible desde el admin-panel (requiere X-Admin-Token).
+    Timeout: 90 s — la suite completa tarda ~10-15 s en condiciones normales.
+    """
+    if not _SAFE_ALIAS.match(tenant_id):
+        raise HTTPException(status_code=400, detail="tenant_id inválido")
+
+    if not QA_SCRIPT.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Script de QA no encontrado en /app/scripts/qa_test.py. "
+                   "Reconstruye la imagen del backend.",
+        )
+
+    output_file = f"/tmp/qa_{tenant_id}.json"
+    env = dict(os.environ, PANOL_TENANT=tenant_id, PANOL_QA_OUTPUT=output_file)
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "python3", str(QA_SCRIPT),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="La suite QA superó el tiempo límite (90 s)")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error al ejecutar la suite: {exc}")
+
+    # Leer el JSON de resultados que el script escribió
+    try:
+        report = json.loads(Path(output_file).read_text(encoding="utf-8"))
+    except Exception:
+        # Si el script falló antes de escribir el JSON, devolver la salida en texto
+        report = {
+            "error": "El script no generó un archivo de resultados.",
+            "stdout": stdout.decode(errors="replace")[-3000:],
+            "stderr": stderr.decode(errors="replace")[-1000:],
+            "returncode": proc.returncode,
+        }
+
+    return report

@@ -527,6 +527,38 @@ async def tenant_create(
     )
 
 
+@app.post("/tenants/{alias}/run-qa")
+async def tenant_run_qa(request: Request, alias: str):
+    """
+    Llama al endpoint /api/v1/admin/run-qa del backend para el tenant indicado
+    y retorna el informe JSON con los resultados de la suite de QA.
+    El frontend lo invoca vía fetch() y muestra los resultados en un modal.
+    """
+    if not is_authenticated(request):
+        return JSONResponse({"error": "No autenticado"}, status_code=401)
+
+    alias = alias.strip().lower()
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,49}$", alias):
+        return JSONResponse({"error": "Alias inválido"}, status_code=400)
+
+    try:
+        async with httpx.AsyncClient(base_url=BACKEND_URL, timeout=100.0) as client:
+            resp = await client.post(
+                f"/api/v1/admin/run-qa?tenant_id={alias}",
+                headers={"x-admin-token": ADMIN_API_SECRET},
+            )
+            resp.raise_for_status()
+            return JSONResponse(resp.json())
+    except httpx.HTTPStatusError as exc:
+        try:
+            detail = exc.response.json().get("detail", exc.response.text)
+        except Exception:
+            detail = exc.response.text
+        return JSONResponse({"error": detail}, status_code=exc.response.status_code)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.post("/tenants/{alias}/toggle")
 async def tenant_toggle(request: Request, alias: str):
     """Activa o suspende un tenant en tenants.json."""
