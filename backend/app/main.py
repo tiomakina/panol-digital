@@ -171,6 +171,29 @@ async def service_worker():
     return FileResponse("app/static/js/sw.js", media_type="application/javascript")
 
 
+@app.get("/demo")
+async def demo_redirect(request: Request):
+    """
+    Enlace directo al tenant de demostración pública.
+    Setea la cookie panol_tenant=demo y redirige al login.
+    Ideal para compartir en LinkedIn, demos con prospectos, etc.
+    URL: https://panol360.app/demo
+    """
+    tenants = _load_tenants()
+    if "demo" not in tenants or not tenants["demo"].get("active", True):
+        return RedirectResponse("/portal")
+    response = RedirectResponse("/login", status_code=303)
+    response.set_cookie(
+        key="panol_tenant",
+        value="demo",
+        max_age=30 * 24 * 3600,
+        secure=True,
+        httponly=False,
+        samesite="lax",
+    )
+    return response
+
+
 @app.get("/portal")
 async def portal_page(request: Request):
     """Portal de entrada: el usuario escribe el alias de su empresa."""
