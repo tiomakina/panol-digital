@@ -134,6 +134,36 @@
   .btn-success { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
   .btn-success:hover { background: var(--green); color: #fff; border-color: transparent; }
 
+  /* QA modal */
+  .qa-modal { max-width: 580px; }
+  .qa-summary {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem;
+    margin-bottom: 1rem;
+  }
+  .qa-stat {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: .6rem; text-align: center;
+  }
+  .qa-stat .n { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+  .qa-stat .l { font-size: .65rem; text-transform: uppercase; color: var(--text3); letter-spacing: .05em; }
+  .qa-stat.pass .n { color: var(--green); }
+  .qa-stat.fail .n { color: var(--red); }
+  .qa-list {
+    list-style: none; margin: 0; padding: 0;
+    max-height: 260px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: .8rem;
+  }
+  .qa-list li {
+    display: flex; align-items: flex-start; gap: .5rem;
+    padding: .4rem .65rem; border-bottom: 1px solid var(--border);
+  }
+  .qa-list li:last-child { border-bottom: none; }
+  .qa-list li.fail { background: rgba(239,68,68,.06); }
+  .qa-list li .mark { flex-shrink: 0; width: 1.1em; }
+  .qa-list li .detail { color: var(--text3); font-size: .72rem; margin-top: .1rem; }
+  .qa-spinner { text-align: center; padding: 2rem; color: var(--text3); font-size: .9rem; }
+
   /* Badges de entorno */
   .env-badge {
     display: inline-flex; align-items: center; gap: .25rem;
@@ -237,6 +267,9 @@
               <button class="btn btn-ghost btn-sm"
                 onclick="openAddUser('{{ t.alias }}', '{{ t.name }}')"
                 title="Provisionar usuario">👤 Nuevo</button>
+              <button class="btn btn-ghost btn-sm"
+                onclick="runQA('{{ t.alias }}', '{{ t.name }}')"
+                title="Ejecutar suite QA">🧪 QA</button>
               <form method="post" action="/tenants/{{ t.alias }}/toggle-env" style="margin:0;">
                 {% if t.env == "prod" %}
                 <button type="submit" class="btn btn-sm btn-danger"
@@ -356,6 +389,19 @@
   </div>
 </div>
 
+<!-- ── Modal: Resultados QA ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-qa">
+  <div class="modal qa-modal">
+    <div class="modal-title">🧪 <span id="qa-modal-title">Suite QA</span></div>
+    <div id="qa-body">
+      <div class="qa-spinner">⏳ Ejecutando pruebas…</div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-qa')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -383,6 +429,64 @@ function openAddUser(alias, name) {
   document.getElementById('add-user-title').textContent = 'Provisionar usuario en ' + name;
   document.getElementById('form-add-user').action = '/tenants/' + alias + '/add-user';
   openModal('modal-add-user');
+}
+
+async function runQA(alias, name) {
+  document.getElementById('qa-modal-title').textContent = 'Suite QA — ' + name + ' (' + alias + ')';
+  document.getElementById('qa-body').innerHTML = '<div class="qa-spinner">⏳ Ejecutando pruebas… puede tardar 15-30 s</div>';
+  openModal('modal-qa');
+
+  try {
+    const resp = await fetch('/tenants/' + alias + '/run-qa', { method: 'POST' });
+    const data = await resp.json();
+    renderQA(data);
+  } catch(err) {
+    document.getElementById('qa-body').innerHTML =
+      '<div class="alert alert-error">❌ Error al comunicarse con el backend: ' + err + '</div>';
+  }
+}
+
+function renderQA(data) {
+  if (data.error) {
+    document.getElementById('qa-body').innerHTML =
+      '<div class="alert alert-error">❌ ' + escHtml(data.error) + '</div>' +
+      (data.stdout ? '<pre style="font-size:.72rem;overflow:auto;max-height:200px;white-space:pre-wrap">' + escHtml(data.stdout) + '</pre>' : '');
+    return;
+  }
+
+  const s = data.summary || {};
+  const total = s.total || 0, passed = s.passed || 0, failed = s.failed || 0;
+  const pct = total ? Math.round(passed/total*100) : 0;
+  const ts = data.run_at ? data.run_at.replace('T',' ') : '';
+
+  let html = '<div class="qa-summary">';
+  html += '<div class="qa-stat"><div class="n">' + total + '</div><div class="l">Total</div></div>';
+  html += '<div class="qa-stat pass"><div class="n">' + passed + '</div><div class="l">OK ✅</div></div>';
+  html += '<div class="qa-stat fail"><div class="n">' + failed + '</div><div class="l">Fallidas</div></div>';
+  html += '</div>';
+  html += '<p style="font-size:.75rem;color:var(--text3);margin-bottom:.6rem;">' +
+          pct + '% de pruebas OK' + (ts ? ' · ' + ts : '') + '</p>';
+
+  const results = data.results || [];
+  if (results.length) {
+    html += '<ul class="qa-list">';
+    results.forEach(r => {
+      const cls = r.passed ? '' : ' fail';
+      const mark = r.passed ? '✅' : '❌';
+      html += '<li class="' + cls + '">' +
+              '<span class="mark">' + mark + '</span>' +
+              '<div><div>' + escHtml(r.name) + '</div>' +
+              (r.detail ? '<div class="detail">' + escHtml(r.detail) + '</div>' : '') +
+              '</div></li>';
+    });
+    html += '</ul>';
+  }
+
+  document.getElementById('qa-body').innerHTML = html;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 </script>
 {% endblock %}
