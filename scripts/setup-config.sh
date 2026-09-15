@@ -62,9 +62,11 @@ EOF
 fi
 
 # ── Permisos ──────────────────────────────────────────────────────────────────
-chmod 640 /etc/panol360/prod/tenants.json
-chmod 640 /etc/panol360/staging/tenants.json
-chmod 664 /etc/panol360/releases.json
+# 666/664: los contenedores corren como usuarios no-root (appuser/adminpanel)
+# y necesitan poder leer (y el admin-panel escribir) estos archivos desde el host.
+chmod 666 /etc/panol360/prod/tenants.json
+chmod 644 /etc/panol360/staging/tenants.json
+chmod 666 /etc/panol360/releases.json
 
 echo ""
 echo "✓ Configuración lista:"
