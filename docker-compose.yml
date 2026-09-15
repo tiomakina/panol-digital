@@ -69,6 +69,9 @@ services:
       # Entorno: "demo" muestra badge naranja en la UI; "prod" no muestra nada.
       # Cambiar a PANOL_ENV=prod en el .env del servidor de producción.
       PANOL_ENV: ${PANOL_ENV:-demo}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      GIT_BRANCH: ${GIT_BRANCH:-unknown}
+      DEPLOYED_AT: ${DEPLOYED_AT:-unknown}
       # Token compartido con el admin-panel para endpoints de administración internos.
       # Generar con: openssl rand -hex 32
       ADMIN_API_SECRET: ${ADMIN_API_SECRET:-cambiar_con_openssl_rand_hex_32}
@@ -78,9 +81,10 @@ services:
       # Respaldo) — quedan visibles en el host, no solo dentro del
       # contenedor, igual que scripts/backup.sh.
       - ./backups:/app/backups
-      # tenants.json montado como volumen: git pull en el host actualiza los
-      # clientes en tiempo real sin reconstruir la imagen Docker.
-      - ./backend/app/tenants.json:/app/app/tenants.json:ro
+      # tenants.json de PRODUCCIÓN — vive fuera del repo en /etc/panol360/prod/
+      # para que staging y prod tengan configuraciones completamente independientes.
+      # Crear/editar en el servidor: sudo nano /etc/panol360/prod/tenants.json
+      - /etc/panol360/prod/tenants.json:/app/app/tenants.json:ro
     depends_on:
       db:
         condition: service_healthy
@@ -92,6 +96,81 @@ services:
       - "8000"
     networks:
       - panol-net
+
+  # ── STAGING — solo arranca con: docker compose --profile staging up ───────────
+  # DB separada (panol_staging), Redis DB 1, badge "staging" en la UI.
+  # La imagen es la misma que prod; se rebuild con: docker compose build backend
+  backend-staging:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    profiles: [staging]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_staging
+      REDIS_URL: redis://redis:6379/1
+      SECRET_KEY: ${STAGING_SECRET_KEY:-staging_cambiar_en_produccion}
+      JWT_SECRET_KEY: ${STAGING_JWT_SECRET_KEY:-staging_jwt_cambiar}
+      DEBUG: "false"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
+      PANOL_ENV: staging
+      ADMIN_API_SECRET: ${STAGING_ADMIN_API_SECRET:-staging_admin_cambiar}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      GIT_BRANCH: ${GIT_BRANCH:-unknown}
+      DEPLOYED_AT: ${DEPLOYED_AT:-unknown}
+    volumes:
+      - ./backend/app/static/uploads:/app/app/static/uploads
+      - ./backups:/app/backups
+      # tenants.json de STAGING — independiente del de producción.
+      # Crear/editar en el servidor: sudo nano /etc/panol360/staging/tenants.json
+      - /etc/panol360/staging/tenants.json:/app/app/tenants.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    expose:
+      - "8000"
+    networks:
+      - panol-net
+
+  celery-staging-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    profiles: [staging]
+    command: celery -A app.celery_app worker --loglevel=info
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_staging
+      REDIS_URL: redis://redis:6379/1
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
+    depends_on:
+      - db
+      - redis
+      - backend-staging
+    networks:
+      - panol-net
+
+  # ── FIN STAGING ────────────────────────────────────────────────────────────────
 
   # Celery worker para tareas asíncronas
   celery_worker:
@@ -200,15 +279,20 @@ services:
       TENANTS_FILE: /app/tenants.json
       # URL interna del backend (red Docker por defecto — sin exponer puertos)
       BACKEND_URL: http://backend:8000
+      # URL del backend de staging (para comparar versiones en el panel)
+      STAGING_BACKEND_URL: http://backend-staging:8000
+      STAGING_ADMIN_API_SECRET: ${STAGING_ADMIN_API_SECRET:-staging_admin_cambiar}
       # Token compartido con el backend para endpoints de admin internos.
       # Generar con: openssl rand -hex 32
       ADMIN_API_SECRET: ${ADMIN_API_SECRET:-cambiar_con_openssl_rand_hex_32}
     volumes:
       # Acceso de lectura/escritura a la carpeta de clientes
       - ./clients:/app/clients:rw
-      # tenants.json: admin-panel puede leer/escribir (gestión de tenants);
-      # el backend lo monta :ro. Ambos ven el mismo archivo del host.
-      - ./backend/app/tenants.json:/app/tenants.json:rw
+      # tenants.json de PRODUCCIÓN — el admin-panel puede leer/escribir para
+      # gestionar tenants. Vive fuera del repo en /etc/panol360/prod/
+      - /etc/panol360/prod/tenants.json:/app/tenants.json:rw
+      # releases.json — historial de versiones y changelogs (rw para aprobar releases)
+      - /etc/panol360/releases.json:/app/releases.json:rw
     ports:
       # Vinculado a todas las interfaces del host.
       # La seguridad la provee:

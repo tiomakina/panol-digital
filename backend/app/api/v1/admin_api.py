@@ -112,6 +112,19 @@ def load_tenants() -> dict:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+@router.get("/system-info")
+async def system_info(_: AdminAuth):
+    """Info de versión/entorno del backend — leída por el admin-panel para el panel de versiones."""
+    import os
+    return {
+        "commit":      os.environ.get("GIT_COMMIT", "unknown"),
+        "branch":      os.environ.get("GIT_BRANCH", "unknown"),
+        "deployed_at": os.environ.get("DEPLOYED_AT", "unknown"),
+        "env":         os.environ.get("PANOL_ENV", "demo"),
+        "app_version": "2.0.0",
+    }
+
+
 @router.get("/stats")
 async def get_stats(
     _: AdminAuth,

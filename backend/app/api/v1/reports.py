@@ -40,9 +40,33 @@ _INVENTORY_CSV_COLUMNS = [
 
 async def _inventory_rows(db: AsyncSession) -> list[dict]:
     tools = (await db.execute(select(Tool).order_by(Tool.category, Tool.name))).scalars().all()
+
+    # Para herramientas "en_caja", obtener la caja y el mecánico responsable
+    # (nombre + color identificador) para mostrarlo en el reporte con tooltip.
+    from app.models.toolbox import ToolboxItem
+    en_caja_ids = [t.id for t in tools if t.status.value == "en_caja"]
+    toolbox_by_tool: dict[int, dict] = {}
+    if en_caja_ids:
+        items_result = await db.execute(
+            select(ToolboxItem)
+            .options(
+                joinedload(ToolboxItem.toolbox).joinedload(Toolbox.responsible)
+            )
+            .where(ToolboxItem.tool_id.in_(en_caja_ids))
+        )
+        for item in items_result.scalars().unique().all():
+            tb = item.toolbox
+            resp = tb.responsible if tb else None
+            toolbox_by_tool[item.tool_id] = {
+                "toolbox_name": tb.name if tb else None,
+                "responsible_name": resp.full_name if resp else None,
+                "responsible_color": resp.identifying_color if resp else None,
+            }
+
     rows = []
     for tool in tools:
         current_value = calculate_current_value(tool)
+        tb_info = toolbox_by_tool.get(tool.id, {})
         rows.append(
             {
                 "id": tool.id,
@@ -53,6 +77,10 @@ async def _inventory_rows(db: AsyncSession) -> list[dict]:
                 "location": tool.location,
                 "supplier": tool.supplier,
                 "status": tool.status.value,
+                # Info de caja — solo presente cuando status == "en_caja"
+                "toolbox_name": tb_info.get("toolbox_name"),
+                "responsible_name": tb_info.get("responsible_name"),
+                "responsible_color": tb_info.get("responsible_color"),
                 "purchase_date": tool.purchase_date.isoformat() if tool.purchase_date else None,
                 "purchase_cost": float(tool.purchase_cost) if tool.purchase_cost is not None else None,
                 "current_value": float(current_value) if current_value is not None else None,

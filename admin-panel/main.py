@@ -4,6 +4,7 @@ Pañol 360 — Admin Panel
 Panel de administración de clientes SaaS.
 Acceso exclusivamente vía Tailscale VPN.
 """
+import asyncio
 import json
 import os
 import re
@@ -20,7 +21,10 @@ from starlette.middleware.sessions import SessionMiddleware
 # ─── Configuración ────────────────────────────────────────────────────────────
 CLIENTS_DIR = Path(os.environ.get("CLIENTS_DIR", "/app/clients"))
 TENANTS_FILE = Path(os.environ.get("TENANTS_FILE", "/app/tenants.json"))
+RELEASES_FILE = Path(os.environ.get("RELEASES_FILE", "/app/releases.json"))
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8000")
+STAGING_BACKEND_URL = os.environ.get("STAGING_BACKEND_URL", "http://backend-staging:8000")
+STAGING_ADMIN_API_SECRET = os.environ.get("STAGING_ADMIN_API_SECRET", "")
 ADMIN_API_SECRET = os.environ.get("ADMIN_API_SECRET", "")
 SECRET_KEY = os.environ.get("SECRET_KEY", "CAMBIAR_CON_openssl_rand_hex_32")
 ADMIN_USER = os.environ.get("ADMIN_USERNAME", "admin")
@@ -895,5 +899,162 @@ async def tenant_set_password(
 
     return RedirectResponse(
         f"/tenants/{alias}/users?msg=Contraseña+actualizada+correctamente.",
+        status_code=302,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GESTIÓN DE VERSIONES — releases.json + panel de control de despliegues
+# ══════════════════════════════════════════════════════════════════════════════
+
+def load_releases() -> dict:
+    if not RELEASES_FILE.exists():
+        return {"prod": {}, "staging": {}, "releases": []}
+    try:
+        return json.loads(RELEASES_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {"prod": {}, "staging": {}, "releases": []}
+
+
+def save_releases(data: dict) -> None:
+    RELEASES_FILE.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+
+
+async def fetch_system_info(base_url: str, secret: str) -> dict:
+    try:
+        async with httpx.AsyncClient(base_url=base_url, timeout=4.0) as client:
+            r = await client.get("/api/v1/admin/system-info", headers={"x-admin-token": secret})
+            r.raise_for_status()
+            return {**r.json(), "online": True}
+    except Exception as exc:
+        return {"online": False, "error": str(exc), "commit": "—", "env": "—", "deployed_at": "—"}
+
+
+@app.get("/versions", response_class=HTMLResponse)
+async def versions_page(request: Request, msg: str = "", error: str = ""):
+    if not is_authenticated(request):
+        return RedirectResponse("/login?next=/versions", status_code=302)
+
+    releases_data = load_releases()
+
+    prod_info, staging_info = await asyncio.gather(
+        fetch_system_info(BACKEND_URL, ADMIN_API_SECRET),
+        fetch_system_info(STAGING_BACKEND_URL, STAGING_ADMIN_API_SECRET),
+    )
+
+    return templates.TemplateResponse("versions.html", {
+        "request": request,
+        "title": APP_TITLE,
+        "user": request.session.get("user", "admin"),
+        "releases": releases_data.get("releases", []),
+        "prod_meta": releases_data.get("prod", {}),
+        "staging_meta": releases_data.get("staging", {}),
+        "prod_info": prod_info,
+        "staging_info": staging_info,
+        "msg": msg,
+        "error": error,
+        "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
+    })
+
+
+@app.post("/versions/{release_id}/changelog")
+async def add_changelog_entry(
+    request: Request,
+    release_id: str,
+    entry_type: str = Form(...),
+    description: str = Form(...),
+):
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    description = description.strip()[:500]
+    valid_types = {"bug", "feature", "improvement", "breaking", "security"}
+    if entry_type not in valid_types:
+        entry_type = "improvement"
+
+    data = load_releases()
+    for release in data.get("releases", []):
+        if release.get("id") == release_id:
+            if "changelog" not in release:
+                release["changelog"] = []
+            release["changelog"].append({
+                "type": entry_type,
+                "description": description,
+                "added_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+                "added_by": request.session.get("user", "admin"),
+            })
+            break
+
+    save_releases(data)
+    return RedirectResponse(f"/versions?msg=Entrada+agregada+al+changelog.", status_code=302)
+
+
+@app.post("/versions/{release_id}/approve")
+async def approve_release(request: Request, release_id: str):
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    operator = request.session.get("user", "admin")
+    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+
+    data = load_releases()
+    approved = None
+    for release in data.get("releases", []):
+        if release.get("id") == release_id:
+            release["status"] = "approved"
+            release["approved_at"] = now_str
+            release["approved_by"] = operator
+            approved = release
+            break
+
+    if not approved:
+        return RedirectResponse("/versions?error=Release+no+encontrado.", status_code=302)
+
+    save_releases(data)
+    return RedirectResponse(
+        f"/versions?msg=Release+aprobado.+Ejecutar+bash+scripts/deploy-prod.sh+en+el+servidor.",
+        status_code=302,
+    )
+
+
+@app.post("/versions/{release_id}/promote")
+async def promote_to_prod(request: Request, release_id: str):
+    """Confirma que el deploy a prod fue ejecutado — actualiza el registro."""
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    operator = request.session.get("user", "admin")
+    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+
+    data = load_releases()
+    promoted = None
+    for release in data.get("releases", []):
+        if release.get("id") == release_id:
+            if release.get("status") != "approved":
+                return RedirectResponse(
+                    "/versions?error=Solo+se+pueden+promover+releases+aprobados.",
+                    status_code=302,
+                )
+            release["status"] = "deployed"
+            release["promoted_at"] = now_str
+            release["promoted_by"] = operator
+            promoted = release
+            break
+
+    if not promoted:
+        return RedirectResponse("/versions?error=Release+no+encontrado.", status_code=302)
+
+    data["prod"] = {
+        "commit": promoted["commit"],
+        "branch": promoted["branch"],
+        "deployed_at": now_str,
+        "release_id": release_id,
+    }
+    save_releases(data)
+    return RedirectResponse(
+        f"/versions?msg=Release+marcado+como+en+producción.+Registros+actualizados.",
         status_code=302,
     )
