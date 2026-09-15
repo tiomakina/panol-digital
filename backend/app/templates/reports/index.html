@@ -20,7 +20,6 @@
     <button @click="setTab('inventory')" :style="tab==='inventory'?'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);':'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Inventario</button>
     <button @click="setTab('loans')"     :style="tab==='loans'    ?'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);':'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Préstamos</button>
     <button @click="setTab('maintenance'); loadMaintenanceReport()" :style="tab==='maintenance'?'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);':'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Mantenimiento</button>
-    <button x-show="isJefe()" @click="setTab('audit')" :style="tab==='audit'?'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);':'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Auditoría</button>
   </div>
 
   <!-- ══════════════════════════════════════════
