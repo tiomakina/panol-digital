@@ -93,6 +93,76 @@ services:
     networks:
       - panol-net
 
+  # ── STAGING — solo arranca con: docker compose --profile staging up ───────────
+  # DB separada (panol_staging), Redis DB 1, badge "staging" en la UI.
+  # La imagen es la misma que prod; se rebuild con: docker compose build backend
+  backend-staging:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    profiles: [staging]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_staging
+      REDIS_URL: redis://redis:6379/1
+      SECRET_KEY: ${STAGING_SECRET_KEY:-staging_cambiar_en_produccion}
+      JWT_SECRET_KEY: ${STAGING_JWT_SECRET_KEY:-staging_jwt_cambiar}
+      DEBUG: "false"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
+      PANOL_ENV: staging
+      ADMIN_API_SECRET: ${STAGING_ADMIN_API_SECRET:-staging_admin_cambiar}
+    volumes:
+      - ./backend/app/static/uploads:/app/app/static/uploads
+      - ./backups:/app/backups
+      - ./backend/app/tenants.json:/app/app/tenants.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    expose:
+      - "8000"
+    networks:
+      - panol-net
+
+  celery-staging-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    profiles: [staging]
+    command: celery -A app.celery_app worker --loglevel=info
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_staging
+      REDIS_URL: redis://redis:6379/1
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:3000}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-panol360-waha-key}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
+    depends_on:
+      - db
+      - redis
+      - backend-staging
+    networks:
+      - panol-net
+
+  # ── FIN STAGING ────────────────────────────────────────────────────────────────
+
   # Celery worker para tareas asíncronas
   celery_worker:
     build:
