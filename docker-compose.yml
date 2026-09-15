@@ -99,8 +99,10 @@ services:
 
   # ── STAGING — solo arranca con: docker compose --profile staging up ───────────
   # DB separada (panol_staging), Redis DB 1, badge "staging" en la UI.
-  # La imagen es la misma que prod; se rebuild con: docker compose build backend
+  # Comparte la misma imagen que prod (image: panol-digital-backend:latest).
+  # Rebuild: docker compose build backend  ← reconstruye para AMBOS entornos.
   backend-staging:
+    image: panol-digital-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -144,6 +146,7 @@ services:
       - panol-net
 
   celery-staging-worker:
+    image: panol-digital-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
