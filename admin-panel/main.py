@@ -11,6 +11,9 @@ import re
 import bcrypt
 import httpx
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+_TZ = ZoneInfo("America/Santiago")
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form, HTTPException
@@ -983,7 +986,7 @@ async def add_changelog_entry(
             release["changelog"].append({
                 "type": entry_type,
                 "description": description,
-                "added_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+                "added_at": datetime.now(_TZ).strftime("%Y-%m-%dT%H:%M:%S"),
                 "added_by": request.session.get("user", "admin"),
             })
             break
@@ -998,7 +1001,7 @@ async def approve_release(request: Request, release_id: str):
         return RedirectResponse("/login", status_code=302)
 
     operator = request.session.get("user", "admin")
-    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    now_str = datetime.now(_TZ).strftime("%Y-%m-%dT%H:%M:%S")
 
     data = load_releases()
     approved = None
@@ -1027,7 +1030,7 @@ async def promote_to_prod(request: Request, release_id: str):
         return RedirectResponse("/login", status_code=302)
 
     operator = request.session.get("user", "admin")
-    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    now_str = datetime.now(_TZ).strftime("%Y-%m-%dT%H:%M:%S")
 
     data = load_releases()
     promoted = None

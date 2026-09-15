@@ -7,7 +7,7 @@ set -euo pipefail
 COMPOSE="docker compose --profile staging"
 COMMIT=$(git rev-parse --short HEAD)
 BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
-NOW=$(date -u +"%Y-%m-%dT%H:%M:%S")
+NOW=$(TZ=America/Santiago date +"%Y-%m-%dT%H:%M:%S")
 RELEASE_ID="${NOW:0:10}-${COMMIT}"
 RELEASES_FILE="/etc/panol360/releases.json"
 
