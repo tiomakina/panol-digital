@@ -42,6 +42,10 @@ SESSION.md
 clients/*/.env
 clients/*/.env.local
 
+# tenants.json vive fuera del repo en /etc/panol360/{prod,staging}/tenants.json
+# Ver scripts/setup-config.sh para crearlo en el servidor.
+backend/app/tenants.json
+
 # IDE / OS
 .DS_Store
 .vscode/

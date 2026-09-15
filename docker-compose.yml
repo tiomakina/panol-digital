@@ -78,9 +78,10 @@ services:
       # Respaldo) — quedan visibles en el host, no solo dentro del
       # contenedor, igual que scripts/backup.sh.
       - ./backups:/app/backups
-      # tenants.json montado como volumen: git pull en el host actualiza los
-      # clientes en tiempo real sin reconstruir la imagen Docker.
-      - ./backend/app/tenants.json:/app/app/tenants.json:ro
+      # tenants.json de PRODUCCIÓN — vive fuera del repo en /etc/panol360/prod/
+      # para que staging y prod tengan configuraciones completamente independientes.
+      # Crear/editar en el servidor: sudo nano /etc/panol360/prod/tenants.json
+      - /etc/panol360/prod/tenants.json:/app/app/tenants.json:ro
     depends_on:
       db:
         condition: service_healthy
@@ -123,7 +124,9 @@ services:
     volumes:
       - ./backend/app/static/uploads:/app/app/static/uploads
       - ./backups:/app/backups
-      - ./backend/app/tenants.json:/app/app/tenants.json:ro
+      # tenants.json de STAGING — independiente del de producción.
+      # Crear/editar en el servidor: sudo nano /etc/panol360/staging/tenants.json
+      - /etc/panol360/staging/tenants.json:/app/app/tenants.json:ro
     depends_on:
       db:
         condition: service_healthy
@@ -276,9 +279,9 @@ services:
     volumes:
       # Acceso de lectura/escritura a la carpeta de clientes
       - ./clients:/app/clients:rw
-      # tenants.json: admin-panel puede leer/escribir (gestión de tenants);
-      # el backend lo monta :ro. Ambos ven el mismo archivo del host.
-      - ./backend/app/tenants.json:/app/tenants.json:rw
+      # tenants.json de PRODUCCIÓN — el admin-panel puede leer/escribir para
+      # gestionar tenants. Vive fuera del repo en /etc/panol360/prod/
+      - /etc/panol360/prod/tenants.json:/app/tenants.json:rw
     ports:
       # Vinculado a todas las interfaces del host.
       # La seguridad la provee:
