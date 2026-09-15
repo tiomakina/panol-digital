@@ -69,6 +69,9 @@ services:
       # Entorno: "demo" muestra badge naranja en la UI; "prod" no muestra nada.
       # Cambiar a PANOL_ENV=prod en el .env del servidor de producción.
       PANOL_ENV: ${PANOL_ENV:-demo}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      GIT_BRANCH: ${GIT_BRANCH:-unknown}
+      DEPLOYED_AT: ${DEPLOYED_AT:-unknown}
       # Token compartido con el admin-panel para endpoints de administración internos.
       # Generar con: openssl rand -hex 32
       ADMIN_API_SECRET: ${ADMIN_API_SECRET:-cambiar_con_openssl_rand_hex_32}
@@ -121,6 +124,9 @@ services:
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-panol360}
       PANOL_ENV: staging
       ADMIN_API_SECRET: ${STAGING_ADMIN_API_SECRET:-staging_admin_cambiar}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      GIT_BRANCH: ${GIT_BRANCH:-unknown}
+      DEPLOYED_AT: ${DEPLOYED_AT:-unknown}
     volumes:
       - ./backend/app/static/uploads:/app/app/static/uploads
       - ./backups:/app/backups
@@ -273,6 +279,9 @@ services:
       TENANTS_FILE: /app/tenants.json
       # URL interna del backend (red Docker por defecto — sin exponer puertos)
       BACKEND_URL: http://backend:8000
+      # URL del backend de staging (para comparar versiones en el panel)
+      STAGING_BACKEND_URL: http://backend-staging:8000
+      STAGING_ADMIN_API_SECRET: ${STAGING_ADMIN_API_SECRET:-staging_admin_cambiar}
       # Token compartido con el backend para endpoints de admin internos.
       # Generar con: openssl rand -hex 32
       ADMIN_API_SECRET: ${ADMIN_API_SECRET:-cambiar_con_openssl_rand_hex_32}
@@ -282,6 +291,8 @@ services:
       # tenants.json de PRODUCCIÓN — el admin-panel puede leer/escribir para
       # gestionar tenants. Vive fuera del repo en /etc/panol360/prod/
       - /etc/panol360/prod/tenants.json:/app/tenants.json:rw
+      # releases.json — historial de versiones y changelogs (rw para aprobar releases)
+      - /etc/panol360/releases.json:/app/releases.json:rw
     ports:
       # Vinculado a todas las interfaces del host.
       # La seguridad la provee:

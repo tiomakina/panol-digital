@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Versiones — {{ title }}{% endblock %}
+
+{% block content %}
+<style>
+  .env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+  @media (max-width: 640px) { .env-grid { grid-template-columns: 1fr; } }
+
+  .env-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+  .env-card.env-staging { border-top: 3px solid var(--purple); }
+  .env-card.env-prod    { border-top: 3px solid var(--green); }
+
+  .env-label { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: .5rem; }
+  .env-label.staging { color: var(--purple); }
+  .env-label.prod    { color: var(--green); }
+
+  .env-commit { font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--text); letter-spacing: .03em; }
+  .env-meta   { font-size: .78rem; color: var(--text3); margin-top: .25rem; }
+  .env-status { display: inline-flex; align-items: center; gap: .35rem; font-size: .75rem; font-weight: 600; padding: .2rem .6rem; border-radius: 20px; }
+  .status-online  { background: rgba(34,197,94,.12); color: var(--green); }
+  .status-offline { background: rgba(239,68,68,.12);  color: var(--red); }
+
+  .env-actions { margin-top: 1rem; display: flex; gap: .5rem; flex-wrap: wrap; }
+
+  /* Release cards */
+  .release-list { display: flex; flex-direction: column; gap: .75rem; }
+  .release-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .release-header {
+    display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    padding: .85rem 1rem; cursor: pointer; user-select: none;
+  }
+  .release-header:hover { background: var(--bg3); }
+  .release-commit { font-family: var(--font-mono); font-size: .85rem; font-weight: 700; color: var(--accent); }
+  .release-branch { font-size: .75rem; color: var(--text3); }
+  .release-date   { font-size: .75rem; color: var(--text3); margin-left: auto; white-space: nowrap; }
+  .release-body   { border-top: 1px solid var(--border); padding: 1rem; display: none; }
+  .release-body.open { display: block; }
+
+  /* Status badges */
+  .rel-badge { font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: .2rem .55rem; border-radius: 20px; }
+  .rel-badge.pending  { background: rgba(245,158,11,.15); color: var(--yellow); }
+  .rel-badge.approved { background: rgba(56,189,248,.15); color: var(--accent); }
+  .rel-badge.deployed { background: rgba(34,197,94,.15);  color: var(--green); }
+
+  /* Changelog */
+  .cl-entry { display: flex; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--border); font-size: .82rem; }
+  .cl-entry:last-child { border-bottom: none; }
+  .cl-type { font-size: .67rem; font-weight: 700; text-transform: uppercase; padding: .15rem .45rem; border-radius: 4px; white-space: nowrap; align-self: flex-start; margin-top: .1rem; }
+  .cl-type.bug         { background: rgba(239,68,68,.15);  color: var(--red); }
+  .cl-type.feature     { background: rgba(34,197,94,.15);  color: var(--green); }
+  .cl-type.improvement { background: rgba(56,189,248,.15); color: var(--accent); }
+  .cl-type.breaking    { background: rgba(239,68,68,.25);  color: #ff8080; }
+  .cl-type.security    { background: rgba(245,158,11,.15); color: var(--yellow); }
+  .cl-desc  { flex: 1; color: var(--text); }
+  .cl-meta  { font-size: .7rem; color: var(--text3); white-space: nowrap; }
+
+  /* Add changelog form */
+  .add-cl-form { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: .85rem; margin-top: .75rem; }
+  .add-cl-form select, .add-cl-form input { background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: .45rem .7rem; font-size: .82rem; }
+  .add-cl-form select { width: 150px; }
+  .add-cl-form input  { flex: 1; }
+  .add-cl-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+  /* Action buttons */
+  .btn-approve { background: rgba(56,189,248,.15);  color: var(--accent); border: 1px solid var(--accent2); }
+  .btn-approve:hover { background: var(--accent2); color: #fff; }
+  .btn-promote { background: rgba(34,197,94,.15);  color: var(--green); border: 1px solid var(--green); }
+  .btn-promote:hover { background: var(--green); color: #fff; }
+  .btn-staging-link { background: rgba(139,92,246,.15); color: var(--purple); border: 1px solid var(--purple); text-decoration: none; }
+  .btn-staging-link:hover { background: var(--purple); color: #fff; }
+
+  .section-title { font-size: .8rem; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: .75rem; }
+
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text3); font-size: .875rem; }
+  .empty-state .icon { font-size: 2.5rem; margin-bottom: .75rem; }
+
+  .alert { padding: .65rem 1rem; border-radius: var(--radius); font-size: .85rem; margin-bottom: 1rem; }
+  .alert-ok  { background: rgba(34,197,94,.12); color: var(--green); border-left: 3px solid var(--green); }
+  .alert-err { background: rgba(239,68,68,.12); color: var(--red);   border-left: 3px solid var(--red); }
+
+  .info-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: .5rem; }
+  .info-chip { font-size: .75rem; background: var(--bg3); border-radius: 6px; padding: .2rem .55rem; color: var(--text2); }
+</style>
+
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem; flex-wrap:wrap; gap:.5rem;">
+  <div>
+    <h1 style="font-size:1.15rem; font-weight:700; color:var(--text);">🚀 Versiones y Despliegues</h1>
+    <p style="font-size:.8rem; color:var(--text3); margin-top:.2rem;">Control de staging → producción · {{ now }}</p>
+  </div>
+</div>
+
+{% if msg %}
+<div class="alert alert-ok">✓ {{ msg }}</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-err">✗ {{ error }}</div>
+{% endif %}
+
+<!-- ── Entornos ─────────────────────────────────────────────────── -->
+<div class="env-grid">
+
+  <!-- STAGING -->
+  <div class="env-card env-staging">
+    <div class="env-label staging">⬡ Staging</div>
+    <div style="display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.35rem;">
+      <span class="env-commit">{{ staging_info.commit if staging_info.commit != 'unknown' else (staging_meta.commit or '—') }}</span>
+      {% if staging_info.online %}
+        <span class="env-status status-online">● En línea</span>
+      {% else %}
+        <span class="env-status status-offline">● Fuera de línea</span>
+      {% endif %}
+    </div>
+    <div class="env-meta">
+      Branch: <strong>{{ staging_meta.get('branch', '—') }}</strong>
+    </div>
+    <div class="env-meta">
+      Desplegado: {{ staging_meta.get('deployed_at', '—')[:16] if staging_meta.get('deployed_at') else '—' }}
+    </div>
+    {% if staging_info.online %}
+    <div class="info-row">
+      <span class="info-chip">env: {{ staging_info.env }}</span>
+      <span class="info-chip">app: v{{ staging_info.app_version }}</span>
+    </div>
+    {% endif %}
+    <div class="env-actions">
+      <a href="https://staging.panol360.app" target="_blank" class="btn btn-sm btn-staging-link">↗ Abrir Staging</a>
+    </div>
+  </div>
+
+  <!-- PROD -->
+  <div class="env-card env-prod">
+    <div class="env-label prod">★ Producción</div>
+    <div style="display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.35rem;">
+      <span class="env-commit">{{ prod_info.commit if prod_info.commit != 'unknown' else (prod_meta.commit or '—') }}</span>
+      {% if prod_info.online %}
+        <span class="env-status status-online">● En línea</span>
+      {% else %}
+        <span class="env-status status-offline">● Fuera de línea</span>
+      {% endif %}
+    </div>
+    <div class="env-meta">
+      Branch: <strong>{{ prod_meta.get('branch', 'main') }}</strong>
+    </div>
+    <div class="env-meta">
+      Desplegado: {{ prod_meta.get('deployed_at', '—')[:16] if prod_meta.get('deployed_at') else '—' }}
+    </div>
+    {% if prod_info.online %}
+    <div class="info-row">
+      <span class="info-chip">env: {{ prod_info.env }}</span>
+      <span class="info-chip">app: v{{ prod_info.app_version }}</span>
+    </div>
+    {% endif %}
+    <div class="env-actions">
+      <a href="https://panol360.app" target="_blank" class="btn btn-sm btn-ghost">↗ Abrir Prod</a>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Historial de Releases ────────────────────────────────────── -->
+<div class="section-title">Historial de releases</div>
+
+{% if not releases %}
+<div class="empty-state">
+  <div class="icon">📦</div>
+  <p>No hay releases registrados aún.</p>
+  <p style="margin-top:.5rem; font-size:.78rem;">Los releases se crean automáticamente al ejecutar <code>bash scripts/deploy-staging.sh</code></p>
+</div>
+{% else %}
+<div class="release-list">
+{% for r in releases %}
+<div class="release-card">
+  <div class="release-header" onclick="toggleRelease('rel-{{ loop.index }}')">
+    <span class="release-commit">{{ r.commit }}</span>
+    <span class="release-branch">{{ r.branch }}</span>
+    <span class="rel-badge {{ r.status }}">{{ r.status }}</span>
+    {% if r.changelog %}
+    <span style="font-size:.72rem; color:var(--text3);">{{ r.changelog|length }} entradas</span>
+    {% endif %}
+    <span class="release-date">{{ r.deployed_at[:16] if r.deployed_at else '—' }}</span>
+    <span style="color:var(--text3); font-size:.8rem; margin-left:.25rem;">▾</span>
+  </div>
+
+  <div class="release-body {% if loop.index == 1 %}open{% endif %}" id="rel-{{ loop.index }}">
+
+    <!-- Meta info -->
+    <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:.85rem; font-size:.78rem; color:var(--text3);">
+      <span>Desplegado en <strong style="color:var(--text);">staging</strong> el {{ r.deployed_at[:16] if r.deployed_at else '—' }}</span>
+      {% if r.approved_at %}
+      <span>· Aprobado por <strong style="color:var(--text);">{{ r.approved_by }}</strong> el {{ r.approved_at[:16] }}</span>
+      {% endif %}
+      {% if r.promoted_at %}
+      <span>· Promovido a prod el {{ r.promoted_at[:16] }}</span>
+      {% endif %}
+    </div>
+
+    <!-- Changelog -->
+    {% if r.changelog %}
+    <div style="margin-bottom:.75rem;">
+      {% for entry in r.changelog %}
+      <div class="cl-entry">
+        <span class="cl-type {{ entry.type }}">{{ entry.type }}</span>
+        <span class="cl-desc">{{ entry.description }}</span>
+        <span class="cl-meta">{{ entry.added_at[:16] if entry.added_at else '' }}<br>{{ entry.added_by }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Agregar entrada al changelog -->
+    {% if r.status in ('pending', 'approved') %}
+    <div class="add-cl-form">
+      <div style="font-size:.75rem; color:var(--text3); margin-bottom:.5rem; font-weight:600;">Agregar al changelog</div>
+      <form method="post" action="/versions/{{ r.id }}/changelog">
+        <div class="add-cl-row">
+          <select name="entry_type">
+            <option value="bug">🐛 Bug fix</option>
+            <option value="feature">✨ Feature</option>
+            <option value="improvement" selected>🔧 Mejora</option>
+            <option value="security">🔒 Seguridad</option>
+            <option value="breaking">⚠ Breaking</option>
+          </select>
+          <input type="text" name="description" placeholder="Descripción del cambio..." required maxlength="500">
+          <button type="submit" class="btn btn-sm btn-ghost">+ Agregar</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Acciones del release -->
+    <div style="margin-top:.85rem; display:flex; gap:.5rem; flex-wrap:wrap;">
+      {% if r.status == 'pending' %}
+      <form method="post" action="/versions/{{ r.id }}/approve" onsubmit="return confirm('¿Aprobar este release para producción?')">
+        <button type="submit" class="btn btn-sm btn-approve">✓ Aprobar para Prod</button>
+      </form>
+      {% elif r.status == 'approved' %}
+      <div style="font-size:.78rem; background:rgba(56,189,248,.08); border:1px solid var(--accent2); border-radius:var(--radius); padding:.5rem .85rem; color:var(--accent);">
+        ✓ Aprobado · Ejecutar en el servidor: <code>bash scripts/deploy-prod.sh</code>
+      </div>
+      <form method="post" action="/versions/{{ r.id }}/promote" onsubmit="return confirm('¿Confirmar que deploy-prod.sh ya fue ejecutado?')">
+        <button type="submit" class="btn btn-sm btn-promote">★ Confirmar en Producción</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<script>
+function toggleRelease(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+</script>
+{% endblock %}

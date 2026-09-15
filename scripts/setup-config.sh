@@ -47,14 +47,30 @@ else
   fi
 fi
 
+# ── releases.json — historial de versiones y changelogs ───────────────────────
+if [[ -f /etc/panol360/releases.json ]]; then
+  echo "→ /etc/panol360/releases.json ya existe — no se sobreescribe"
+else
+  cat > /etc/panol360/releases.json <<'EOF'
+{
+  "prod": { "commit": "unknown", "branch": "main", "deployed_at": null },
+  "staging": { "commit": "unknown", "branch": "unknown", "deployed_at": null },
+  "releases": []
+}
+EOF
+  echo "→ Creado /etc/panol360/releases.json"
+fi
+
 # ── Permisos ──────────────────────────────────────────────────────────────────
 chmod 640 /etc/panol360/prod/tenants.json
 chmod 640 /etc/panol360/staging/tenants.json
+chmod 664 /etc/panol360/releases.json
 
 echo ""
 echo "✓ Configuración lista:"
 echo "  Prod:    /etc/panol360/prod/tenants.json"
 echo "  Staging: /etc/panol360/staging/tenants.json"
+echo "  Releases: /etc/panol360/releases.json"
 echo ""
 echo "Editar prod:    sudo nano /etc/panol360/prod/tenants.json"
 echo "Editar staging: sudo nano /etc/panol360/staging/tenants.json"
