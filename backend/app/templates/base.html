@@ -397,6 +397,11 @@ a.kpi-card:hover {
       Notificaciones
     </a>
 
+    <a href="/reports?tab=audit" x-show="hasRole(currentUser, 'jefe')" class="nav-link {% if request.url.path == '/reports' and 'audit' in request.url.query %}active{% endif %}" style="margin-top: 2px;">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      Auditoría
+    </a>
+
     <p class="nav-section-label">Ayuda</p>
 
     <a href="/ayuda" class="nav-link {% if '/ayuda' in request.url.path %}active{% endif %}">

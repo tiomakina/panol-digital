@@ -17,32 +17,31 @@
   <div>
   <!-- Tabs -->
   <div id="reports-tabs" style="display:flex;gap:0.5rem;border-bottom:1px solid #e2e8f0;margin-bottom:1.25rem;">
-    <button @click="tab = 'inventory'" :style="tab === 'inventory' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Inventario</button>
-    <button @click="tab = 'loans'" :style="tab === 'loans' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Préstamos</button>
-    <button @click="tab = 'maintenance'; loadMaintenanceReport()" :style="tab === 'maintenance' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Mantenimiento</button>
-    <button x-show="isJefe()" @click="tab = 'audit'" :style="tab === 'audit' ? 'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);' : 'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Auditoría</button>
+    <button @click="setTab('inventory')" :style="tab==='inventory'?'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);':'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Inventario</button>
+    <button @click="setTab('loans')"     :style="tab==='loans'    ?'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);':'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Préstamos</button>
+    <button @click="setTab('maintenance'); loadMaintenanceReport()" :style="tab==='maintenance'?'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);':'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Mantenimiento</button>
+    <button x-show="isJefe()" @click="setTab('audit')" :style="tab==='audit'?'border-bottom-color:var(--brand-primary,#4f46e5);color:var(--brand-primary,#4f46e5);':'border-bottom-color:transparent;color:#64748b;'" class="report-tab">Auditoría</button>
   </div>
 
-  <!-- Inventario -->
+  <!-- ══════════════════════════════════════════
+       INVENTARIO
+  ══════════════════════════════════════════ -->
   <div x-show="tab === 'inventory'">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.75rem;">
       <div style="display:flex;gap:1.5rem;">
         <div><span style="font-size:0.75rem;color:#64748b;">Costo total de compra</span><div style="font-size:1.25rem;font-weight:700;" x-text="'$' + inventoryTotals.total_purchase_cost.toLocaleString()"></div></div>
         <div><span style="font-size:0.75rem;color:#64748b;">Valor actual del inventario</span><div style="font-size:1.25rem;font-weight:700;" x-text="'$' + inventoryTotals.total_current_value.toLocaleString()"></div></div>
       </div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-        <button @click="downloadInventoryCsv()" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ CSV</button>
-        <button @click="downloadInventoryPdf()" style="background:var(--brand-primary,#4f46e5);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ PDF</button>
-        <button x-show="isJefe()" @click="downloadFullZip()" :disabled="downloadingZip"
-          style="background:#0f172a;color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;">
-          <span x-text="downloadingZip ? '⏳ Generando…' : '📦 Exportar ZIP completo'"></span>
+        <button @click="downloadInventoryCsv()" class="btn-outline-sm">⬇ CSV</button>
+        <button @click="downloadInventoryPdf()" class="btn-primary-sm">⬇ PDF</button>
+        <button x-show="isJefe()" @click="downloadFullZip()" :disabled="downloadingZip" class="btn-dark-sm">
+          <span x-text="downloadingZip ? '⏳ Generando…' : '📦 ZIP completo'"></span>
         </button>
       </div>
     </div>
 
-    <!-- Resumen por herramienta: cuántas unidades hay de cada modelo. El
-         detalle de abajo (con N° de serie y ubicación) es lo que permite
-         encontrar cada unidad puntual entre esas cantidades. -->
+    <!-- Resumen rápido por modelo -->
     <div class="card" style="margin-bottom:1rem;">
       <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:0.6rem;">Cantidad por herramienta</h3>
       <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
@@ -56,27 +55,48 @@
     </div>
 
     <div class="card" style="padding:0;overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <table class="rpt-table">
         <thead>
-          <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
-            <th style="padding:0.75rem 1rem;">Herramienta</th><th style="padding:0.75rem 1rem;">Marca</th>
-            <th style="padding:0.75rem 1rem;">Categoría</th><th style="padding:0.75rem 1rem;">N° de serie</th>
-            <th style="padding:0.75rem 1rem;">Ubicación</th><th style="padding:0.75rem 1rem;">Proveedor</th>
-            <th style="padding:0.75rem 1rem;">Estado</th><th style="padding:0.75rem 1rem;">Costo de compra</th><th style="padding:0.75rem 1rem;">Valor actual</th>
+          <tr class="rpt-head-row">
+            <th class="rpt-th"><div class="th-inner">Herramienta<input class="th-filter" x-model="invF.name"      placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Marca     <input class="th-filter" x-model="invF.brand"     placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Categoría <input class="th-filter" x-model="invF.category"  placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">N° serie  <input class="th-filter" x-model="invF.serial"    placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Ubicación <input class="th-filter" x-model="invF.location"  placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Proveedor <input class="th-filter" x-model="invF.supplier"  placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Estado    <input class="th-filter" x-model="invF.status"    placeholder="Filtrar…"></div></th>
+            <th class="rpt-th" style="min-width:110px;">Costo compra</th>
+            <th class="rpt-th" style="min-width:110px;">Valor actual</th>
           </tr>
         </thead>
         <tbody>
-          <template x-for="row in inventoryRows" :key="row.id">
-            <tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:0.6rem 1rem;font-weight:600;" x-text="row.name"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.brand || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.category || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.serial_number || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.location || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.supplier || '—'"></td>
-              <td style="padding:0.6rem 1rem;" x-text="row.status"></td>
-              <td style="padding:0.6rem 1rem;" x-text="row.purchase_cost != null ? '$' + row.purchase_cost.toLocaleString() : '—'"></td>
-              <td style="padding:0.6rem 1rem;" x-text="row.current_value != null ? '$' + row.current_value.toLocaleString() : '—'"></td>
+          <template x-if="filteredInventory.length === 0">
+            <tr><td colspan="9" style="padding:2rem;text-align:center;color:#94a3b8;">Sin resultados</td></tr>
+          </template>
+          <template x-for="row in filteredInventory" :key="row.id">
+            <tr class="rpt-row">
+              <td class="rpt-td rpt-name" x-text="row.name"></td>
+              <td class="rpt-td rpt-muted" x-text="row.brand || '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="row.category || '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="row.serial_number || '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="row.location || '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="row.supplier || '—'"></td>
+              <!-- Estado: chip de color para en_caja -->
+              <td class="rpt-td">
+                <template x-if="row.status === 'en_caja'">
+                  <span class="status-chip">
+                    <span class="color-dot"
+                      :style="row.responsible_color ? 'background:' + row.responsible_color : 'background:#94a3b8'"
+                      :title="tooltipCaja(row)"></span>
+                    <span style="font-size:0.78rem;">en caja</span>
+                  </span>
+                </template>
+                <template x-if="row.status !== 'en_caja'">
+                  <span class="badge" :class="statusInventoryBadge(row.status)" x-text="statusLabel(row.status)"></span>
+                </template>
+              </td>
+              <td class="rpt-td" x-text="row.purchase_cost != null ? '$' + row.purchase_cost.toLocaleString() : '—'"></td>
+              <td class="rpt-td" x-text="row.current_value != null ? '$' + row.current_value.toLocaleString() : '—'"></td>
             </tr>
           </template>
         </tbody>
@@ -84,10 +104,12 @@
     </div>
   </div>
 
-  <!-- Préstamos -->
+  <!-- ══════════════════════════════════════════
+       PRÉSTAMOS
+  ══════════════════════════════════════════ -->
   <div x-show="tab === 'loans'">
     <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
-      <select x-model="loanStatusFilter" @change="loadLoansReport()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+      <select x-model="loanStatusFilter" @change="loadLoansReport()" class="rpt-select">
         <option value="">Todos los estados</option>
         <option value="activo">Activo</option><option value="vencido">Vencido</option>
         <option value="devuelto">Devuelto</option><option value="extraviado">Extraviado</option>
@@ -95,7 +117,7 @@
       <input type="date" x-model="dateFrom" @change="loadLoansReport()" class="field-input" style="width:auto;">
       <span style="color:#94a3b8;font-size:0.8rem;">hasta</span>
       <input type="date" x-model="dateTo" @change="loadLoansReport()" class="field-input" style="width:auto;">
-      <button @click="downloadLoansPdf()" style="margin-left:auto;background:var(--brand-primary,#4f46e5);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ PDF</button>
+      <button @click="downloadLoansPdf()" class="btn-primary-sm" style="margin-left:auto;">⬇ PDF</button>
     </div>
     <div class="card" style="margin-bottom:1rem;">
       <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:0.6rem;">Cantidad de préstamos por herramienta</h3>
@@ -111,29 +133,33 @@
     </div>
 
     <div class="card" style="padding:0;overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <table class="rpt-table">
         <thead>
-          <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
-            <th style="padding:0.75rem 1rem;">Herramienta</th><th style="padding:0.75rem 1rem;">Marca</th>
-            <th style="padding:0.75rem 1rem;">Categoría</th><th style="padding:0.75rem 1rem;">N° de serie</th>
-            <th style="padding:0.75rem 1rem;">Responsable</th>
-            <th style="padding:0.75rem 1rem;">Préstamo</th><th style="padding:0.75rem 1rem;">Vence</th>
-            <th style="padding:0.75rem 1rem;">Devolución</th><th style="padding:0.75rem 1rem;">Estado</th>
+          <tr class="rpt-head-row">
+            <th class="rpt-th"><div class="th-inner">Herramienta <input class="th-filter" x-model="loanF.tool"       placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Marca       <input class="th-filter" x-model="loanF.brand"      placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Categoría   <input class="th-filter" x-model="loanF.category"   placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">N° serie    <input class="th-filter" x-model="loanF.serial"     placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Responsable <input class="th-filter" x-model="loanF.borrower"   placeholder="Filtrar…"></div></th>
+            <th class="rpt-th" style="min-width:90px;">Préstamo</th>
+            <th class="rpt-th" style="min-width:90px;">Vence</th>
+            <th class="rpt-th" style="min-width:120px;">Devolución</th>
+            <th class="rpt-th"><div class="th-inner">Estado      <input class="th-filter" x-model="loanF.status"     placeholder="Filtrar…"></div></th>
           </tr>
         </thead>
         <tbody>
-          <template x-if="loansReport.length === 0"><tr><td colspan="9" style="padding:2rem;text-align:center;color:#94a3b8;">Sin resultados</td></tr></template>
-          <template x-for="row in loansReport" :key="row.id">
-            <tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:0.6rem 1rem;font-weight:600;" x-text="row.tool || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool_brand || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool_category || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool_serial_number || '—'"></td>
-              <td style="padding:0.6rem 1rem;" x-text="row.borrower || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="formatDate(row.loan_date)"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="formatDate(row.due_date)"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;white-space:nowrap;" x-text="row.return_date ? formatDateTime(row.return_date) : '—'"></td>
-              <td style="padding:0.6rem 1rem;"><span class="badge" :class="statusBadgeClass(row.status)" x-text="row.status"></span></td>
+          <template x-if="filteredLoans.length === 0"><tr><td colspan="9" style="padding:2rem;text-align:center;color:#94a3b8;">Sin resultados</td></tr></template>
+          <template x-for="row in filteredLoans" :key="row.id">
+            <tr class="rpt-row">
+              <td class="rpt-td rpt-name" x-text="row.tool || '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="row.tool_brand || '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="row.tool_category || '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="row.tool_serial_number || '—'"></td>
+              <td class="rpt-td" x-text="row.borrower || '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="formatDate(row.loan_date)"></td>
+              <td class="rpt-td rpt-muted" x-text="formatDate(row.due_date)"></td>
+              <td class="rpt-td rpt-muted" style="white-space:nowrap;" x-text="row.return_date ? formatDateTime(row.return_date) : '—'"></td>
+              <td class="rpt-td"><span class="badge" :class="statusBadgeClass(row.status)" x-text="row.status"></span></td>
             </tr>
           </template>
         </tbody>
@@ -141,42 +167,49 @@
     </div>
   </div>
 
-  <!-- Mantenimiento -->
+  <!-- ══════════════════════════════════════════
+       MANTENIMIENTO
+  ══════════════════════════════════════════ -->
   <div x-show="tab === 'maintenance'">
     <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
-      <select x-model="maintenanceStatusFilter" @change="loadMaintenanceReport()" style="border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem;">
+      <select x-model="maintenanceStatusFilter" @change="loadMaintenanceReport()" class="rpt-select">
         <option value="">Todos los estados</option>
         <option value="en_proceso">En proceso</option>
         <option value="resuelto">Resuelto</option>
         <option value="sin_solucion">Sin solución</option>
       </select>
-      <button @click="downloadMaintenancePdf()" style="margin-left:auto;background:var(--brand-primary,#4f46e5);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem;">⬇ PDF</button>
+      <button @click="downloadMaintenancePdf()" class="btn-primary-sm" style="margin-left:auto;">⬇ PDF</button>
     </div>
     <div class="card" style="padding:0;overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <table class="rpt-table">
         <thead>
-          <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
-            <th style="padding:0.75rem 1rem;">Herramienta</th><th style="padding:0.75rem 1rem;">Marca</th>
-            <th style="padding:0.75rem 1rem;">Categoría</th><th style="padding:0.75rem 1rem;">Proveedor</th>
-            <th style="padding:0.75rem 1rem;">Motivo</th><th style="padding:0.75rem 1rem;">Enviado</th>
-            <th style="padding:0.75rem 1rem;">Resuelto</th><th style="padding:0.75rem 1rem;">Estado</th>
-            <th style="padding:0.75rem 1rem;">Notas</th><th style="padding:0.75rem 1rem;">Comprobante</th>
+          <tr class="rpt-head-row">
+            <th class="rpt-th"><div class="th-inner">Herramienta <input class="th-filter" x-model="maintF.tool"      placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Marca       <input class="th-filter" x-model="maintF.brand"     placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Categoría   <input class="th-filter" x-model="maintF.category"  placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Proveedor   <input class="th-filter" x-model="maintF.provider"  placeholder="Filtrar…"></div></th>
+            <th class="rpt-th" style="min-width:180px;">Motivo</th>
+            <th class="rpt-th" style="min-width:90px;">Enviado</th>
+            <th class="rpt-th" style="min-width:90px;">Resuelto</th>
+            <th class="rpt-th"><div class="th-inner">Estado      <input class="th-filter" x-model="maintF.status"    placeholder="Filtrar…"></div></th>
+            <th class="rpt-th">Notas</th>
+            <th class="rpt-th">Doc.</th>
           </tr>
         </thead>
         <tbody>
-          <template x-if="maintenanceReport.length === 0"><tr><td colspan="10" style="padding:2rem;text-align:center;color:#94a3b8;">Sin resultados</td></tr></template>
-          <template x-for="row in maintenanceReport" :key="row.id">
-            <tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:0.6rem 1rem;font-weight:600;" x-text="row.tool ? row.tool.name : ('#' + row.tool_id)"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool ? (row.tool.brand || '—') : '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.tool ? (row.tool.category || '—') : '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.provider || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;max-width:220px;" x-text="row.reason"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="formatDate(row.sent_date)"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="row.resolved_date ? formatDate(row.resolved_date) : '—'"></td>
-              <td style="padding:0.6rem 1rem;"><span class="badge" :class="maintenanceBadgeClass(row.status)" x-text="maintenanceStatusLabel(row.status)"></span></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;max-width:200px;" x-text="row.resolution_notes || '—'"></td>
-              <td style="padding:0.6rem 1rem;">
+          <template x-if="filteredMaintenance.length === 0"><tr><td colspan="10" style="padding:2rem;text-align:center;color:#94a3b8;">Sin resultados</td></tr></template>
+          <template x-for="row in filteredMaintenance" :key="row.id">
+            <tr class="rpt-row">
+              <td class="rpt-td rpt-name" x-text="row.tool ? row.tool.name : ('#' + row.tool_id)"></td>
+              <td class="rpt-td rpt-muted" x-text="row.tool ? (row.tool.brand || '—') : '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="row.tool ? (row.tool.category || '—') : '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="row.provider || '—'"></td>
+              <td class="rpt-td rpt-muted" style="max-width:220px;" x-text="row.reason"></td>
+              <td class="rpt-td rpt-muted" x-text="formatDate(row.sent_date)"></td>
+              <td class="rpt-td rpt-muted" x-text="row.resolved_date ? formatDate(row.resolved_date) : '—'"></td>
+              <td class="rpt-td"><span class="badge" :class="maintenanceBadgeClass(row.status)" x-text="maintenanceStatusLabel(row.status)"></span></td>
+              <td class="rpt-td rpt-muted" style="max-width:200px;" x-text="row.resolution_notes || '—'"></td>
+              <td class="rpt-td">
                 <a x-show="row.documents && row.documents.length" :href="row.documents && row.documents[0] && row.documents[0].file_url" target="_blank" style="font-size:0.78rem;">
                   Ver<template x-if="row.documents && row.documents.length > 1"> (<span x-text="row.documents.length"></span>)</template>
                 </a>
@@ -189,26 +222,36 @@
     </div>
   </div>
 
-  <!-- Auditoría -->
+  <!-- ══════════════════════════════════════════
+       AUDITORÍA
+  ══════════════════════════════════════════ -->
   <div x-show="tab === 'audit'">
+    <div class="card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+      <span style="font-size:0.8rem;color:#64748b;">Registro de todas las acciones del sistema — solo visible para Jefe.</span>
+      <input class="th-filter" style="width:220px;padding:0.45rem 0.65rem;" x-model="auditF.search" placeholder="Buscar en acciones, usuario, detalle…">
+    </div>
     <div class="card" style="padding:0;overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <table class="rpt-table">
         <thead>
-          <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b;">
-            <th style="padding:0.75rem 1rem;">Fecha</th><th style="padding:0.75rem 1rem;">Usuario</th><th style="padding:0.75rem 1rem;">Acción</th>
-            <th style="padding:0.75rem 1rem;">Entidad</th><th style="padding:0.75rem 1rem;">Detalle</th><th style="padding:0.75rem 1rem;">IP</th>
+          <tr class="rpt-head-row">
+            <th class="rpt-th"><div class="th-inner">Fecha       <input class="th-filter" x-model="auditF.date"   placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Usuario     <input class="th-filter" x-model="auditF.user"   placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Acción      <input class="th-filter" x-model="auditF.action" placeholder="Filtrar…"></div></th>
+            <th class="rpt-th"><div class="th-inner">Entidad     <input class="th-filter" x-model="auditF.entity" placeholder="Filtrar…"></div></th>
+            <th class="rpt-th">Detalle</th>
+            <th class="rpt-th">IP</th>
           </tr>
         </thead>
         <tbody>
-          <template x-if="auditLog.length === 0"><tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Sin registros todavía</td></tr></template>
-          <template x-for="entry in auditLog" :key="entry.id">
-            <tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:0.6rem 1rem;color:#64748b;white-space:nowrap;" x-text="formatDateTime(entry.created_at)"></td>
-              <td style="padding:0.6rem 1rem;color:#475569;" x-text="entry.user ? entry.user.full_name : '—'"></td>
-              <td style="padding:0.6rem 1rem;font-weight:600;" x-text="entry.action"></td>
-              <td style="padding:0.6rem 1rem;" x-text="entityLabel(entry)"></td>
-              <td style="padding:0.6rem 1rem;color:#64748b;" x-text="entry.detail || '—'"></td>
-              <td style="padding:0.6rem 1rem;color:#94a3b8;" x-text="entry.ip_address || '—'"></td>
+          <template x-if="filteredAudit.length === 0"><tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Sin registros todavía</td></tr></template>
+          <template x-for="entry in filteredAudit" :key="entry.id">
+            <tr class="rpt-row">
+              <td class="rpt-td rpt-muted" style="white-space:nowrap;" x-text="formatDateTime(entry.created_at)"></td>
+              <td class="rpt-td" x-text="entry.user ? entry.user.full_name : '—'"></td>
+              <td class="rpt-td" style="font-weight:600;" x-text="entry.action"></td>
+              <td class="rpt-td" x-text="entityLabel(entry)"></td>
+              <td class="rpt-td rpt-muted" x-text="entry.detail || '—'"></td>
+              <td class="rpt-td rpt-muted" x-text="entry.ip_address || '—'"></td>
             </tr>
           </template>
         </tbody>
@@ -220,8 +263,45 @@
 </div>
 
 <style>
+/* ── Tabs ─────────────────────────────────────────── */
 .report-tab { background:none;border:none;border-bottom:2px solid transparent;padding:0.6rem 0.25rem;margin-right:1.25rem;cursor:pointer;font-size:0.875rem;font-weight:500; }
 .field-input { border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.65rem;font-size:0.85rem;font-family:inherit; }
+.rpt-select  { border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.85rem; }
+
+/* ── Tabla ────────────────────────────────────────── */
+.rpt-table { width:100%;border-collapse:collapse;font-size:0.85rem; }
+.rpt-head-row { text-align:left;border-bottom:2px solid #e2e8f0; }
+.rpt-th   { padding:0;vertical-align:top;color:#475569;font-weight:600;font-size:0.78rem; }
+.th-inner { display:flex;flex-direction:column;gap:4px;padding:0.6rem 0.75rem 0.5rem; }
+.th-filter{
+  width:100%;padding:3px 6px;font-size:0.73rem;border:1px solid #cbd5e1;
+  border-radius:4px;font-family:inherit;background:#f8fafc;color:#334155;
+  outline:none;transition:border-color .15s;
+}
+.th-filter:focus { border-color:var(--brand-primary,#4f46e5);background:#fff; }
+.rpt-row  { border-bottom:1px solid #f1f5f9;transition:background .1s; }
+.rpt-row:hover { background:#f8fafc; }
+.rpt-td   { padding:0.6rem 0.75rem; }
+.rpt-name { font-weight:600; }
+.rpt-muted{ color:#64748b; }
+
+/* ── Chip de color para en_caja ───────────────────── */
+.status-chip { display:inline-flex;align-items:center;gap:0.35rem; }
+.color-dot   {
+  width:14px;height:14px;border-radius:50%;flex-shrink:0;
+  border:2px solid rgba(0,0,0,.12);cursor:help;
+  box-shadow:0 0 0 1px rgba(255,255,255,.6) inset;
+}
+
+/* ── Botones ──────────────────────────────────────── */
+.btn-outline-sm { background:none;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem; }
+.btn-primary-sm { background:var(--brand-primary,#4f46e5);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem; }
+.btn-dark-sm    { background:#0f172a;color:#fff;border:none;border-radius:6px;padding:0.5rem 0.9rem;cursor:pointer;font-size:0.8rem; }
+
+[data-theme="dark"] .rpt-row:hover { background:rgba(255,255,255,.04); }
+[data-theme="dark"] .th-filter { background:#1e293b;color:#e2e8f0;border-color:#334155; }
+[data-theme="dark"] .th-filter:focus { background:#0f172a;border-color:var(--brand-primary,#818cf8); }
+[data-theme="dark"] .rpt-select,.field-input { background:#1e293b;color:#e2e8f0;border-color:#334155; }
 </style>
 {% endblock %}
 
@@ -231,142 +311,145 @@ function reportsPage() {
   return {
     user: null,
     tab: 'inventory',
-    inventoryRows: [],
+
+    /* datos */
+    inventoryRows:    [],
     inventorySummary: [],
-    inventoryTotals: { total_purchase_cost: 0, total_current_value: 0 },
-    loansReport: [],
-    loansSummary: [],
-    maintenanceReport: [],
-    maintenanceStatusFilter: '',
-    auditLog: [],
-    loanStatusFilter: '',
+    inventoryTotals:  { total_purchase_cost: 0, total_current_value: 0 },
+    loansReport:      [],
+    loansSummary:     [],
+    maintenanceReport:[],
+    auditLog:         [],
+
+    /* filtros globales de pestaña préstamos */
+    loanStatusFilter:       '',
+    maintenanceStatusFilter:'',
     dateFrom: '',
-    dateTo: '',
+    dateTo:   '',
+
+    /* filtros de columna */
+    invF:  { name:'', brand:'', category:'', serial:'', location:'', supplier:'', status:'' },
+    loanF: { tool:'', brand:'', category:'', serial:'', borrower:'', status:'' },
+    maintF:{ tool:'', brand:'', category:'', provider:'', status:'' },
+    auditF:{ search:'', date:'', user:'', action:'', entity:'' },
+
     downloadingZip: false,
 
+    /* ── Init ─────────────────────────────────────── */
     async init() {
       this.user = await getCurrentUser();
       if (!this.canView()) return;
+
+      /* Respetar ?tab=audit (enlace desde sidebar de administración) */
+      const urlTab = new URLSearchParams(window.location.search).get('tab');
+      if (urlTab && ['inventory','loans','maintenance','audit'].includes(urlTab)) {
+        this.tab = urlTab;
+      }
+
       await this.loadInventoryReport();
       await this.loadLoansReport();
       if (this.isJefe()) await this.loadAudit();
     },
 
-    isJefe() { return hasRole(this.user, 'jefe'); },
-    // Reportes es Encargado+ — un Mecánico no tiene ningún acceso al
-    // módulo (a diferencia de Herramientas/Cajas/Mantenimiento, donde ve
-    // una versión reducida). El backend ya rechaza (403) inventory/loans
-    // para Mecánico; esto evita que la pantalla intente cargar igual y
-    // quede con tablas vacías sin explicación.
+    setTab(t) {
+      this.tab = t;
+      /* Actualiza la URL sin recargar la página */
+      const url = new URL(window.location);
+      url.searchParams.set('tab', t);
+      window.history.replaceState({}, '', url);
+    },
+
+    isJefe()  { return hasRole(this.user, 'jefe'); },
     canView() { return hasRole(this.user, 'encargado'); },
 
+    /* ── Filtros computados ───────────────────────── */
+    get filteredInventory() {
+      const f = this.invF;
+      const match = (v, q) => !q || (v||'').toLowerCase().includes(q.toLowerCase());
+      return this.inventoryRows.filter(r =>
+        match(r.name,          f.name)     &&
+        match(r.brand,         f.brand)    &&
+        match(r.category,      f.category) &&
+        match(r.serial_number, f.serial)   &&
+        match(r.location,      f.location) &&
+        match(r.supplier,      f.supplier) &&
+        match(r.status,        f.status)
+      );
+    },
+    get filteredLoans() {
+      const f = this.loanF;
+      const match = (v, q) => !q || (v||'').toLowerCase().includes(q.toLowerCase());
+      return this.loansReport.filter(r =>
+        match(r.tool,               f.tool)     &&
+        match(r.tool_brand,         f.brand)    &&
+        match(r.tool_category,      f.category) &&
+        match(r.tool_serial_number, f.serial)   &&
+        match(r.borrower,           f.borrower) &&
+        match(r.status,             f.status)
+      );
+    },
+    get filteredMaintenance() {
+      const f = this.maintF;
+      const match = (v, q) => !q || (v||'').toLowerCase().includes(q.toLowerCase());
+      return this.maintenanceReport.filter(r =>
+        match(r.tool ? r.tool.name : '', f.tool)     &&
+        match(r.tool ? r.tool.brand : '',f.brand)    &&
+        match(r.tool ? r.tool.category:'',f.category)&&
+        match(r.provider,               f.provider)  &&
+        match(r.status,                 f.status)
+      );
+    },
+    get filteredAudit() {
+      const f = this.auditF;
+      const match = (v, q) => !q || (v||'').toLowerCase().includes(q.toLowerCase());
+      const global = f.search.toLowerCase();
+      return this.auditLog.filter(entry => {
+        const userName   = entry.user ? entry.user.full_name : '';
+        const entityStr  = this.entityLabel(entry);
+        const ts         = this.formatDateTime(entry.created_at);
+        if (global && ![userName, entry.action, entry.detail, entityStr, ts, entry.ip_address].some(v => (v||'').toLowerCase().includes(global))) return false;
+        return match(ts,          f.date)   &&
+               match(userName,    f.user)   &&
+               match(entry.action,f.action) &&
+               match(entityStr,   f.entity);
+      });
+    },
+
+    /* ── Tooltip de caja ──────────────────────────── */
+    tooltipCaja(row) {
+      const parts = [];
+      if (row.responsible_name) parts.push(row.responsible_name);
+      if (row.toolbox_name)     parts.push('Caja: ' + row.toolbox_name);
+      return parts.join(' · ') || 'en caja';
+    },
+
+    /* ── API calls ────────────────────────────────── */
     async loadInventoryReport() {
       const res = await authFetch('/api/v1/reports/inventory');
       if (!res.ok) return;
       const data = await res.json();
-      this.inventoryRows = data.tools;
+      this.inventoryRows    = data.tools;
       this.inventorySummary = data.summary || [];
-      this.inventoryTotals = { total_purchase_cost: data.total_purchase_cost, total_current_value: data.total_current_value };
-    },
-
-    async downloadInventoryCsv() {
-      const res = await authFetch('/api/v1/reports/inventory.csv');
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'inventario.csv';
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-
-    async downloadInventoryPdf() {
-      const res = await authFetch('/api/v1/reports/inventory.pdf');
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `inventario_${new Date().toISOString().slice(0,10)}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-
-    async downloadFullZip() {
-      // Genera y descarga el ZIP completo: CSV inventario + CSV préstamos + QR codes
-      this.downloadingZip = true;
-      try {
-        const res = await authFetch('/api/v1/reports/export.zip');
-        if (!res.ok) { alert('No se pudo generar el ZIP. Intentá de nuevo.'); return; }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `panol360_export_${new Date().toISOString().slice(0,10)}.zip`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } finally {
-        this.downloadingZip = false;
-      }
-    },
-
-    async downloadLoansPdf() {
-      const params = new URLSearchParams();
-      if (this.loanStatusFilter) params.set('status', this.loanStatusFilter);
-      if (this.dateFrom) params.set('date_from', this.dateFrom);
-      if (this.dateTo) params.set('date_to', this.dateTo);
-      const res = await authFetch('/api/v1/reports/loans.pdf?' + params.toString());
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `prestamos_${new Date().toISOString().slice(0,10)}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-
-    async downloadMaintenancePdf() {
-      const params = new URLSearchParams();
-      if (this.maintenanceStatusFilter) params.set('status', this.maintenanceStatusFilter);
-      const res = await authFetch('/api/v1/reports/maintenance.pdf?' + params.toString());
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `mantenimiento_${new Date().toISOString().slice(0,10)}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      this.inventoryTotals  = { total_purchase_cost: data.total_purchase_cost, total_current_value: data.total_current_value };
     },
 
     async loadLoansReport() {
       const params = new URLSearchParams();
       if (this.loanStatusFilter) params.set('status', this.loanStatusFilter);
       if (this.dateFrom) params.set('date_from', this.dateFrom);
-      if (this.dateTo) params.set('date_to', this.dateTo);
+      if (this.dateTo)   params.set('date_to',   this.dateTo);
       const res = await authFetch('/api/v1/reports/loans?' + params.toString());
       if (!res.ok) { this.loansReport = []; this.loansSummary = []; return; }
       const data = await res.json();
-      this.loansReport = data.loans;
+      this.loansReport  = data.loans;
       this.loansSummary = data.summary || [];
     },
 
     async loadMaintenanceReport() {
       const params = new URLSearchParams();
       if (this.maintenanceStatusFilter) params.set('status', this.maintenanceStatusFilter);
-      // Reusa el mismo endpoint que el módulo de Mantenimiento — ya trae
-      // la herramienta (con marca/categoría) embebida.
       const res = await authFetch('/api/v1/maintenance?' + params.toString());
       this.maintenanceReport = res.ok ? await res.json() : [];
-    },
-
-    maintenanceStatusLabel(status) {
-      return { en_proceso: 'En proceso', resuelto: 'Resuelto', sin_solucion: 'Sin solución' }[status] || status;
-    },
-    maintenanceBadgeClass(status) {
-      return { en_proceso: 'badge-warning', resuelto: 'badge-success', sin_solucion: 'badge-danger' }[status] || 'badge-info';
     },
 
     async loadAudit() {
@@ -374,21 +457,80 @@ function reportsPage() {
       this.auditLog = res.ok ? await res.json() : [];
     },
 
+    /* ── Descargas ────────────────────────────────── */
+    async downloadInventoryCsv() {
+      const res = await authFetch('/api/v1/reports/inventory.csv');
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a'); a.href = url; a.download = 'inventario.csv'; a.click(); URL.revokeObjectURL(url);
+    },
+    async downloadInventoryPdf() {
+      const res = await authFetch('/api/v1/reports/inventory.pdf');
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a'); a.href = url; a.download = `inventario_${new Date().toISOString().slice(0,10)}.pdf`; a.click(); URL.revokeObjectURL(url);
+    },
+    async downloadFullZip() {
+      this.downloadingZip = true;
+      try {
+        const res = await authFetch('/api/v1/reports/export.zip');
+        if (!res.ok) { alert('No se pudo generar el ZIP. Intentá de nuevo.'); return; }
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a'); a.href = url; a.download = `panol360_export_${new Date().toISOString().slice(0,10)}.zip`; a.click(); URL.revokeObjectURL(url);
+      } finally { this.downloadingZip = false; }
+    },
+    async downloadLoansPdf() {
+      const params = new URLSearchParams();
+      if (this.loanStatusFilter) params.set('status', this.loanStatusFilter);
+      if (this.dateFrom) params.set('date_from', this.dateFrom);
+      if (this.dateTo)   params.set('date_to',   this.dateTo);
+      const res = await authFetch('/api/v1/reports/loans.pdf?' + params.toString());
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a'); a.href = url; a.download = `prestamos_${new Date().toISOString().slice(0,10)}.pdf`; a.click(); URL.revokeObjectURL(url);
+    },
+    async downloadMaintenancePdf() {
+      const params = new URLSearchParams();
+      if (this.maintenanceStatusFilter) params.set('status', this.maintenanceStatusFilter);
+      const res = await authFetch('/api/v1/reports/maintenance.pdf?' + params.toString());
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a'); a.href = url; a.download = `mantenimiento_${new Date().toISOString().slice(0,10)}.pdf`; a.click(); URL.revokeObjectURL(url);
+    },
+
+    /* ── Helpers UI ───────────────────────────────── */
+    statusLabel(s) {
+      return { disponible:'Disponible', prestado:'Prestado', en_caja:'En caja', baja:'Baja', mantenimiento:'Mantenimiento' }[s] || s;
+    },
+    statusInventoryBadge(s) {
+      return { disponible:'badge-success', prestado:'badge-warning', baja:'badge-danger', mantenimiento:'badge-warning' }[s] || 'badge-info';
+    },
+    statusBadgeClass(s) {
+      return { activo:'badge-info', vencido:'badge-danger', devuelto:'badge-success', extraviado:'badge-danger' }[s] || 'badge-info';
+    },
+    maintenanceStatusLabel(s) {
+      return { en_proceso:'En proceso', resuelto:'Resuelto', sin_solucion:'Sin solución' }[s] || s;
+    },
+    maintenanceBadgeClass(s) {
+      return { en_proceso:'badge-warning', resuelto:'badge-success', sin_solucion:'badge-danger' }[s] || 'badge-info';
+    },
     entityLabel(entry) {
       const idPart = [entry.entity_type, entry.entity_id].filter(Boolean).join(' #');
       return entry.entity_label ? `${entry.entity_label} (${idPart})` : (idPart || '—');
     },
-    formatDate(value) { return value ? new Date(value).toLocaleDateString('es-AR') : '—'; },
-    formatDateTime(value) { return value ? new Date(value).toLocaleString('es-AR') : '—'; },
-    statusBadgeClass(status) {
-      return { activo: 'badge-info', vencido: 'badge-danger', devuelto: 'badge-success', extraviado: 'badge-danger' }[status] || 'badge-info';
-    },
+    formatDate(value)     { return value ? new Date(value).toLocaleDateString('es-CL') : '—'; },
+    formatDateTime(value) { return value ? new Date(value).toLocaleString('es-CL') : '—'; },
   };
 }
 
 window.PANOL_TOUR_STEPS = [
-  { selector: '#reports-tabs', title: 'Pestañas de reportes', text: 'Inventario, Préstamos, Mantenimiento y (solo Jefe) Auditoría — cada una con su información consolidada y filtros propios.' },
-  { selector: '[x-show="isJefe()"]', title: 'Exportar ZIP completo', text: 'Solo el Jefe puede descargar el paquete ZIP: incluye CSV de inventario con valor en libros, CSV de préstamos e imágenes QR de todas las herramientas.' },
+  { selector: '#reports-tabs', title: 'Pestañas de reportes', text: 'Inventario, Préstamos, Mantenimiento y (solo Jefe) Auditoría — cada una con filtros por columna en los encabezados.' },
+  { selector: '.th-filter', title: 'Filtros de columna', text: 'Escribe en cualquier encabezado para filtrar las filas en tiempo real, sin recargar.' },
 ];
 </script>
 {% endblock %}
