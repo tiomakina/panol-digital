@@ -229,6 +229,17 @@
             <option value="doble_saldo">Doble saldo decreciente</option>
             <option value="uop">Unidades de producción</option>
           </select>
+          <div style="margin-top:0.4rem;padding:0.55rem 0.7rem;border-radius:6px;background:rgba(99,102,241,0.07);border-left:3px solid #6366f1;font-size:0.75rem;color:#94a3b8;line-height:1.5">
+            <template x-if="form.depreciation_method === 'lineal'">
+              <span><strong style="color:#c7d2fe">Lineal</strong> — Se deprecia el mismo monto cada año: (Costo − Rescate) ÷ Vida útil. El método más simple y estándar para herramientas de uso regular.</span>
+            </template>
+            <template x-if="form.depreciation_method === 'doble_saldo'">
+              <span><strong style="color:#c7d2fe">Doble saldo decreciente</strong> — Deprecia el doble de la tasa lineal sobre el valor remanente cada año. Reconoce más gasto al inicio, útil para equipos que pierden valor rápido (electrónicos, motores).</span>
+            </template>
+            <template x-if="form.depreciation_method === 'uop'">
+              <span><strong style="color:#c7d2fe">Unidades de producción</strong> — La depreciación varía según el uso real de la herramienta (horas o ciclos de trabajo). Actualmente calculado como lineal hasta que se integre el registro de uso por unidad.</span>
+            </template>
+          </div>
         </div>
         <div><label class="field-label">Folio documento de compra</label><input type="text" x-model="form.purchase_document_folio" class="field-input" placeholder="N° de boleta/factura"></div>
         <div>
