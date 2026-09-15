@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pañol 360 — Sistema de Gestión de Herramientas</title>
+  <meta name="description" content="Inventario en tiempo real, préstamos con QR y mantenimiento programado para empresas constructoras, mineras y de ingeniería.">
+  <link rel="icon" href="/static/img/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;0,900;1,700;1,800&family=Inter:wght@400;500;600&display=swap">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #07060f;
+      --bg2:    #0c0b1a;
+      --bg3:    #121024;
+      --border: rgba(79,70,229,0.14);
+      --bord2:  rgba(79,70,229,0.25);
+      --pri:    #4f46e5;
+      --pri-hi: #6366f1;
+      --acc:    #06b6d4;
+      --acc-lo: rgba(6,182,212,0.12);
+      --amb:    #f59e0b;
+      --amb-hi: #fbbf24;
+      --amb-lo: rgba(245,158,11,0.12);
+      --text:   #edeaff;
+      --muted:  #7c7aa0;
+      --dim:    #3e3c60;
+      --green:  #4ade80;
+      --red:    #f87171;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed;
+      top: env(safe-area-inset-top, 0px);
+      left: 0; right: 0;
+      z-index: 200;
+      height: 60px;
+      padding: 0 clamp(16px, 5vw, 72px);
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(7,6,15,0.75);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-mark {
+      width: 30px; height: 30px;
+      background: var(--pri); border-radius: 7px;
+      display: grid; place-items: center;
+    }
+    .logo-mark svg { width: 16px; height: 16px; }
+    .logo-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700; font-size: 1.25rem; letter-spacing: 0.03em;
+      color: var(--text);
+    }
+    .logo-name b { color: var(--pri-hi); font-weight: 800; }
+    .nav-r { display: flex; align-items: center; gap: 10px; }
+    .btn-ghost {
+      padding: 7px 15px; border-radius: 6px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); font-size: 0.85rem; font-weight: 500;
+      cursor: pointer; text-decoration: none;
+      transition: color 0.18s, border-color 0.18s;
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--bord2); }
+    .btn-amber {
+      padding: 7px 18px; border-radius: 6px;
+      background: var(--amb); color: #0f0800;
+      font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; border: none;
+      transition: background 0.18s, transform 0.12s;
+    }
+    .btn-amber:hover { background: var(--amb-hi); transform: translateY(-1px); }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative;
+      min-height: 100svh;
+      display: flex; align-items: center;
+      padding: 90px clamp(16px, 5vw, 72px) 72px;
+      overflow: hidden;
+    }
+    #hero-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+    .hero-body { position: relative; z-index: 2; max-width: 680px; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 12px;
+      border: 1px solid rgba(6,182,212,0.28); border-radius: 100px;
+      background: rgba(6,182,212,0.05);
+      font-size: 0.73rem; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--acc); margin-bottom: 24px;
+    }
+    .eyebrow-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--acc);
+      animation: blink 2.4s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:0.35; transform:scale(0.7); }
+    }
+    .hero-h1 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(3.2rem, 9vw, 6rem);
+      line-height: 0.92; letter-spacing: -0.01em;
+      text-wrap: balance; margin-bottom: 24px;
+    }
+    .hero-h1 em { font-style: italic; color: var(--pri-hi); }
+    .hero-h1 mark {
+      background: none; color: inherit;
+      position: relative; display: inline-block;
+    }
+    .hero-h1 mark::after {
+      content: '';
+      position: absolute; left: 0; bottom: 2px;
+      width: 100%; height: 5px;
+      background: var(--amb); border-radius: 2px;
+    }
+    .hero-p {
+      font-size: 1.1rem; color: var(--muted);
+      max-width: 500px; margin-bottom: 36px; line-height: 1.72;
+    }
+    .hero-ctas {
+      display: flex; align-items: center; gap: 14px;
+      flex-wrap: wrap; margin-bottom: 48px;
+    }
+    .btn-cta {
+      padding: 13px 26px; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      transition: all 0.18s; border: 2px solid transparent;
+    }
+    .btn-cta.am { background: var(--amb); color: #0e0700; border-color: transparent; }
+    .btn-cta.am:hover {
+      background: var(--amb-hi);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(245,158,11,0.25);
+    }
+    .btn-cta.ol {
+      background: transparent; color: var(--text);
+      border-color: rgba(255,255,255,0.13);
+    }
+    .btn-cta.ol:hover { border-color: rgba(255,255,255,0.3); transform: translateY(-2px); }
+    .trust {
+      display: flex; align-items: center; gap: 14px;
+      color: var(--dim); font-size: 0.78rem; font-weight: 500;
+      letter-spacing: 0.05em; text-transform: uppercase; flex-wrap: wrap;
+    }
+    .trust-line { width: 28px; height: 1px; background: var(--dim); }
+    .trust-cos { display: flex; gap: 18px; flex-wrap: wrap; }
+    .trust-cos span { color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+
+    /* ── Stats ── */
+    .stats {
+      padding: 44px clamp(16px, 5vw, 72px);
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 36px;
+      justify-content: space-between;
+    }
+    .stat { display: flex; flex-direction: column; gap: 2px; }
+    .stat-n {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800; font-size: 2.6rem; line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-n .u { font-size: 1.5rem; color: var(--pri-hi); }
+    .stat-l {
+      font-size: 0.76rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500;
+    }
+
+    /* ── Section chrome ── */
+    .section { padding: 88px clamp(16px, 5vw, 72px); }
+    .sec-eye {
+      font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--acc); margin-bottom: 10px;
+    }
+    .sec-h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.9rem, 4vw, 2.8rem);
+      line-height: 1.05; text-wrap: balance; margin-bottom: 14px;
+    }
+    .sec-p {
+      color: var(--muted); font-size: 1rem;
+      max-width: 520px; line-height: 1.72;
+    }
+
+    /* ── Feature grid ── */
+    .feats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border); border-radius: 14px;
+      overflow: hidden; margin-top: 52px;
+    }
+    .feat { background: var(--bg2); padding: 36px 32px; transition: background 0.2s; }
+    .feat:hover { background: var(--bg3); }
+    .feat-ico {
+      width: 42px; height: 42px; border-radius: 10px;
+      display: grid; place-items: center; margin-bottom: 22px;
+    }
+    .feat-ico.p { background: rgba(79,70,229,0.14); color: var(--pri-hi); }
+    .feat-ico.a { background: var(--acc-lo); color: var(--acc); }
+    .feat-ico.m { background: var(--amb-lo); color: var(--amb); }
+    .feat-h {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700; font-size: 1.35rem;
+      letter-spacing: 0.01em; margin-bottom: 8px;
+    }
+    .feat-p { color: var(--muted); font-size: 0.9rem; line-height: 1.65; }
+    .feat-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 18px; }
+    .tag {
+      padding: 3px 9px; border-radius: 100px;
+      font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em;
+    }
+    .tag.p { background: rgba(79,70,229,0.14); color: var(--pri-hi); }
+    .tag.a { background: var(--acc-lo); color: var(--acc); }
+    .tag.m { background: var(--amb-lo); color: var(--amb); }
+
+    /* ── Demo ── */
+    .demo-sec { background: var(--bg2); padding: 88px clamp(16px, 5vw, 72px); }
+    .tabs {
+      display: flex; gap: 2px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .tab {
+      padding: 9px 20px; font-size: 0.85rem; font-weight: 500;
+      color: var(--muted); cursor: pointer; border: none; background: none;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: color 0.18s, border-color 0.18s; white-space: nowrap;
+    }
+    .tab.on { color: var(--text); border-bottom-color: var(--pri); }
+    .tab:hover:not(.on) { color: var(--text); }
+    .panel { display: none; }
+    .panel.on { display: block; }
+    .mockup {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .mock-bar {
+      padding: 10px 14px; background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 7px;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot:nth-child(1) { background: #ff5f57; }
+    .dot:nth-child(2) { background: #febc2e; }
+    .dot:nth-child(3) { background: #28c840; }
+    .mock-url { flex: 1; text-align: center; font-size: 0.73rem; color: var(--dim); }
+    .mock-body { padding: 20px; font-size: 0.8rem; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px; margin-bottom: 18px;
+    }
+    .kpi {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border); border-radius: 8px; padding: 14px;
+    }
+    .kpi-v {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 1.7rem; font-weight: 800; line-height: 1;
+      margin-bottom: 3px; font-variant-numeric: tabular-nums;
+    }
+    .kpi-l {
+      font-size: 0.68rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .tbl-wrap {
+      background: rgba(255,255,255,0.015);
+      border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    }
+    .tbl-head {
+      display: grid; grid-template-columns: 1fr 1fr 1fr 90px;
+      gap: 8px; padding: 7px 11px;
+      color: var(--dim); font-size: 0.68rem;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--border);
+    }
+    .tbl-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr 90px;
+      gap: 8px; padding: 9px 11px;
+      border-bottom: 1px solid rgba(79,70,229,0.05);
+      align-items: center;
+    }
+    .tbl-row:last-child { border-bottom: none; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 100px; font-size: 0.68rem; font-weight: 500; }
+    .bg { background: rgba(74,222,128,0.1); color: var(--green); }
+    .ba { background: var(--amb-lo); color: var(--amb); }
+    .br { background: rgba(248,113,113,0.1); color: var(--red); }
+    .bp { background: rgba(79,70,229,0.14); color: var(--pri-hi); }
+
+    /* ── QR section ── */
+    .qr-wrap {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 72px; align-items: center;
+      padding: 88px clamp(16px, 5vw, 72px);
+    }
+    .steps { display: flex; flex-direction: column; }
+    .step { display: flex; gap: 18px; padding-bottom: 28px; position: relative; }
+    .step:not(:last-child)::before {
+      content: '';
+      position: absolute; left: 17px; top: 38px; bottom: 0;
+      width: 1px; background: var(--border);
+    }
+    .step-num {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 1px solid var(--pri); display: grid; place-items: center;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700; font-size: 0.9rem; color: var(--pri-hi); flex-shrink: 0;
+    }
+    .step-body h4 { font-weight: 600; font-size: 0.95rem; margin-bottom: 3px; }
+    .step-body p { font-size: 0.84rem; color: var(--muted); line-height: 1.6; }
+    .phone {
+      max-width: 268px; margin: 0 auto;
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 34px;
+      padding: 22px 14px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+    }
+    .phone-screen { background: var(--bg2); border-radius: 22px; overflow: hidden; padding: 14px; }
+    .phone-head { text-align: center; margin-bottom: 14px; }
+    .phone-head h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 1.15rem; font-weight: 700; }
+    .phone-head p { font-size: 0.68rem; color: var(--muted); }
+    .qr-box {
+      background: white; border-radius: 10px; padding: 14px; margin-bottom: 12px;
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
+    }
+    .qc { aspect-ratio: 1; border-radius: 1px; }
+    .qc.d { background: #0c0b1a; }
+    .qc.l { background: white; }
+    .phone-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 9px; padding: 10px; }
+    .phone-card-name { font-weight: 600; font-size: 0.82rem; margin-bottom: 3px; }
+    .phone-card-sub { font-size: 0.68rem; color: var(--muted); margin-bottom: 9px; }
+    .phone-btn-el {
+      width: 100%; padding: 7px; border-radius: 6px;
+      background: var(--pri); color: white;
+      font-size: 0.77rem; font-weight: 600;
+      border: none; text-align: center;
+    }
+
+    /* ── Pricing ── */
+    .pricing { background: var(--bg2); padding: 88px clamp(16px, 5vw, 72px); }
+    .price-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 18px; margin-top: 48px; max-width: 880px;
+    }
+    .price-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 12px; padding: 30px; position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .price-card:hover { transform: translateY(-4px); box-shadow: 0 20px 52px rgba(0,0,0,0.35); }
+    .price-card.fc { border-color: var(--pri); background: linear-gradient(170deg, rgba(79,70,229,0.09) 0%, var(--bg3) 60%); }
+    .price-pip {
+      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+      padding: 3px 14px; background: var(--pri); color: white;
+      font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em;
+      text-transform: uppercase; border-radius: 100px; white-space: nowrap;
+    }
+    .price-plan {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700; font-size: 1rem; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+    }
+    .price-num {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900; font-size: 2.6rem; line-height: 1;
+      font-variant-numeric: tabular-nums; margin-bottom: 2px;
+    }
+    .price-num .cur { font-size: 1.1rem; vertical-align: super; margin-right: 1px; }
+    .price-num .per { font-size: 0.95rem; font-weight: 500; color: var(--muted); }
+    .price-sub { font-size: 0.77rem; color: var(--muted); margin-bottom: 22px; padding-bottom: 22px; border-bottom: 1px solid var(--border); }
+    .price-feats { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+    .price-feats li { display: flex; align-items: flex-start; gap: 8px; font-size: 0.84rem; color: var(--muted); }
+    .price-feats li::before { content: '✓'; color: var(--acc); font-weight: 700; flex-shrink: 0; }
+    .price-btn {
+      display: block; width: 100%; padding: 11px; border-radius: 7px;
+      text-align: center; font-weight: 600; font-size: 0.875rem;
+      cursor: pointer; text-decoration: none; transition: all 0.18s;
+      border: 2px solid var(--border); color: var(--text); background: transparent;
+    }
+    .price-btn:hover { border-color: var(--pri); color: var(--pri-hi); }
+    .price-card.fc .price-btn { background: var(--pri); border-color: var(--pri); color: white; }
+    .price-card.fc .price-btn:hover { background: var(--pri-hi); border-color: var(--pri-hi); }
+
+    /* ── Final CTA ── */
+    .final {
+      padding: 112px clamp(16px, 5vw, 72px);
+      text-align: center; position: relative; overflow: hidden;
+    }
+    .final::before {
+      content: '';
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      width: min(640px, 100%); height: 420px;
+      background: radial-gradient(ellipse, rgba(79,70,229,0.18) 0%, transparent 68%);
+      pointer-events: none;
+    }
+    .final h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900; font-size: clamp(2.4rem, 6vw, 4rem);
+      line-height: 1.0; margin-bottom: 18px; text-wrap: balance;
+    }
+    .final p { color: var(--muted); font-size: 1.05rem; max-width: 460px; margin: 0 auto 36px; line-height: 1.72; }
+    .final-acts { display: flex; justify-content: center; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 36px clamp(16px, 5vw, 72px);
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px;
+      color: var(--dim); font-size: 0.77rem;
+    }
+    footer a { color: var(--dim); text-decoration: none; transition: color 0.18s; }
+    footer a:hover { color: var(--muted); }
+    .foot-links { display: flex; gap: 22px; }
+
+    /* ── Animations ── */
+    @media (prefers-reduced-motion: no-preference) {
+      .hero-body { animation: rise 0.9s cubic-bezier(0.22,1,0.36,1) both; }
+      @keyframes rise {
+        from { opacity:0; transform: translateY(28px); }
+        to   { opacity:1; transform: translateY(0); }
+      }
+      .feat { opacity:0; transform: translateY(14px); transition: opacity 0.5s, transform 0.5s, background 0.2s; }
+      .feat.vis { opacity:1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .feat { opacity:1; transform: none; }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 740px) {
+      .qr-wrap { grid-template-columns: 1fr; gap: 48px; }
+    }
+    @media (max-width: 600px) {
+      .tbl-head, .tbl-row { grid-template-columns: 1fr 90px; }
+      .tbl-head span:nth-child(2), .tbl-head span:nth-child(3),
+      .tbl-row span:nth-child(2), .tbl-row span:nth-child(3) { display: none; }
+      .btn-ghost { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 20 20" fill="white" aria-hidden="true">
+        <path d="M3 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-.293.707L13 10.414V17a1 1 0 0 1-1.447.894l-4-2A1 1 0 0 1 7 15v-4.586L3.293 6.707A1 1 0 0 1 3 6V4z"/>
+      </svg>
+    </div>
+    <span class="logo-name">Pañol<b>360</b></span>
+  </a>
+  <div class="nav-r">
+    <a href="/portal" class="btn-ghost">Iniciar sesión</a>
+    <a href="/demo" class="btn-amber">Probar demo</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-body">
+    <div class="eyebrow"><span class="eyebrow-dot"></span>Sistema activo en producción</div>
+    <h1 class="hero-h1">
+      Tu pañol,<br>
+      <em>sin caos</em><br>
+      <mark>ni pérdidas</mark>.
+    </h1>
+    <p class="hero-p">
+      Inventario en tiempo real, préstamos con QR y mantenimiento programado.
+      Para empresas constructoras, mineras y de ingeniería que no pueden permitirse perder herramientas.
+    </p>
+    <div class="hero-ctas">
+      <a href="/demo" class="btn-cta am">Probar gratis ahora</a>
+      <a href="#como-funciona" class="btn-cta ol">Ver cómo funciona ↓</a>
+    </div>
+    <div class="trust">
+      <span class="trust-line"></span>
+      <span>Usado en</span>
+      <div class="trust-cos">
+        <span>VMS Ingeniería</span>
+        <span>AH Constructora</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="stats">
+  <div class="stat">
+    <div class="stat-n"><span class="sv" data-to="500">0</span><span class="u">+</span></div>
+    <div class="stat-l">Herramientas registradas</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n"><span class="sv" data-to="3">0</span></div>
+    <div class="stat-l">Empresas en producción</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n"><span class="sv" data-to="0">0</span></div>
+    <div class="stat-l">Pérdidas sin registrar</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n"><span class="sv" data-to="99">0</span><span class="u">%</span></div>
+    <div class="stat-l">Uptime garantizado</div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section">
+  <div class="sec-eye">Funcionalidades clave</div>
+  <h2 class="sec-h2">Todo lo que necesita<br>tu empresa en un solo sistema</h2>
+  <p class="sec-p">Diseñado para equipos en terreno: simple para el operario, poderoso para el encargado de bodega.</p>
+  <div class="feats">
+    <div class="feat">
+      <div class="feat-ico p">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
+      <h3 class="feat-h">Inventario en tiempo real</h3>
+      <p class="feat-p">Sabe exactamente dónde está cada herramienta, quién la tiene y desde cuándo. Estado, ubicación y valor de cada activo actualizado al instante.</p>
+      <div class="feat-tags">
+        <span class="tag p">Stock live</span>
+        <span class="tag p">Valor activos</span>
+        <span class="tag p">Historial completo</span>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-ico a">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>
+        </svg>
+      </div>
+      <h3 class="feat-h">Control de préstamos QR</h3>
+      <p class="feat-p">El trabajador escanea el QR de la herramienta desde su celular. El sistema registra automáticamente responsable, plazo y estado. Sin planillas.</p>
+      <div class="feat-tags">
+        <span class="tag a">Escaneo QR</span>
+        <span class="tag a">Alerta vencimiento</span>
+        <span class="tag a">Sin app</span>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-ico m">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+        </svg>
+      </div>
+      <h3 class="feat-h">Mantenimiento programado</h3>
+      <p class="feat-p">Programa revisiones periódicas y recibe alertas antes de que una herramienta falle en terreno. Registra cada intervención con costo y técnico.</p>
+      <div class="feat-tags">
+        <span class="tag m">Alertas proactivas</span>
+        <span class="tag m">Historial técnico</span>
+        <span class="tag m">Costo mantención</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section class="demo-sec">
+  <div class="sec-eye">Panel de control</div>
+  <h2 class="sec-h2" style="margin-bottom:14px">El sistema en acción</h2>
+  <p class="sec-p" style="margin-bottom:36px">Así se ve el panel de tu encargado de bodega todos los días.</p>
+  <div class="tabs">
+    <button class="tab on" onclick="switchTab('dash')" type="button">Dashboard</button>
+    <button class="tab" onclick="switchTab('loans')" type="button">Préstamos activos</button>
+    <button class="tab" onclick="switchTab('maint')" type="button">Mantenimiento</button>
+  </div>
+  <div id="p-dash" class="panel on">
+    <div class="mockup">
+      <div class="mock-bar">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="mock-url">panol360.app/vms-ingenieria/dashboard</div>
+      </div>
+      <div class="mock-body">
+        <div class="kpis">
+          <div class="kpi"><div class="kpi-v" style="color:var(--pri-hi)">284</div><div class="kpi-l">Herramientas</div></div>
+          <div class="kpi"><div class="kpi-v" style="color:var(--acc)">47</div><div class="kpi-l">Préstamos activos</div></div>
+          <div class="kpi"><div class="kpi-v" style="color:var(--amb)">3</div><div class="kpi-l">Vencidos hoy</div></div>
+          <div class="kpi"><div class="kpi-v" style="color:var(--green)">$4.2M</div><div class="kpi-l">Valor inventario</div></div>
+        </div>
+        <div class="tbl-wrap">
+          <div class="tbl-head"><span>Herramienta</span><span>Responsable</span><span>Desde</span><span>Estado</span></div>
+          <div class="tbl-row"><span>Taladro Bosch GSB 18V</span><span style="color:var(--muted)">J. Morales</span><span style="color:var(--dim)">hace 2 días</span><span><span class="badge bg">Al día</span></span></div>
+          <div class="tbl-row"><span>Amoladora Makita 9565</span><span style="color:var(--muted)">P. Rojas</span><span style="color:var(--dim)">hace 5 días</span><span><span class="badge ba">Por vencer</span></span></div>
+          <div class="tbl-row"><span>Nivel láser Bosch GLL</span><span style="color:var(--muted)">C. Fuentes</span><span style="color:var(--dim)">hace 8 días</span><span><span class="badge br">Vencido</span></span></div>
+          <div class="tbl-row"><span>Sierra circular DeWalt</span><span style="color:var(--muted)">A. Soto</span><span style="color:var(--dim)">hace 1 día</span><span><span class="badge bg">Al día</span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="p-loans" class="panel">
+    <div class="mockup">
+      <div class="mock-bar">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="mock-url">panol360.app/vms-ingenieria/prestamos</div>
+      </div>
+      <div class="mock-body">
+        <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+          <div style="background:rgba(79,70,229,0.14);border:1px solid rgba(79,70,229,0.28);border-radius:6px;padding:6px 12px;font-size:0.77rem;color:var(--pri-hi)">Todos (47)</div>
+          <div style="border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:0.77rem;color:var(--muted)">Activos</div>
+          <div style="border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:0.77rem;color:var(--muted)">Vencidos (3)</div>
+          <div style="border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:0.77rem;color:var(--muted)">Devueltos hoy (12)</div>
+        </div>
+        <div class="tbl-wrap">
+          <div style="display:grid;grid-template-columns:1fr 1fr 90px 90px;gap:8px;padding:7px 11px;color:var(--dim);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid var(--border)">
+            <span>Herramienta</span><span>Trabajador</span><span>Devuelve</span><span>Acción</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 90px 90px;gap:8px;padding:9px 11px;border-bottom:1px solid rgba(79,70,229,0.05);align-items:center;font-size:0.77rem">
+            <span>Martillo demoledor</span><span style="color:var(--muted)">Rut 8.123.456-7</span><span style="color:var(--muted)">17 Sep</span>
+            <span><button type="button" style="padding:3px 9px;border-radius:4px;background:var(--acc-lo);color:var(--acc);border:1px solid rgba(6,182,212,0.2);font-size:0.68rem;cursor:pointer">Devolver</button></span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 90px 90px;gap:8px;padding:9px 11px;border-bottom:1px solid rgba(79,70,229,0.05);align-items:center;font-size:0.77rem">
+            <span>Compresor portátil</span><span style="color:var(--muted)">Rut 12.987.654-3</span><span style="color:var(--red)">15 Sep</span>
+            <span><button type="button" style="padding:3px 9px;border-radius:4px;background:rgba(248,113,113,0.1);color:var(--red);border:1px solid rgba(248,113,113,0.2);font-size:0.68rem;cursor:pointer">Vencido</button></span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 90px 90px;gap:8px;padding:9px 11px;align-items:center;font-size:0.77rem">
+            <span>Esmeril angular 9"</span><span style="color:var(--muted)">Rut 16.543.210-K</span><span style="color:var(--amb)">16 Sep</span>
+            <span><button type="button" style="padding:3px 9px;border-radius:4px;background:var(--amb-lo);color:var(--amb);border:1px solid rgba(245,158,11,0.2);font-size:0.68rem;cursor:pointer">Recordar</button></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="p-maint" class="panel">
+    <div class="mockup">
+      <div class="mock-bar">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="mock-url">panol360.app/vms-ingenieria/mantenimiento</div>
+      </div>
+      <div class="mock-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px">
+          <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(245,158,11,0.2);border-radius:8px;padding:12px;text-align:center">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.7rem;font-weight:800;color:var(--amb)">5</div>
+            <div style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Esta semana</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.7rem;font-weight:800">18</div>
+            <div style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Este mes</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(74,222,128,0.2);border-radius:8px;padding:12px;text-align:center">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.7rem;font-weight:800;color:var(--green)">$890K</div>
+            <div style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Ahorrado</div>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <div style="padding:9px 11px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.77rem">
+            <div><div style="font-weight:600;margin-bottom:2px">Revisión aceite compresor Atlas Copco</div><div style="font-size:0.68rem;color:var(--muted)">Programado: 20 Sep 2026</div></div>
+            <span class="badge ba">Próximo</span>
+          </div>
+          <div style="padding:9px 11px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.77rem;opacity:0.65">
+            <div><div style="font-weight:600;margin-bottom:2px">Calibración nivel láser Bosch</div><div style="font-size:0.68rem;color:var(--muted)">Completado: 12 Sep 2026</div></div>
+            <span class="badge bg">Listo</span>
+          </div>
+          <div style="padding:9px 11px;display:flex;justify-content:space-between;align-items:center;font-size:0.77rem">
+            <div><div style="font-weight:600;margin-bottom:2px">Cambio disco amoladora Makita</div><div style="font-size:0.68rem;color:var(--muted)">Programado: 30 Sep 2026</div></div>
+            <span class="badge bp">Planificado</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- QR HOW IT WORKS -->
+<section id="como-funciona">
+  <div class="qr-wrap">
+    <div>
+      <div class="sec-eye">Flujo QR</div>
+      <h2 class="sec-h2">Préstamo en 20 segundos,<br>sin papel, sin excusas</h2>
+      <p class="sec-p" style="margin-bottom:36px">Cualquier trabajador puede registrar un préstamo desde su celular. Sin app que instalar.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Escanea el QR de la herramienta</h4>
+            <p>Cada herramienta tiene su etiqueta adhesiva con código QR. El trabajador la escanea con la cámara del celular.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Confirma el préstamo en la web</h4>
+            <p>Ingresa su RUT y confirma. El sistema registra hora, responsable, herramienta y plazo de devolución.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>El encargado ve todo en tiempo real</h4>
+            <p>El préstamo aparece instantáneamente en el dashboard. Si no se devuelve a tiempo, recibirás alerta automática.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-head">
+            <h3>Pañol 360</h3>
+            <p>VMS Ingeniería</p>
+          </div>
+          <div class="qr-box" id="qr-grid"></div>
+          <div class="phone-card">
+            <div class="phone-card-name">Taladro Bosch GSB 18V</div>
+            <div class="phone-card-sub">Stock: Disponible &nbsp;·&nbsp; Valor: $89.990</div>
+            <div class="phone-btn-el">Registrar préstamo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing">
+  <div class="sec-eye">Planes</div>
+  <h2 class="sec-h2">Precio justo para cada empresa</h2>
+  <p class="sec-p">Sin letra chica ni costos de implementación. Empieza gratis hoy.</p>
+  <div class="price-grid">
+    <div class="price-card">
+      <div class="price-plan">Starter</div>
+      <div class="price-num"><span class="cur">$</span>0<span class="per"> / mes</span></div>
+      <div class="price-sub">Hasta 50 herramientas · 1 bodega · 1 usuario</div>
+      <ul class="price-feats">
+        <li>Inventario básico</li>
+        <li>Control de préstamos QR</li>
+        <li>Dashboard en tiempo real</li>
+        <li>Reportes básicos</li>
+        <li>Soporte por email</li>
+      </ul>
+      <a href="/portal" class="price-btn">Empezar gratis</a>
+    </div>
+    <div class="price-card fc">
+      <div class="price-pip">Más popular</div>
+      <div class="price-plan">Pro</div>
+      <div class="price-num"><span class="cur">$</span>49.990<span class="per"> / mes</span></div>
+      <div class="price-sub">Hasta 500 herramientas · 3 bodegas · 10 usuarios</div>
+      <ul class="price-feats">
+        <li>Todo lo de Starter</li>
+        <li>Alertas por email automáticas</li>
+        <li>Mantenimiento programado</li>
+        <li>Reportes avanzados PDF</li>
+        <li>Branding personalizado</li>
+        <li>Soporte prioritario</li>
+      </ul>
+      <a href="/portal" class="price-btn">Probar 30 días gratis</a>
+    </div>
+    <div class="price-card">
+      <div class="price-plan">Enterprise</div>
+      <div class="price-num" style="font-size:2rem">A convenir</div>
+      <div class="price-sub">Sin límite · Múltiples obras · Usuarios ilimitados</div>
+      <ul class="price-feats">
+        <li>Todo lo de Pro</li>
+        <li>API REST propia</li>
+        <li>Integración ERP / SAP</li>
+        <li>SLA 99.9% garantizado</li>
+        <li>Onboarding dedicado</li>
+        <li>Factura electrónica DTE</li>
+      </ul>
+      <a href="mailto:contacto@panol360.app" class="price-btn">Hablar con ventas</a>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final">
+  <h2>¿Cuánto cuesta perder<br>una herramienta de $200.000?</h2>
+  <p>Con Pañol 360, cada herramienta tiene nombre, responsable y fecha de devolución. Cero pérdidas sin registrar.</p>
+  <div class="final-acts">
+    <a href="/portal" class="btn-cta am">Empezar gratis hoy</a>
+    <a href="mailto:contacto@panol360.app" class="btn-cta ol">Hablar con el equipo</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <span style="font-weight:600;color:var(--muted)">Pañol 360</span>
+    <span style="margin-left:8px">© 2026 · Sistema de gestión de herramientas</span>
+  </div>
+  <div class="foot-links">
+    <a href="/terminos">Términos</a>
+    <a href="/privacidad">Privacidad</a>
+    <a href="/portal">Ingresar</a>
+  </div>
+</footer>
+
+<script>
+/* Canvas: inventory grid animation */
+(function () {
+  const canvas = document.getElementById('hero-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H, nodes = [];
+  const SP = 56;
+
+  function resize() {
+    W = canvas.width = canvas.offsetWidth;
+    H = canvas.height = canvas.offsetHeight;
+    build();
+  }
+
+  function build() {
+    nodes = [];
+    for (let y = 0; y < H + SP; y += SP) {
+      for (let x = 0; x < W + SP; x += SP) {
+        const k = Math.random();
+        nodes.push({
+          x, y,
+          r: Math.random() * 1.6 + 0.6,
+          phase: Math.random() * Math.PI * 2,
+          speed: Math.random() * 0.007 + 0.003,
+          active: Math.random() < 0.2,
+          color: k < 0.08 ? 'a' : k < 0.04 ? 'm' : 'p',
+        });
+      }
+    }
+  }
+
+  const C = { p: 'rgba(79,70,229,', a: 'rgba(6,182,212,', m: 'rgba(245,158,11,' };
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(79,70,229,0.055)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += SP) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y < H; y += SP) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    nodes.forEach(n => {
+      if (!n.active) return;
+      n.phase += n.speed;
+      const g = (Math.sin(n.phase) + 1) / 2;
+      const a = 0.18 + g * 0.45;
+      const R = n.r + g * 2.2;
+      const base = C[n.color];
+      const gr = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, R * 5);
+      gr.addColorStop(0, base + (a * 0.9) + ')');
+      gr.addColorStop(1, base + '0)');
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(n.x, n.y, R * 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = base + a + ')';
+      ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, Math.PI * 2); ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  requestAnimationFrame(draw);
+  setInterval(() => {
+    const n = nodes[Math.floor(Math.random() * nodes.length)];
+    if (n) n.active = !n.active;
+  }, 700);
+})();
+
+/* Tab switching */
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.getAttribute('onclick').includes(id)) t.classList.add('on');
+  });
+  const p = document.getElementById('p-' + id);
+  if (p) p.classList.add('on');
+}
+
+/* Counter animation */
+function runCounter(el) {
+  const target = parseInt(el.dataset.to, 10);
+  const t0 = Date.now(), dur = 1400;
+  (function tick() {
+    const prog = Math.min((Date.now() - t0) / dur, 1);
+    const ease = 1 - Math.pow(1 - prog, 3);
+    el.textContent = Math.round(ease * target);
+    if (prog < 1) requestAnimationFrame(tick);
+  })();
+}
+const statsEl = document.querySelector('.stats');
+if (statsEl) {
+  new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting) {
+      document.querySelectorAll('.sv').forEach(runCounter);
+    }
+  }, { threshold: 0.4 }).observe(statsEl);
+}
+
+/* Feature cards reveal */
+new IntersectionObserver(entries => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('vis'), i * 90);
+    }
+  });
+}, { threshold: 0.08 }).observe(document.querySelector('.feats') || document.body);
+
+document.querySelectorAll('.feat').forEach(c => {
+  new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('vis'); });
+  }, { threshold: 0.08 }).observe(c);
+});
+
+/* QR pattern */
+(function () {
+  const g = document.getElementById('qr-grid');
+  if (!g) return;
+  [1,1,1,1,1,1,1, 1,0,0,0,0,0,1, 1,0,1,1,1,0,1,
+   1,0,1,0,1,0,1, 1,0,1,1,1,0,1, 1,0,0,0,0,0,1, 1,1,1,1,1,1,1]
+    .forEach(v => {
+      const d = document.createElement('div');
+      d.className = 'qc ' + (v ? 'd' : 'l');
+      g.appendChild(d);
+    });
+})();
+
+/* Smooth scroll */
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const t = document.querySelector(a.getAttribute('href'));
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+});
+</script>
+</body>
+</html>

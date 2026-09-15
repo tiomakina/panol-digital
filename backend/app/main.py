@@ -238,12 +238,11 @@ async def portal_verify(request: Request, alias: str = Form(...)):
 @app.get("/")
 async def root(request: Request, panol_tenant: str = Cookie(default=None)):
     """
-    Raíz de la app. Si no hay cookie de tenant → redirige al portal.
-    Si hay cookie → sirve el dashboard (el JS verifica el JWT).
+    Raíz: landing page pública si no hay tenant activo; dashboard si lo hay.
     """
     tenants = _load_tenants()
     if not panol_tenant or panol_tenant not in tenants:
-        return RedirectResponse("/portal")
+        return templates.TemplateResponse("landing.html", {"request": request})
     return await _render(request, "dashboard/index.html")
 
 
