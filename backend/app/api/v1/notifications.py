@@ -153,7 +153,7 @@ async def send_test_whatsapp(
         "Este mensaje confirma que la integración de WhatsApp funciona correctamente.\n\n"
         "— Pañol 360"
     )
-    ok, err = await send_whatsapp_with_error(phone, message, log_event="test")
+    ok, err = await send_whatsapp_with_error(phone, message, log_event="test", bypass_tenant_check=True)
     if not ok:
         detail = "No se pudo enviar el mensaje de WhatsApp."
         if err:
