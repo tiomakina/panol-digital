@@ -10,7 +10,7 @@ Similar al patrón de branding.py: las funciones leen el tenant
 activo desde el ContextVar cuando no se pasa explícitamente.
 """
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -155,7 +155,7 @@ def append_notification_log(
 
     # Agregar nueva entrada
     entry: dict = {
-        "ts": datetime.now().isoformat(timespec="seconds"),
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "type": event_type,
         "channel": channel,
         "to": to,

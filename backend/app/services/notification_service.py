@@ -141,6 +141,16 @@ async def _send_whatsapp_evolution(phone: str, message: str, log_event: str = "g
         async with httpx.AsyncClient(timeout=15) as client:
             res = await client.post(url, json=payload, headers=headers)
             res.raise_for_status()
+            # WAHA a veces devuelve 200 con un body que contiene error
+            try:
+                body = res.json()
+                if isinstance(body, dict) and body.get("error"):
+                    err = str(body["error"])
+                    logger.error("WAHA devolvió error en body al enviar a %s: %s", phone, err)
+                    _log_notification(channel="whatsapp", to=phone, subject="", ok=False, event_type=log_event)
+                    return False, f"WAHA error: {err}"
+            except Exception:
+                pass
         _log_notification(channel="whatsapp", to=phone, subject="", ok=True, event_type=log_event)
         return True, ""
     except Exception as exc:
