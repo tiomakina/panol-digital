@@ -106,8 +106,8 @@ def _inventory_summary(rows: list[dict]) -> list[dict]:
 
 
 @router.get("/inventory")
-async def inventory_report(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("encargado"))):
-    """Inventario valorizado: costo de compra y valor en libros actual de cada herramienta."""
+async def inventory_report(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("jefe"))):
+    """Inventario valorizado: costo de compra y valor en libros. Solo Jefe — contiene datos financieros."""
     rows = await _inventory_rows(db)
     total_cost = sum(r["purchase_cost"] or 0 for r in rows)
     total_current_value = sum(r["current_value"] or 0 for r in rows)
@@ -120,8 +120,8 @@ async def inventory_report(db: AsyncSession = Depends(get_db), user: User = Depe
 
 
 @router.get("/inventory.csv")
-async def inventory_report_csv(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("encargado"))):
-    """Igual que /reports/inventory pero como CSV descargable."""
+async def inventory_report_csv(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("jefe"))):
+    """Inventario en CSV. Solo Jefe — contiene costos y valores de depreciación."""
     rows = await _inventory_rows(db)
 
     buffer = io.StringIO()
@@ -139,8 +139,8 @@ async def inventory_report_csv(db: AsyncSession = Depends(get_db), user: User = 
 
 
 @router.get("/inventory.pdf")
-async def inventory_report_pdf(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("encargado"))):
-    """Reporte de inventario en PDF con branding dinámico."""
+async def inventory_report_pdf(db: AsyncSession = Depends(get_db), user: User = Depends(require_role("jefe"))):
+    """Inventario en PDF. Solo Jefe — contiene costos y valores de depreciación."""
     rows = await _inventory_rows(db)
     pdf_bytes = generate_inventory_pdf(rows)
     filename = f"inventario_{date.today().isoformat()}.pdf"

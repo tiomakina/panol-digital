@@ -8,8 +8,10 @@ import asyncio
 import json
 import os
 import re
+import time
 import bcrypt
 import httpx
+from collections import defaultdict
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -53,6 +55,30 @@ app.add_middleware(
 )
 
 templates = Jinja2Templates(directory="/app/templates")
+
+# ─── Rate limiting en memoria para el login ───────────────────────────────────
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_LOGIN_MAX = 5       # intentos por ventana
+_LOGIN_WINDOW = 300  # segundos (5 minutos)
+
+
+def _check_login_rate(ip: str) -> bool:
+    """Devuelve True si la IP puede intentar login; False si está bloqueada."""
+    now = time.monotonic()
+    attempts = [t for t in _login_attempts[ip] if now - t < _LOGIN_WINDOW]
+    _login_attempts[ip] = attempts
+    if len(attempts) >= _LOGIN_MAX:
+        return False
+    _login_attempts[ip].append(now)
+    return True
+
+
+def _get_client_ip(request: Request) -> str:
+    return (
+        request.headers.get("X-Real-IP")
+        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or (request.client.host if request.client else "unknown")
+    )
 
 
 # ─── Helpers de autenticación ─────────────────────────────────────────────────
@@ -180,6 +206,15 @@ async def login_submit(
 ):
     username = username.strip()[:64]
     password = password[:128]
+
+    ip = _get_client_ip(request)
+    if not _check_login_rate(ip):
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "title": APP_TITLE,
+            "error": "Demasiados intentos. Intente nuevamente en 5 minutos.",
+            "next": next,
+        }, status_code=429)
 
     if username == ADMIN_USER and verify_password(password):
         request.session["authenticated"] = True

@@ -24,7 +24,11 @@ COLOR_PHOTO_DIR = Path(settings.UPLOAD_DIR) / "color_photos"
 
 
 def _client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
+    return (
+        request.headers.get("X-Real-IP")
+        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or (request.client.host if request.client else None)
+    ) or None
 
 
 @router.get("", response_model=list[UserOut])

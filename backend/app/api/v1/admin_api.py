@@ -621,8 +621,9 @@ async def restore_tenant_from_backup(
     if not _SAFE_ALIAS.match(tenant_id):
         raise HTTPException(400, "tenant_id inválido")
 
-    bkp_path = Path(body.backup_file)
-    if not bkp_path.exists() or not str(bkp_path).startswith(str(BACKUP_TENANTS_DIR)):
+    # Normalizar la ruta antes de comparar (evita path traversal con ../)
+    bkp_path = Path(body.backup_file).resolve()
+    if not bkp_path.exists() or not str(bkp_path).startswith(str(BACKUP_TENANTS_DIR.resolve())):
         raise HTTPException(400, "Archivo de respaldo no encontrado o ruta inválida")
 
     payload = json.loads(bkp_path.read_text(encoding="utf-8"))
@@ -650,7 +651,14 @@ async def restore_tenant_from_backup(
             if not row:
                 continue
             row = _restore_row(row)
-            cols = list(row.keys())
+            # Validar que los nombres de columna solo contengan caracteres seguros
+            # (evita SQL injection si el archivo de backup fue manipulado)
+            import re as _re
+            cols = [c for c in row.keys() if _re.fullmatch(r"[a-zA-Z0-9_]+", c)]
+            if not cols:
+                continue
+            # Eliminar del row las claves con nombres inválidos
+            row = {c: row[c] for c in cols}
             placeholders = ", ".join(f":{c}" for c in cols)
             try:
                 await db.execute(

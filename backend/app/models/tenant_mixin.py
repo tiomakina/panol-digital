@@ -27,6 +27,5 @@ class TenantMixin:
     tenant_id: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
-        default="vms-ingenieria",  # valor por defecto solo para compatibilidad durante la migración
         index=True,
     )

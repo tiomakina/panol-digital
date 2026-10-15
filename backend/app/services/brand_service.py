@@ -13,10 +13,12 @@ from app.core.config import settings
 from app.core.branding import save_brand_config, load_brand_config, generate_palette_from_hex
 
 UPLOAD_DIR = Path(settings.UPLOAD_DIR)
+# SVG excluido intencionalmente: puede contener <script> y event handlers
+# que se ejecutarían en el navegador de todos los usuarios del tenant (Stored XSS).
+# Para logos se acepta solo bitmap (PNG, JPEG, WebP).
 ALLOWED_MAGIC_BYTES = {
     b'\x89PNG': 'image/png',
     b'\xff\xd8\xff': 'image/jpeg',
-    b'<svg': 'image/svg+xml',
     b'RIFF': 'image/webp',
 }
 

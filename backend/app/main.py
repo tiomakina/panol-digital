@@ -188,7 +188,7 @@ async def demo_redirect(request: Request):
         value="demo",
         max_age=30 * 24 * 3600,
         secure=True,
-        httponly=False,
+        httponly=True,
         samesite="lax",
     )
     return response
@@ -229,7 +229,7 @@ async def portal_verify(request: Request, alias: str = Form(...)):
         value=alias,
         max_age=30 * 24 * 3600,  # 30 días
         secure=True,
-        httponly=False,   # legible por JS para mostrar nombre de empresa
+        httponly=True,
         samesite="lax",
     )
     return response
