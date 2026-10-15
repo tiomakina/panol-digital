@@ -198,13 +198,20 @@ async def send_whatsapp(phone: str, message: str, log_event: str = "general") ->
         return ok
 
 
-async def send_whatsapp_with_error(phone: str, message: str, log_event: str = "general") -> tuple[bool, str]:
+async def send_whatsapp_with_error(
+    phone: str,
+    message: str,
+    log_event: str = "general",
+    bypass_tenant_check: bool = False,
+) -> tuple[bool, str]:
     """
     Igual que send_whatsapp pero devuelve (bool, error_str) — para endpoints de prueba.
+    bypass_tenant_check=True omite la verificación de whatsapp_enabled del tenant,
+    útil para el botón "Enviar prueba" que prueba la conexión al servidor.
     """
     if not whatsapp_configured():
         return False, "WhatsApp no configurado en el servidor (falta EVOLUTION_API_KEY o WHATSAPP_API_TOKEN)"
-    if not _notification_enabled("whatsapp"):
+    if not bypass_tenant_check and not _notification_enabled("whatsapp"):
         return False, "WhatsApp desactivado en la configuración de notificaciones del tenant"
 
     if evolution_configured():
