@@ -90,6 +90,12 @@
                        padding:0.3rem 0.6rem;font-size:0.78rem;cursor:pointer;color:#475569;">
           <span x-text="loadingWa ? '⏳' : '🔄 Actualizar'"></span>
         </button>
+        <button @click="resetWaSession()" :disabled="loadingWa || resettingWa"
+                title="Elimina la sesión actual y pide un QR nuevo. Usar si 'Conectado' pero no llegan mensajes."
+                style="background:none;border:1px solid #fecaca;border-radius:6px;
+                       padding:0.3rem 0.6rem;font-size:0.78rem;cursor:pointer;color:#dc2626;">
+          <span x-text="resettingWa ? '⏳' : '⚡ Forzar reconexión'"></span>
+        </button>
       </div>
     </div>
 
@@ -411,6 +417,7 @@ function notificationsApp() {
     // WhatsApp (Evolution API)
     waStatus: { connected: false, state: "loading", qr: null },
     loadingWa: false,
+    resettingWa: false,
     waTestPhone: "",
     testingWa: false,
     logEntries: [],
@@ -465,6 +472,27 @@ function notificationsApp() {
         this.waStatus = { connected: false, state: 'error', qr: null };
       } finally {
         this.loadingWa = false;
+      }
+    },
+
+    async resetWaSession() {
+      if (!confirm("¿Forzar reconexión de WhatsApp?\n\nEsto eliminará la sesión actual. Deberás escanear el QR nuevamente con tu celular.")) return;
+      this.resettingWa = true;
+      try {
+        const res = await authFetch('/api/v1/notifications/whatsapp/reset', { method: 'POST' });
+        if (res.ok) {
+          this.showToast("✓ Sesión reiniciada — presioná Actualizar para ver el QR", true);
+          // Esperar un segundo y luego cargar el estado (WAHA necesita un momento)
+          await new Promise(r => setTimeout(r, 1500));
+          await this.loadWaStatus();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          this.showToast("Error: " + (err.detail || "No se pudo reiniciar"), false);
+        }
+      } catch (e) {
+        this.showToast("Error de red", false);
+      } finally {
+        this.resettingWa = false;
       }
     },
 

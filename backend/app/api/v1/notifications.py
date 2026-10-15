@@ -132,6 +132,44 @@ async def get_whatsapp_status(
                 "state": "error", "error": str(exc), "qr": None}
 
 
+@router.post("/whatsapp/reset")
+async def reset_whatsapp_session(
+    user: User = Depends(require_role("jefe")),
+):
+    """
+    Fuerza la reconexión de WhatsApp: elimina la sesión actual de WAHA
+    y crea una nueva para obtener un QR fresco.
+    """
+    from app.core.config import settings as cfg
+
+    if not evolution_configured():
+        raise HTTPException(400, "EVOLUTION_API_KEY no configurado en el servidor")
+
+    base = cfg.EVOLUTION_API_URL.rstrip("/")
+    instance = cfg.EVOLUTION_INSTANCE
+    waha_headers = {"X-Api-Key": cfg.EVOLUTION_API_KEY, "Content-Type": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # 1. Eliminar sesión actual (ignorar si no existe)
+            await client.delete(f"{base}/api/sessions/{instance}", headers=waha_headers)
+
+            # 2. Crear sesión nueva
+            cr = await client.post(
+                f"{base}/api/sessions",
+                headers=waha_headers,
+                json={"name": instance, "start": True},
+            )
+            if cr.status_code not in (200, 201):
+                raise HTTPException(503, f"No se pudo crear sesión WAHA: {cr.text}")
+
+        return {"ok": True, "message": "Sesión reiniciada — presioná Actualizar para ver el QR"}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(503, f"Error al reiniciar sesión WAHA: {exc}")
+
+
 @router.post("/test-whatsapp")
 async def send_test_whatsapp(
     body: WhatsAppTestRequest,
