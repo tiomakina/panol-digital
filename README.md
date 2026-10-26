@@ -42,6 +42,36 @@ Acceder en: http://localhost:8080
 3. Ajustar la paleta de colores o dejar que el sistema la detecte del logo
 4. Guardar — el cambio aplica instantáneamente en toda la aplicación
 
+## 🛡️ Operaciones y mantenimiento
+
+### Deploy a producción
+```bash
+bash scripts/deploy-prod.sh
+```
+
+### Backup manual
+```bash
+bash scripts/backup.sh
+# Guarda en backups/<timestamp>/database.sql + uploads.tar.gz
+```
+
+### Mantenimiento mensual automático
+Cron configurado en el servidor: **día 26 de cada mes, 01:00 AM (Chile)**.
+Ejecuta backup + `apt upgrade` + limpieza Docker y envía email de resumen.
+
+Para ejecutar manualmente:
+```bash
+bash scripts/monthly-maintenance.sh
+```
+
+Credenciales SMTP en `scripts/.maintenance-email.conf` (gitignoreado, solo en servidor).
+
+### Logs de mantenimiento
+```bash
+ls logs/maintenance/          # archivos por fecha
+cat logs/maintenance/<timestamp>.log
+```
+
 ## 📁 Estructura del proyecto
 
 Ver `CLAUDE.md` para la documentación técnica completa.

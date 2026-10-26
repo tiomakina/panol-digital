@@ -5,6 +5,29 @@
 
 ---
 
+## [2.2.0] — 2026-10-26
+
+### Seguridad (auditoría completa)
+- `nginx.conf`: bloqueo a nivel Nginx de `/api/v1/admin/`, `/api/docs`, `/api/redoc`, `/openapi.json` en producción y staging — rutas internas no expuestas públicamente
+- `core/rate_limit.py`: detección de IP real via `X-Real-IP` → `X-Forwarded-For` → `request.client.host`
+- `services/brand_service.py`: SVG eliminado de tipos de archivo permitidos en uploads (previene XSS embebido)
+- `api/v1/reports.py`: endpoints de exportación de inventario requieren rol `jefe` (RBAC corregido)
+- `api/v1/admin_api.py`: path traversal corregido con `Path.resolve()` + validación de columnas JSON contra regex `[a-zA-Z0-9_]+` (previene SQL injection)
+- `main.py`: cookies `panol_tenant` con `httponly=True` en `/demo` y `/portal/verify`
+- `schemas/user.py`: política de contraseñas — mínimo 10 caracteres, mayúscula, minúscula y número en `UserCreate` y `PasswordChange`
+- `api/v1/users.py`: función `_client_ip()` para registro de IP real en auditoría
+- `admin-panel/main.py`: rate limiting en login — 5 intentos por IP cada 5 minutos (in-memory)
+- `models/tenant_mixin.py`: eliminado `default="vms-ingenieria"` del campo `tenant_id`
+
+### Infraestructura
+- Servidor actualizado: Ubuntu 24.04.5 LTS, kernel 7.0.0-1013-oracle, Docker 29.9.2
+- `scripts/monthly-maintenance.sh`: mantenimiento mensual automatizado (backup + apt upgrade + limpieza Docker)
+- `scripts/send_maintenance_email.py`: email HTML de resumen con estado de cada paso y fecha del próximo mantenimiento
+- `scripts/.maintenance-email.conf.example`: plantilla de credenciales SMTP (el `.conf` real vive solo en el servidor)
+- Cron configurado: día 26 de cada mes, 01:00 AM (America/Santiago)
+
+---
+
 ## [2.1.0] — 2026-09-02
 
 ### Seguridad
