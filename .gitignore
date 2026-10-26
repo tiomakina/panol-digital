@@ -46,6 +46,12 @@ clients/*/.env.local
 # Ver scripts/setup-config.sh para crearlo en el servidor.
 backend/app/tenants.json
 
+# Credenciales de email del mantenimiento mensual (NUNCA subir al repo)
+scripts/.maintenance-email.conf
+
+# Logs de mantenimiento mensual
+logs/
+
 # IDE / OS
 .DS_Store
 .vscode/
