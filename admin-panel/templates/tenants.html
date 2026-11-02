@@ -246,7 +246,7 @@
             {% if t.env == "prod" %}
             <span class="env-badge env-prod">✅ Prod</span>
             {% else %}
-            <span class="env-badge env-demo">🟡 Demo</span>
+            <span class="env-badge env-demo">🟡 Demo{% if t.demo_expires %} · vence {{ t.demo_expires[8:10] }}/{{ t.demo_expires[5:7] }}/{{ t.demo_expires[0:4] }}{% endif %}</span>
             {% endif %}
           </div>
           <div class="tenant-alias">{{ t.alias }}</div>
@@ -284,6 +284,14 @@
                   title="Activar producción" style="white-space:nowrap;">✅ A Prod</button>
                 {% endif %}
               </form>
+              {% if t.env == "demo" %}
+              <form method="post" action="/tenants/{{ t.alias }}/set-demo-expires" style="margin:0;display:flex;gap:.35rem;align-items:center;">
+                <input type="date" name="demo_expires" value="{{ t.demo_expires }}"
+                  style="flex:1;min-width:0;font-size:.75rem;padding:.2rem .4rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1);"
+                  title="Fecha de vencimiento del demo">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Guardar fecha de vencimiento" style="white-space:nowrap;">💾</button>
+              </form>
+              {% endif %}
             </div>
             <!-- Fila 2: suspender / reactivar -->
             <form method="post" action="/tenants/{{ t.alias }}/toggle" style="margin:0;">
