@@ -478,11 +478,13 @@ async def tenants_list(request: Request, msg: str = "", error: str = ""):
     tenant_list = []
     for alias, info in tenants.items():
         s = stats.get(alias, {})
+        demo_expires_raw = info.get("demo_expires", "")
         tenant_list.append({
             "alias": alias,
             "name": info.get("name", alias),
             "active": info.get("active", True),
             "env": info.get("env", "demo"),  # "demo" | "prod"
+            "demo_expires": demo_expires_raw,  # YYYY-MM-DD o ""
             "users": s.get("users", "—"),
             "tools": s.get("tools", "—"),
             "active_loans": s.get("active_loans", "—"),
@@ -647,6 +649,36 @@ async def tenant_toggle_env(request: Request, alias: str):
         f"/tenants?msg=Tenant+'{alias}'+cambiado+a+{label.replace(' ', '+')}.",
         status_code=302,
     )
+
+
+@app.post("/tenants/{alias}/set-demo-expires")
+async def tenant_set_demo_expires(
+    request: Request,
+    alias: str,
+    demo_expires: str = Form(default=""),
+):
+    """
+    Guarda la fecha de vencimiento del demo para un tenant.
+    Formato esperado: YYYY-MM-DD (input type=date del HTML).
+    Si se envía vacío, elimina la fecha de vencimiento.
+    """
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    alias = alias.strip().lower()
+    tenants = load_tenants()
+    if alias not in tenants:
+        return RedirectResponse("/tenants?error=Tenant+no+encontrado.", status_code=302)
+
+    date_val = demo_expires.strip()
+    if date_val:
+        tenants[alias]["demo_expires"] = date_val
+    else:
+        tenants[alias].pop("demo_expires", None)
+    save_tenants(tenants)
+
+    label = f"Vencimiento+de+demo+para+'{alias}'+guardado." if date_val else f"Fecha+de+vencimiento+de+demo+eliminada+para+'{alias}'."
+    return RedirectResponse(f"/tenants?msg={label}", status_code=302)
 
 
 @app.post("/tenants/{alias}/add-user")

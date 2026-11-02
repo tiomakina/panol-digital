@@ -120,6 +120,31 @@ def _tenant_env(request: Request) -> str:
     return settings.PANOL_ENV
 
 
+def _tenant_demo_expires(request: Request) -> str:
+    """
+    Devuelve la fecha de vencimiento del demo del tenant activo en formato DD/MM/YYYY,
+    o cadena vacía si no está definida o el tenant no está en modo demo.
+    """
+    tenant_alias = request.cookies.get("panol_tenant")
+    if not tenant_alias:
+        return ""
+    tenants = _load_tenants()
+    tenant = tenants.get(tenant_alias, {})
+    if tenant.get("env") != "demo":
+        return ""
+    raw = tenant.get("demo_expires", "")
+    if not raw:
+        return ""
+    # Convierte YYYY-MM-DD → DD/MM/YYYY para mostrar al usuario
+    try:
+        parts = raw.split("-")
+        if len(parts) == 3:
+            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+    except Exception:
+        pass
+    return raw
+
+
 async def _render(request: Request, template_name: str):
     """Arma el contexto común (branding) que necesita cada pantalla server-rendered."""
     brand_css = await get_brand_css_vars()
@@ -132,6 +157,7 @@ async def _render(request: Request, template_name: str):
             "brand": config,
             "app_name": settings.APP_NAME,
             "panol_env": _tenant_env(request),  # "demo" | "prod" — por tenant o global
+            "demo_expires": _tenant_demo_expires(request),  # "DD/MM/YYYY" o ""
         },
     )
 
@@ -268,6 +294,7 @@ async def login_page(request: Request, panol_tenant: str = Cookie(default=None))
             "tenant_alias": panol_tenant,
             "tenant_name": tenant_name,
             "panol_env": _tenant_env(request),
+            "demo_expires": _tenant_demo_expires(request),
         },
     )
 

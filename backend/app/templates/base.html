@@ -448,12 +448,12 @@ a.kpi-card:hover {
         {% block page_subtitle %}{% endblock %}
       </div>
       {% if panol_env == "demo" %}
-      <span title="Entorno de demostración — los datos pueden resetearse en cualquier momento"
+      <span title="Entorno de demostración — los datos pueden resetearse en cualquier momento{% if demo_expires %} · Vence el {{ demo_expires }}{% endif %}"
             style="background:#f59e0b;color:#fff;font-size:0.65rem;font-weight:700;
                    letter-spacing:0.08em;text-transform:uppercase;
                    padding:0.2rem 0.55rem;border-radius:99px;white-space:nowrap;
                    align-self:center;margin-left:0.5rem;line-height:1.5;">
-        DEMO
+        DEMO{% if demo_expires %} · vence {{ demo_expires }}{% endif %}
       </span>
       {% endif %}
     </div>
