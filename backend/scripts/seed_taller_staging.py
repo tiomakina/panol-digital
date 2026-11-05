@@ -45,8 +45,18 @@ from app.services.qr_service import generate_tool_qr, generate_toolbox_qr
 
 TENANT = "vms-ingenieria"
 PASSWORD = "Taller2024!"
+# Contraseña fija que usa el QA suite para los RUTs canónicos 1-9, 2-7, 3-5
+QA_PASSWORD = "Admin123!"
 
 # ── Usuarios ──────────────────────────────────────────────────────────────────
+# Los RUTs 1-9, 2-7, 3-5 son requeridos por el script qa_test.py para validar
+# login de jefe/encargado/mecánico. Sin ellos el QA suite falla en este tenant.
+QA_USERS = [
+    {"rut": "1-9",  "email": "admin@taller.cl",     "full_name": "Admin QA (Jefe)",      "role": UserRole.jefe},
+    {"rut": "2-7",  "email": "encargado@taller.cl",  "full_name": "Encargado QA",          "role": UserRole.encargado},
+    {"rut": "3-5",  "email": "mecanico@taller.cl",   "full_name": "Mecánico QA",           "role": UserRole.mecanico},
+]
+
 USERS = [
     {
         "rut": "10-8", "email": "jefe@taller.cl",
@@ -173,8 +183,24 @@ async def seed():
         print(f"  Seed Staging — Taller Mecánico Demo ({TENANT})")
         print(f"{'═'*60}\n")
 
+        # ── Usuarios QA (requeridos por qa_test.py) ───────────────────────────
+        print("── Usuarios QA (RUTs canónicos) ──────────────────────────")
+        for data in QA_USERS:
+            r = await db.execute(select(User).where(User.rut == data["rut"], User.tenant_id == TENANT))
+            if r.scalar_one_or_none():
+                print(f"  ⏭  {data['rut']} ya existe")
+            else:
+                db.add(User(
+                    rut=data["rut"], email=data["email"],
+                    full_name=data["full_name"], role=data["role"],
+                    hashed_password=hash_password(QA_PASSWORD),
+                    tenant_id=TENANT, is_active=True,
+                ))
+                print(f"  ✅ {data['full_name']} (RUT {data['rut']}) — contraseña QA")
+        await db.flush()
+
         # ── Usuarios ──────────────────────────────────────────────────────────
-        print("── Usuarios ──────────────────────────────────────────────")
+        print("\n── Usuarios ──────────────────────────────────────────────")
         user_map: dict[str, User] = {}
         for data in USERS:
             r = await db.execute(select(User).where(User.rut == data["rut"], User.tenant_id == TENANT))
