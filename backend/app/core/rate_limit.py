@@ -9,11 +9,11 @@ def rate_limiter(key_prefix: str, max_attempts: int = 5, window_seconds: int = 3
     Ej: rate_limiter("login", max_attempts=5, window_seconds=300) → 5 intentos cada 5 minutos.
     """
     async def limiter(request: Request) -> None:
-        # Nginx setea X-Real-IP con la IP real del cliente.
-        # request.client.host siempre es la IP del contenedor proxy, no sirve.
+        # Nginx setea X-Real-IP = $remote_addr (IP real del cliente, no falsificable).
+        # NO usar X-Forwarded-For: el cliente puede inyectar IPs arbitrarias en ese header
+        # para evadir el límite de intentos (IP spoofing del rate limit).
         client_ip = (
             request.headers.get("X-Real-IP")
-            or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
             or (request.client.host if request.client else "unknown")
         )
         key = f"ratelimit:{key_prefix}:{client_ip}"

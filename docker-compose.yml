@@ -297,12 +297,13 @@ services:
       # releases.json — historial de versiones y changelogs (rw para aprobar releases)
       - /etc/panol360/releases.json:/app/releases.json:rw
     ports:
-      # Vinculado a todas las interfaces del host.
+      # Vinculado SOLO a localhost para forzar acceso vía túnel SSH.
       # La seguridad la provee:
-      #  1. Oracle Cloud Security List (puerto 9001 cerrado al exterior)
-      #  2. UFW: sudo ufw allow from 100.64.0.0/10 to any port 9001 (Tailscale CGNAT)
+      #  1. Bind a 127.0.0.1: inaccesible desde LAN/internet sin túnel SSH
+      #  2. UFW: solo permitir 80/443 desde internet (UDM port forwarding)
       #  3. Autenticación propia del panel (usuario + contraseña bcrypt)
-      - "9001:9001"
+      # Acceso: ssh -L 9001:localhost:9001 ubuntu@10.10.80.20 → http://localhost:9001
+      - "127.0.0.1:9001:9001"
     # Necesita acceso al backend para estadísticas y provisionamiento de usuarios
     depends_on:
       - backend
