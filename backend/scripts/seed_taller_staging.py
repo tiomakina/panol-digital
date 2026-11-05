@@ -25,7 +25,7 @@ Nota sobre préstamos a terceros externos:
 """
 import asyncio
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -282,12 +282,11 @@ async def seed():
             maint = MaintenanceRecord(
                 tool_id=t_mant.id,
                 tenant_id=TENANT,
-                reported_by_id=supervisor1.id,
+                created_by_id=supervisor1.id,
                 status=MaintenanceStatus.en_proceso,
-                description="Falla en selector de temperatura — no conmuta entre posiciones 1 y 2",
-                start_date=TODAY - timedelta(days=7),
+                reason="Falla en selector de temperatura — no conmuta entre posiciones 1 y 2",
+                sent_date=TODAY - timedelta(days=7),
                 provider="Servicio Técnico Bosch Chile",
-                estimated_cost=Decimal("35000"),
             )
             db.add(maint)
             await db.flush()
@@ -412,7 +411,6 @@ async def seed():
         t_led = tool_map["SN-LED-001"]
         r = await db.execute(select(Loan).where(Loan.tool_id == t_led.id, Loan.tenant_id == TENANT))
         if not r.scalar_one_or_none():
-            from datetime import datetime
             from app.models.loan import ReturnCondition
             loan4 = Loan(
                 tool_id=t_led.id,
