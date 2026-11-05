@@ -283,7 +283,7 @@ async def seed():
                 tool_id=t_mant.id,
                 tenant_id=TENANT,
                 reported_by_id=supervisor1.id,
-                status=MaintenanceStatus.en_progreso,
+                status=MaintenanceStatus.en_proceso,
                 description="Falla en selector de temperatura — no conmuta entre posiciones 1 y 2",
                 start_date=TODAY - timedelta(days=7),
                 provider="Servicio Técnico Bosch Chile",
