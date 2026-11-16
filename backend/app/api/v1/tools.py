@@ -255,6 +255,14 @@ async def upload_tool_photo(
     ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
     PHOTO_DIR.mkdir(parents=True, exist_ok=True)
     photo_path = PHOTO_DIR / f"tool_{tool_id}.{ext}"
+
+    # Eliminar foto anterior si tenía extensión diferente (evita archivos huérfanos)
+    if tool.photo_url:
+        old_ext = tool.photo_url.rsplit(".", 1)[-1]
+        old_path = PHOTO_DIR / f"tool_{tool_id}.{old_ext}"
+        if old_path != photo_path and old_path.exists():
+            old_path.unlink(missing_ok=True)
+
     with open(photo_path, "wb") as f:
         f.write(file_bytes)
 
@@ -286,6 +294,14 @@ async def upload_purchase_document(
     ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
     PURCHASE_DOC_DIR.mkdir(parents=True, exist_ok=True)
     doc_path = PURCHASE_DOC_DIR / f"tool_{tool_id}.{ext}"
+
+    # Eliminar comprobante anterior si tenía extensión diferente (evita archivos huérfanos)
+    if tool.purchase_document_url:
+        old_ext = tool.purchase_document_url.rsplit(".", 1)[-1]
+        old_path = PURCHASE_DOC_DIR / f"tool_{tool_id}.{old_ext}"
+        if old_path != doc_path and old_path.exists():
+            old_path.unlink(missing_ok=True)
+
     with open(doc_path, "wb") as f:
         f.write(file_bytes)
 

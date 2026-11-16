@@ -97,6 +97,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     user = await db.get(User, int(user_id))
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no válido o inactivo")
+
+    # Verificación explícita de tenant: evita que un token válido de tenant A
+    # acceda a datos de tenant B si el ORM event fallara o se omitiera.
+    from app.core.tenant import get_current_tenant
+    current_tenant = get_current_tenant()
+    if current_tenant and user.tenant_id != current_tenant:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token no válido para este tenant")
+
     return user
 
 

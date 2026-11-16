@@ -210,6 +210,14 @@ async def upload_user_photo(
     ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
     AVATAR_DIR.mkdir(parents=True, exist_ok=True)
     photo_path = AVATAR_DIR / f"user_{user_id}.{ext}"
+
+    # Eliminar avatar anterior si tenía extensión diferente (evita archivos huérfanos)
+    if target.avatar_url:
+        old_ext = target.avatar_url.rsplit(".", 1)[-1]
+        old_path = AVATAR_DIR / f"user_{user_id}.{old_ext}"
+        if old_path != photo_path and old_path.exists():
+            old_path.unlink(missing_ok=True)
+
     with open(photo_path, "wb") as f:
         f.write(file_bytes)
 
@@ -272,6 +280,14 @@ async def upload_color_photo(
     ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
     COLOR_PHOTO_DIR.mkdir(parents=True, exist_ok=True)
     photo_path = COLOR_PHOTO_DIR / f"user_{user_id}.{ext}"
+
+    # Eliminar foto de color anterior si tenía extensión diferente (evita archivos huérfanos)
+    if target.identifying_color_photo_url:
+        old_ext = target.identifying_color_photo_url.rsplit(".", 1)[-1]
+        old_path = COLOR_PHOTO_DIR / f"user_{user_id}.{old_ext}"
+        if old_path != photo_path and old_path.exists():
+            old_path.unlink(missing_ok=True)
+
     with open(photo_path, "wb") as f:
         f.write(file_bytes)
 
