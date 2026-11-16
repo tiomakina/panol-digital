@@ -165,8 +165,11 @@ TOOLS = [
 
 
 async def _get_or_create(db: AsyncSession, model, name: str, **extra):
-    """Trae la fila del catálogo por nombre o la crea si todavía no existe."""
-    existing = (await db.execute(select(model).where(model.name == name))).scalar_one_or_none()
+    """Trae la fila del catálogo por nombre/tenant o la crea si todavía no existe."""
+    q = select(model).where(model.name == name)
+    if "tenant_id" in extra:
+        q = q.where(model.tenant_id == extra["tenant_id"])
+    existing = (await db.execute(q)).scalar_one_or_none()
     if existing:
         return existing
     row = model(name=name, **extra)
@@ -190,17 +193,24 @@ def _write_upload_file(relative_dir: str, filename: str, content: bytes) -> str:
 async def main() -> None:
     await create_tables()
     async with AsyncSessionLocal() as db:
-        existing = (await db.execute(select(func.count()).select_from(Tool))).scalar_one()
-        if existing > 0:
-            print("⏭  Ya hay herramientas cargadas — no se agregan datos de ejemplo de nuevo.")
-            print("   (si querés recargar desde cero, vaciá la base primero)")
-            return
-
+        # Obtener usuarios primero (sin filtro de tenant aún)
         jefe = (await db.execute(select(User).where(User.role == UserRole.jefe))).scalars().first()
         encargado = (await db.execute(select(User).where(User.role == UserRole.encargado))).scalars().first()
         mecanico = (await db.execute(select(User).where(User.role == UserRole.mecanico))).scalars().first()
         if not jefe or not encargado or not mecanico:
             print("❌ Faltan los usuarios base — corré primero: python scripts/seed_data.py")
+            return
+
+        # Activar contexto de tenant: before_flush auto-asigna tenant_id
+        # en todos los objetos nuevos que hereden de TenantMixin
+        from app.core.database import _configure_tenant_session
+        _configure_tenant_session(db, jefe.tenant_id)
+        print(f"🏢 Tenant activo: {jefe.tenant_id}")
+
+        existing = (await db.execute(select(func.count()).select_from(Tool))).scalar_one()
+        if existing > 0:
+            print("⏭  Ya hay herramientas cargadas — no se agregan datos de ejemplo de nuevo.")
+            print("   (si querés recargar desde cero, vaciá la base primero)")
             return
 
         # --- Tablas maestras (Fase 2) ---
