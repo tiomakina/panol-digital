@@ -10,10 +10,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap">
   <style>
-    /* =====================================================
-       DESIGN TOKENS — dark-first, single committed theme
-       Layout: canvas bg · centered hero · 3×2 team grid
-       ===================================================== */
     :root {
       color-scheme: dark;
       --bg:    #07060f;
@@ -116,19 +112,18 @@
       flex: 1;
       display: flex;
       align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding-block: 4rem 2.5rem;
+      padding-block: 3.5rem 4rem;
       max-width: 1160px;
       width: 100%;
       margin: 0 auto;
+      gap: 4rem;
     }
-    .hero-box {
+
+    .hero-text {
+      flex: 1;
       display: flex;
       flex-direction: column;
-      align-items: center;
       gap: 1.5rem;
-      max-width: 640px;
     }
 
     .status-chip {
@@ -143,6 +138,7 @@
       font-weight: 500;
       color: var(--acc);
       letter-spacing: .04em;
+      width: fit-content;
     }
     .chip-ring {
       position: relative;
@@ -165,11 +161,10 @@
     h1 {
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: clamp(3rem, 9vw, 5.5rem);
+      font-size: clamp(2.8rem, 6vw, 5rem);
       line-height: .93;
       letter-spacing: -.01em;
       text-transform: uppercase;
-      text-wrap: balance;
     }
     h1 .c-acc { color: var(--acc); }
     h1 .c-grad {
@@ -181,14 +176,13 @@
 
     .hero-p {
       font-size: 1.0625rem;
-      line-height: 1.7;
+      line-height: 1.75;
       color: var(--fg2);
-      text-wrap: balance;
-      max-width: 480px;
+      max-width: 440px;
     }
 
-    /* Progress bar */
-    .prog { width: 100%; max-width: 400px; }
+    /* Progress */
+    .prog { max-width: 380px; }
     .prog-labels {
       display: flex;
       justify-content: space-between;
@@ -230,7 +224,7 @@
       border-radius: var(--r);
       box-shadow: 0 4px 28px rgba(79,70,229,.45), inset 0 1px 0 rgba(255,255,255,.12);
       transition: transform .18s, box-shadow .18s;
-      letter-spacing: .01em;
+      width: fit-content;
     }
     .cta-btn:hover {
       transform: translateY(-2px);
@@ -239,99 +233,79 @@
     .cta-note {
       font-size: .77rem;
       color: var(--fg3);
-      margin-top: -.5rem;
     }
 
-    /* ── TEAM ── */
-    .team {
+    /* ── PHOTO ── */
+    .hero-photo {
+      flex: 0 0 460px;
+      position: relative;
+    }
+    .photo-glow {
+      position: absolute;
+      inset: -32px;
+      border-radius: 28px;
+      background: radial-gradient(ellipse at 50% 50%, rgba(79,70,229,.12) 0%, transparent 70%);
+      z-index: -1;
+    }
+    .photo-frame {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(79,70,229,.25),
+        0 0 60px rgba(79,70,229,.18),
+        0 24px 64px rgba(0,0,0,.55);
+    }
+    .photo-frame img {
+      display: block;
+      width: 100%;
+      height: 400px;
+      object-fit: cover;
+      object-position: center;
+    }
+    .photo-frame::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        rgba(7,6,15,.1) 0%,
+        rgba(7,6,15,.06) 55%,
+        rgba(7,6,15,.42) 100%
+      );
+      pointer-events: none;
+    }
+
+    /* ── FEATURES ROW ── */
+    .features {
       max-width: 1160px;
       width: 100%;
       margin: 0 auto;
-      padding-block: 1rem 4.5rem;
-    }
-    .eyebrow {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-weight: 700;
-      font-size: .72rem;
-      letter-spacing: .22em;
-      text-transform: uppercase;
-      color: var(--pri);
-      margin-bottom: .4rem;
-    }
-    .team h2 {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-weight: 700;
-      font-size: 1.9rem;
-      text-transform: uppercase;
-      color: var(--fg);
-      margin-bottom: 2rem;
-      letter-spacing: .01em;
-    }
-    .grid6 {
+      padding-bottom: 4rem;
       display: grid;
-      grid-template-columns: repeat(3,1fr);
-      gap: 1rem;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .75rem;
     }
-
-    .card {
+    .feat {
       background: var(--bg2);
       border: 1px solid var(--bdr);
       border-radius: var(--r);
-      padding: 1.2rem;
+      padding: 1.2rem 1.3rem;
       display: flex;
-      flex-direction: column;
-      gap: .85rem;
-      transition: border-color .2s, transform .2s;
+      align-items: flex-start;
+      gap: .75rem;
     }
-    .card:hover { border-color: rgba(79,70,229,.35); transform: translateY(-2px); }
-
-    .card-head { display: flex; align-items: center; gap: .7rem; }
-    .ava {
-      width: 40px; height: 40px;
+    .feat-icon {
+      width: 36px; height: 36px;
       border-radius: 9px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-family: 'Barlow Condensed', sans-serif;
-      font-weight: 800;
-      font-size: 1rem;
-      letter-spacing: .03em;
       flex-shrink: 0;
     }
-    .card-info { flex: 1; min-width: 0; }
-    .card-name { font-weight: 600; font-size: .9rem; }
-    .card-role { font-size: .7rem; color: var(--fg3); letter-spacing: .03em; }
-
-    .card-task {
-      display: flex;
-      align-items: flex-start;
-      gap: .5rem;
-      background: rgba(255,255,255,.025);
-      border: 1px solid var(--bdr);
-      border-radius: 8px;
-      padding: .55rem .7rem;
-    }
-    .tdot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      margin-top: 4px;
-      animation: blink 2.2s ease-in-out infinite;
-    }
-    .ttxt { font-size: .75rem; color: var(--fg2); line-height: 1.45; min-width: 0; }
-
-    .tags { display: flex; flex-wrap: wrap; gap: .3rem; }
-    .tag {
-      font-size: .63rem;
-      font-weight: 500;
-      letter-spacing: .05em;
-      padding: .18rem .5rem;
-      border-radius: 4px;
-      background: var(--bg3);
-      color: var(--fg3);
-      border: 1px solid var(--bdr);
-      text-transform: uppercase;
-    }
+    .feat-body { min-width: 0; }
+    .feat-title { font-weight: 600; font-size: .88rem; margin-bottom: .2rem; }
+    .feat-desc { font-size: .77rem; color: var(--fg2); line-height: 1.5; }
 
     /* ── FOOTER ── */
     footer { border-top: 1px solid var(--bdr); padding-block: 1.25rem; }
@@ -351,14 +325,21 @@
     .foot-in a:hover { color: var(--acc); }
 
     /* ── RESPONSIVE ── */
-    @media (max-width: 800px) { .grid6 { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 540px) {
-      .grid6 { grid-template-columns: 1fr; }
+    @media (max-width: 900px) {
+      .hero { flex-direction: column; gap: 2.5rem; text-align: center; }
+      .hero-text { align-items: center; }
+      .hero-p { max-width: 100%; }
+      .prog { max-width: 100%; }
+      .hero-photo { flex: none; width: 100%; max-width: 540px; }
+      .photo-frame img { height: 280px; }
+    }
+    @media (max-width: 640px) {
+      .features { grid-template-columns: 1fr; }
       .badge-maint { display: none; }
-      h1 { font-size: clamp(2.75rem,13vw,4rem); }
+      h1 { font-size: clamp(2.5rem, 12vw, 3.5rem); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .prog-fill, .chip-ring::after, .tdot, .badge-maint .dot { animation: none; }
+      .prog-fill, .chip-ring::after, .badge-maint .dot { animation: none; }
     }
   </style>
 </head>
@@ -367,6 +348,7 @@
 <canvas id="bg-canvas"></canvas>
 
 <div class="wrap">
+
   <!-- NAV -->
   <nav>
     <a href="/" class="logo">PAÑOL<em>360</em></a>
@@ -378,21 +360,22 @@
 
   <!-- HERO -->
   <section class="hero">
-    <div class="hero-box">
+    <div class="hero-text">
       <div class="status-chip">
         <span class="chip-ring"></span>
         Sistema en actualización — volvemos pronto
       </div>
 
       <h1>
-        ESTAMOS<br>
-        <span class="c-acc">AFINANDO</span><br>
-        <span class="c-grad">LOS DETALLES</span>
+        PRONTO<br>
+        <span class="c-acc">ESTAREMOS</span><br>
+        <span class="c-grad">ACTIVOS</span>
       </h1>
 
       <p class="hero-p">
-        Pronto estaremos activos. El equipo está trabajando duro para
-        ofrecerte la mejor plataforma de gestión de herramientas de Chile.
+        Estamos preparando todo para darte la mejor experiencia.
+        Un sistema pensado para quienes trabajan con sus manos,
+        para que nunca más se pierda una herramienta.
       </p>
 
       <div class="prog">
@@ -405,145 +388,72 @@
         </div>
       </div>
 
-      <a href="https://staging.panol360.app" class="cta-btn" target="_blank" rel="noopener noreferrer">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-          <polyline points="15 3 21 3 21 9"/>
-          <line x1="10" y1="14" x2="21" y2="3"/>
+      <div style="display:flex;flex-direction:column;gap:.6rem;align-items:flex-start;">
+        <a href="https://staging.panol360.app" class="cta-btn" target="_blank" rel="noopener noreferrer">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          Probar la Demo del Sistema
+        </a>
+        <p class="cta-note">Sin registro · Datos de prueba incluidos</p>
+      </div>
+    </div>
+
+    <div class="hero-photo">
+      <div class="photo-glow"></div>
+      <div class="photo-frame">
+        <img
+          src="https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=920&q=80&auto=format&fit=crop"
+          alt="Taller con herramientas organizadas"
+          loading="eager"
+          onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=920&q=80&auto=format&fit=crop'"
+        >
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <div class="features">
+    <div class="feat">
+      <div class="feat-icon" style="background:rgba(79,70,229,.14);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
         </svg>
-        Probar la Demo del Sistema
-      </a>
-      <p class="cta-note">Accedé con datos de prueba · Sin registro necesario</p>
-    </div>
-  </section>
-
-  <!-- TEAM -->
-  <section class="team">
-    <div class="eyebrow">— El equipo en acción</div>
-    <h2>Cada línea de código cuenta</h2>
-
-    <div class="grid6">
-      <!-- ALEX -->
-      <div class="card">
-        <div class="card-head">
-          <div class="ava" style="background:rgba(79,70,229,.14);color:#4f46e5;">AX</div>
-          <div class="card-info">
-            <div class="card-name">Alex</div>
-            <div class="card-role">Arquitecto de Sistemas</div>
-          </div>
-        </div>
-        <div class="card-task">
-          <span class="tdot" style="background:#4f46e5;"></span>
-          <span class="ttxt">Optimizando arquitectura multi-tenant para alta disponibilidad</span>
-        </div>
-        <div class="tags">
-          <span class="tag">FastAPI</span>
-          <span class="tag">PostgreSQL 16</span>
-          <span class="tag">Microservicios</span>
-        </div>
       </div>
-
-      <!-- LUNA -->
-      <div class="card">
-        <div class="card-head">
-          <div class="ava" style="background:rgba(236,72,153,.14);color:#ec4899;">LN</div>
-          <div class="card-info">
-            <div class="card-name">Luna</div>
-            <div class="card-role">UX/UI Lead</div>
-          </div>
-        </div>
-        <div class="card-task">
-          <span class="tdot" style="background:#ec4899;"></span>
-          <span class="ttxt">Diseñando sistema de branding dinámico por empresa</span>
-        </div>
-        <div class="tags">
-          <span class="tag">Design System</span>
-          <span class="tag">Dark Mode</span>
-          <span class="tag">WCAG 2.2</span>
-        </div>
-      </div>
-
-      <!-- MARCO -->
-      <div class="card">
-        <div class="card-head">
-          <div class="ava" style="background:rgba(6,182,212,.14);color:#06b6d4;">MR</div>
-          <div class="card-info">
-            <div class="card-name">Marco</div>
-            <div class="card-role">Backend Senior</div>
-          </div>
-        </div>
-        <div class="card-task">
-          <span class="tdot" style="background:#06b6d4;"></span>
-          <span class="ttxt">Implementando API de reportes y exportación PDF con firma digital</span>
-        </div>
-        <div class="tags">
-          <span class="tag">Python Async</span>
-          <span class="tag">SQLAlchemy 2</span>
-          <span class="tag">JWT</span>
-        </div>
-      </div>
-
-      <!-- SARA -->
-      <div class="card">
-        <div class="card-head">
-          <div class="ava" style="background:rgba(16,185,129,.14);color:#10b981;">SR</div>
-          <div class="card-info">
-            <div class="card-name">Sara</div>
-            <div class="card-role">Frontend Senior</div>
-          </div>
-        </div>
-        <div class="card-task">
-          <span class="tdot" style="background:#10b981;"></span>
-          <span class="ttxt">Puliendo módulo de préstamos con HTMX 2 y escaneo QR</span>
-        </div>
-        <div class="tags">
-          <span class="tag">HTMX 2</span>
-          <span class="tag">Alpine.js 3</span>
-          <span class="tag">PWA</span>
-        </div>
-      </div>
-
-      <!-- DIEGO -->
-      <div class="card">
-        <div class="card-head">
-          <div class="ava" style="background:rgba(245,158,11,.14);color:#f59e0b;">DG</div>
-          <div class="card-info">
-            <div class="card-name">Diego</div>
-            <div class="card-role">Seguridad</div>
-          </div>
-        </div>
-        <div class="card-task">
-          <span class="tdot" style="background:#f59e0b;"></span>
-          <span class="ttxt">Auditando políticas RBAC granular y flujos de autenticación 2FA</span>
-        </div>
-        <div class="tags">
-          <span class="tag">RBAC</span>
-          <span class="tag">Auditoría</span>
-          <span class="tag">2FA</span>
-        </div>
-      </div>
-
-      <!-- KIM -->
-      <div class="card">
-        <div class="card-head">
-          <div class="ava" style="background:rgba(139,92,246,.14);color:#8b5cf6;">KM</div>
-          <div class="card-info">
-            <div class="card-name">Kim</div>
-            <div class="card-role">DevOps</div>
-          </div>
-        </div>
-        <div class="card-task">
-          <span class="tdot" style="background:#8b5cf6;"></span>
-          <span class="ttxt">Preparando pipeline CI/CD y sistema de backups automáticos</span>
-        </div>
-        <div class="tags">
-          <span class="tag">Docker</span>
-          <span class="tag">GitHub Actions</span>
-          <span class="tag">Nginx</span>
-        </div>
+      <div class="feat-body">
+        <div class="feat-title">Inventario en tiempo real</div>
+        <div class="feat-desc">Sabé exactamente dónde está cada herramienta en todo momento.</div>
       </div>
     </div>
-  </section>
+
+    <div class="feat">
+      <div class="feat-icon" style="background:rgba(6,182,212,.14);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <path d="M9 12h6M9 16h4"/>
+        </svg>
+      </div>
+      <div class="feat-body">
+        <div class="feat-title">Préstamos simplificados</div>
+        <div class="feat-desc">Registrá salidas y devoluciones con un escaneo de código QR.</div>
+      </div>
+    </div>
+
+    <div class="feat">
+      <div class="feat-icon" style="background:rgba(245,158,11,.14);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+      </div>
+      <div class="feat-body">
+        <div class="feat-title">Reportes automáticos</div>
+        <div class="feat-desc">Historial completo, alertas de vencimiento y exportación en PDF.</div>
+      </div>
+    </div>
+  </div>
 
   <footer>
     <div class="foot-in">
@@ -558,72 +468,49 @@
   var canvas = document.getElementById('bg-canvas');
   var ctx = canvas.getContext('2d');
   var W, H, nodes = [], scanY = 0;
-  var N = 55, D = 140;
+  var N = 50, D = 130;
 
-  function resize() {
-    W = canvas.width = window.innerWidth;
-    H = canvas.height = window.innerHeight;
-  }
+  function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
   function spawn() {
     nodes = [];
     for (var i = 0; i < N; i++) {
-      nodes.push({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
-        r: Math.random() * 1.2 + 0.4,
-      });
+      nodes.push({ x: Math.random()*W, y: Math.random()*H, vx: (Math.random()-.5)*.3, vy: (Math.random()-.5)*.3, r: Math.random()*1.1+.4 });
     }
   }
   function frame() {
     ctx.clearRect(0, 0, W, H);
-    ctx.strokeStyle = 'rgba(79,70,229,0.035)';
+    ctx.strokeStyle = 'rgba(79,70,229,0.03)';
     ctx.lineWidth = 1;
-    for (var x = 0; x < W; x += 64) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-    for (var y = 0; y < H; y += 64) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    for (var x = 0; x < W; x += 64) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (var y = 0; y < H; y += 64) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 
-    scanY = (scanY + 0.45) % H;
+    scanY = (scanY + 0.4) % H;
     var sg = ctx.createLinearGradient(0, scanY - 70, 0, scanY + 2);
     sg.addColorStop(0, 'transparent');
-    sg.addColorStop(1, 'rgba(6,182,212,0.055)');
+    sg.addColorStop(1, 'rgba(6,182,212,0.045)');
     ctx.fillStyle = sg;
     ctx.fillRect(0, scanY - 70, W, 72);
 
     for (var i = 0; i < nodes.length; i++) {
       for (var j = i + 1; j < nodes.length; j++) {
-        var dx = nodes[i].x - nodes[j].x;
-        var dy = nodes[i].y - nodes[j].y;
-        var d = Math.sqrt(dx * dx + dy * dy);
+        var dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+        var d = Math.sqrt(dx*dx + dy*dy);
         if (d < D) {
-          ctx.strokeStyle = 'rgba(79,70,229,' + ((1 - d / D) * 0.14).toFixed(3) + ')';
+          ctx.strokeStyle = 'rgba(79,70,229,' + ((1 - d/D) * 0.12).toFixed(3) + ')';
           ctx.lineWidth = 0.5;
-          ctx.beginPath();
-          ctx.moveTo(nodes[i].x, nodes[i].y);
-          ctx.lineTo(nodes[j].x, nodes[j].y);
-          ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(nodes[i].x, nodes[i].y); ctx.lineTo(nodes[j].x, nodes[j].y); ctx.stroke();
         }
       }
-    }
-
-    for (var k = 0; k < nodes.length; k++) {
-      var n = nodes[k];
-      n.x += n.vx;
-      n.y += n.vy;
+      var n = nodes[i];
+      n.x += n.vx; n.y += n.vy;
       if (n.x < 0 || n.x > W) n.vx *= -1;
       if (n.y < 0 || n.y > H) n.vy *= -1;
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(79,70,229,0.55)';
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(79,70,229,0.5)'; ctx.fill();
     }
-
     requestAnimationFrame(frame);
   }
-
-  resize();
-  spawn();
-  frame();
+  resize(); spawn(); frame();
   window.addEventListener('resize', function() { resize(); spawn(); });
 })();
 </script>
