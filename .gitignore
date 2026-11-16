@@ -35,8 +35,6 @@ dist/
 build/
 *.spec
 
-# Admin console — contexto de sesión (personal, no compartir)
-SESSION.md
 
 # Configs de entorno específicas por cliente en el servidor (no en el repo)
 clients/*/.env
