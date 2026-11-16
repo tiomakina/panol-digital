@@ -111,7 +111,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_staging
-      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida — generarla con: openssl rand -hex 32}@redis:6379/1
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida}@redis:6379/1"
       SECRET_KEY: ${STAGING_SECRET_KEY:-staging_cambiar_en_produccion}
       JWT_SECRET_KEY: ${STAGING_JWT_SECRET_KEY:-staging_jwt_cambiar}
       DEBUG: "false"
@@ -156,7 +156,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_staging
-      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida — generarla con: openssl rand -hex 32}@redis:6379/1
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida}@redis:6379/1"
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
