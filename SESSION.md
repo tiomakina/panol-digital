@@ -80,7 +80,7 @@ Usar el archivo `abrir_admin_panel.bat` en el notebook para abrir el túnel auto
 
 ### Prioridad Baja
 - [ ] **SMTP FROM address** — cambiar a `info@valentinmorales.cl` (requiere alias Gmail primero)
-- [ ] **Módulo Ayuda** — diferenciar contenido por rol (jefe / encargado / mecánico)
+- [x] **Módulo Ayuda** — reescritura completa con contenido diferenciado por rol (commits `9ee12ac`, `aebdfba`)
 
 ---
 
