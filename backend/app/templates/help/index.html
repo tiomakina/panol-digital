@@ -131,7 +131,7 @@
     </div>
 
     <!-- HERRAMIENTAS -->
-    <div class="card help-section" x-show="matches('herramientas inventario código qr foto duplicar importar exportar csv depreciación producto folio documento compra')">
+    <div class="card help-section" x-show="matches('herramientas inventario código qr foto duplicar importar exportar csv depreciación producto folio documento compra stock mínimo vida útil lineal doble saldo unidades producción alerta')">
       <button class="help-section-toggle" @click="toggle('herramientas')">
         <span>🔧 Herramientas</span>
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'herramientas' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -153,6 +153,36 @@
           <li x-show="viewRole !== 'mecanico'"><strong>Importar/exportar CSV</strong>: para cargar o sacar el inventario completo en una planilla — útil para migrar datos o hacer un respaldo aparte en Excel.</li>
           <li x-show="viewRole === 'jefe'"><strong>Costo y valor de rescate</strong>: solo el Jefe los ve y los edita (dato económico sensible, se enmascara para los demás roles incluso en el CSV exportado).</li>
         </ul>
+
+        <!-- Stock mínimo — solo Encargado/Jefe -->
+        <div x-show="viewRole !== 'mecanico'" style="margin-top:0.75rem;">
+          <p class="help-p"><strong>📦 Stock mínimo (alerta de inventario bajo)</strong></p>
+          <ul class="help-list">
+            <li>En la ficha de cada herramienta podés definir un <strong>stock mínimo</strong> (ej: "2"). Si la cantidad disponible cae por debajo de ese número, aparece el badge <span class="badge badge-danger">Stock bajo</span> en el listado.</li>
+            <li>Encargado y Jefe ven ese badge en el listado y en el detalle de la herramienta.</li>
+            <li>Si tenés <a href="#" @click.prevent="openSection('notificaciones')">Notificaciones</a> configuradas, el sistema también puede mandar una alerta automática por email o WhatsApp cuando se detecte stock bajo.</li>
+            <li>Dejar el campo vacío o en 0 desactiva la alerta para esa herramienta.</li>
+          </ul>
+        </div>
+
+        <!-- Depreciación — solo Jefe -->
+        <div x-show="viewRole === 'jefe'" style="margin-top:0.75rem;">
+          <p class="help-p"><strong>📉 Depreciación y valor en libros</strong></p>
+          <p class="help-p">El sistema calcula automáticamente el valor actual de cada herramienta. Para eso necesitás completar en la ficha:</p>
+          <ul class="help-list">
+            <li><strong>Costo de compra</strong> y <strong>Valor de rescate</strong> (lo que valdría si se vendiera al final de su vida útil).</li>
+            <li><strong>Vida útil en años</strong>: estimado de cuántos años va a durar la herramienta.</li>
+            <li><strong>Método de depreciación</strong>: tres opciones disponibles:
+              <ul style="margin-top:0.35rem;padding-left:1.1rem;line-height:1.6;">
+                <li><strong>Lineal</strong> — Deprecia el mismo monto cada año: <code style="background:#f1f5f9;padding:0.1rem 0.35rem;border-radius:4px;">(Costo − Rescate) ÷ Vida útil</code>. El método más simple y estándar para herramientas de uso regular.</li>
+                <li><strong>Doble saldo decreciente</strong> — Deprecia el doble de la tasa lineal sobre el valor remanente cada año. Reconoce más gasto al inicio, útil para equipos que pierden valor rápido (electrónicos, motores).</li>
+                <li><strong>Unidades de producción</strong> — La depreciación varía según el uso real de la herramienta (horas o ciclos de trabajo), ideal cuando el desgaste depende de cuánto se usa y no del tiempo.</li>
+              </ul>
+            </li>
+          </ul>
+          <p class="help-p">El valor en libros calculado aparece en el Reporte de Inventario y en el ZIP de exportación.</p>
+        </div>
+
         <p class="help-p" style="margin-top:0.75rem;"><strong>Cómo se ve en la práctica — dar de alta una herramienta:</strong></p>
         <img class="help-img" src="/static/img/help/gifs/nueva-herramienta.gif" alt="GIF: cargar una herramienta nueva paso a paso">
         <img class="help-img" src="/static/img/help/03_herramientas_listado.png" alt="Listado de herramientas">
@@ -161,7 +191,7 @@
     </div>
 
     <!-- PRÉSTAMOS -->
-    <div class="card help-section" x-show="matches('préstamos vale pdf devolución vencido planilla carga masiva')">
+    <div class="card help-section" x-show="matches('préstamos vale pdf devolución vencido extraviado planilla carga masiva filtro estado activos devueltos')">
       <button class="help-section-toggle" @click="toggle('prestamos')">
         <span>📋 Préstamos</span>
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'prestamos' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -176,6 +206,14 @@
           <li><strong>Carga masiva tipo planilla</strong>: para registrar varios préstamos de una sola vez (ej. entregar herramientas a todo un equipo).</li>
           <li>Un <strong>Mecánico</strong> solo ve y descarga sus propios vales, no los de otros.</li>
         </ul>
+        <p class="help-p"><strong>Estados de un préstamo:</strong></p>
+        <ul class="help-list">
+          <li><span class="badge badge-warning">Activo</span> — la herramienta está en manos del responsable, dentro del plazo.</li>
+          <li><span class="badge badge-danger">Vencido</span> — la fecha de devolución pasó y no se devolvió.</li>
+          <li><span class="badge badge-success">Devuelto</span> — la herramienta fue regresada al pañol.</li>
+          <li><span class="badge" style="background:#f1f5f9;color:#64748b;">Extraviado</span> — la herramienta no fue encontrada. Queda registrada como extraviada en el historial y la herramienta pasa a Mantenimiento o Baja según corresponda.</li>
+        </ul>
+        <p class="help-p">El listado tiene filtros rápidos por estado para ver solo los Activos, Vencidos, Devueltos o Extraviados. El dashboard también muestra un KPI clickeable de "Vencidos" que lleva directo al listado filtrado.</p>
         <p class="help-p" style="margin-top:0.75rem;"><strong>Cómo se ve en la práctica — registrar un préstamo:</strong></p>
         <img class="help-img" src="/static/img/help/gifs/nuevo-prestamo.gif" alt="GIF: registrar un préstamo paso a paso">
         <img class="help-img" src="/static/img/help/05_prestamos_listado.png" alt="Listado de préstamos">
@@ -203,7 +241,7 @@
     </div>
 
     <!-- MANTENIMIENTO -->
-    <div class="card help-section" x-show="matches('mantenimiento reparación proveedor comprobante documento baja definitiva')">
+    <div class="card help-section" x-show="matches('mantenimiento reparación proveedor comprobante documento baja definitiva adjuntar título observación')">
       <button class="help-section-toggle" @click="toggle('mantenimiento')">
         <span>🛠️ Mantenimiento</span>
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'mantenimiento' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -211,22 +249,45 @@
       <div x-show="open === 'mantenimiento'">
         <p class="help-p">Historial de reparaciones: qué herramienta se mandó a arreglar, a qué proveedor, y en qué quedó.</p>
         <ul class="help-list">
-          <li><strong>Enviar a mantenimiento</strong>: desde Herramientas (botón rápido) o cuando una devolución de préstamo llega dañada.</li>
-          <li><strong>Comprobantes</strong>: se pueden adjuntar varias imágenes o PDFs por registro (ej. la boleta de reparación), cada uno con su propio título y observación. Un Mecánico no ve estos documentos (pueden tener información de costos).</li>
-          <li><strong>Dar de baja</strong>: si la herramienta no tiene arreglo, se marca como baja definitiva y queda fuera del inventario activo, con el motivo registrado.</li>
+          <li><strong>Enviar a mantenimiento</strong>: desde Herramientas (botón rápido), desde Cajas durante una auditoría, o cuando una devolución de préstamo llega dañada — en los tres casos la herramienta pasa automáticamente a estado Mantenimiento.</li>
+          <li><strong>Resolver mantenimiento</strong>: cuando la reparación está lista, se marca como resuelta y la herramienta vuelve a estar Disponible.</li>
+          <li><strong>Adjuntar documentos</strong>: se pueden subir <em>varios</em> archivos por registro (imágenes o PDFs, ej. la boleta de reparación, foto del problema, presupuesto del proveedor). Cada documento tiene su propio <strong>título</strong> y <strong>observación</strong> editable, y se puede eliminar individualmente en cualquier momento.</li>
+          <li x-show="viewRole !== 'mecanico'"><strong>Solo Encargado/Jefe ven los documentos</strong>: un Mecánico no tiene acceso a los archivos adjuntos porque pueden tener información de costos o datos sensibles.</li>
+          <li><strong>Dar de baja</strong>: si la herramienta no tiene arreglo, se marca como baja definitiva y queda fuera del inventario activo, con el motivo registrado. La baja es permanente.</li>
         </ul>
         <img class="help-img" src="/static/img/help/08_mantenimiento_listado.png" alt="Listado de mantenimiento">
       </div>
     </div>
 
     <!-- REPORTES — Encargado y Jefe únicamente -->
-    <div class="card help-section" x-show="matches('reportes inventario auditoría estadísticas') && canSeeReports()">
+    <div class="card help-section" x-show="matches('reportes inventario auditoría estadísticas pdf zip exportar csv valor en libros préstamos mantenimiento') && canSeeReports()">
       <button class="help-section-toggle" @click="toggle('reportes')">
         <span>📈 Reportes</span>
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'reportes' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
       </button>
       <div x-show="open === 'reportes'">
-        <p class="help-p">Pestañas con información consolidada: inventario completo, historial de préstamos, mantenimiento y auditorías de caja. Requiere rol Encargado o Jefe — un Mecánico no tiene acceso a este módulo.</p>
+        <p class="help-p">Módulo exclusivo para Encargado y Jefe con información consolidada en cuatro pestañas. Un Mecánico no tiene acceso a este módulo.</p>
+
+        <p class="help-p"><strong>Las 4 pestañas:</strong></p>
+        <ul class="help-list">
+          <li><strong>Inventario</strong>: listado completo de herramientas con estado, categoría, marca, ubicación y (para el Jefe) valor en libros según el método de depreciación configurado. Se puede filtrar por columna.</li>
+          <li><strong>Préstamos</strong>: historial de todos los préstamos del sistema — activos, vencidos, devueltos y extraviados. Filtrable por rango de fechas y estado.</li>
+          <li><strong>Mantenimiento</strong>: historial de reparaciones y bajas, con proveedor, costo y estado de resolución.</li>
+          <li x-show="viewRole === 'jefe'"><strong>Auditoría</strong> (solo Jefe): registro completo de todas las acciones realizadas en el sistema — quién hizo qué y cuándo. Útil para trazabilidad y control de cambios.</li>
+        </ul>
+
+        <p class="help-p"><strong>Descargas disponibles:</strong></p>
+        <ul class="help-list">
+          <li><strong>⬇ PDF</strong>: cada pestaña tiene su propio botón de descarga en PDF — el archivo incluye el contenido que tenés en pantalla en ese momento (con los filtros aplicados).</li>
+          <li x-show="viewRole === 'jefe'"><strong>📦 Exportar ZIP completo</strong> (solo Jefe): descarga un paquete con todo el inventario. Incluye:
+            <ul style="margin-top:0.3rem;padding-left:1.1rem;line-height:1.6;">
+              <li>CSV de inventario con valor en libros calculado.</li>
+              <li>CSV de préstamos completo.</li>
+              <li>Imágenes QR de todas las herramientas (para imprimir etiquetas).</li>
+            </ul>
+          </li>
+        </ul>
+
         <img class="help-img" src="/static/img/help/09_reportes_inventario.png" alt="Reporte de inventario">
       </div>
     </div>
@@ -291,29 +352,99 @@
     </div>
 
     <!-- TABLAS MAESTRAS -->
-    <div class="card help-section" x-show="matches('tablas maestras marca categoría ubicación proveedor')">
+    <div class="card help-section" x-show="matches('tablas maestras marca categoría ubicación proveedor rut contacto')">
       <button class="help-section-toggle" @click="toggle('lookups')" id="help-section-lookups">
         <span>🗂️ Tablas maestras</span>
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'lookups' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
       </button>
       <div x-show="open === 'lookups'">
-        <p class="help-p">Las listas desplegables que se usan al cargar una herramienta: Marca, Categoría, Ubicación y Proveedor. Mantenerlas ordenadas acá evita que cada uno escriba el mismo dato distinto (ej. "Bosch" vs "bosch" vs "BOSCH").</p>
+        <p class="help-p">Las listas desplegables que se usan al cargar una herramienta. Mantenerlas ordenadas acá evita que cada uno escriba el mismo dato distinto (ej. "Bosch" vs "bosch" vs "BOSCH"). Tiene cuatro pestañas:</p>
+        <ul class="help-list">
+          <li><strong>Marca</strong>: fabricantes de herramientas (ej. Bosch, Makita, Stanley).</li>
+          <li><strong>Categoría</strong>: tipos de herramientas (ej. Eléctrica, Manual, Medición).</li>
+          <li><strong>Ubicación</strong>: lugares físicos del pañol (ej. Estante A, Bodega Norte).</li>
+          <li><strong>Proveedor</strong>: empresas o personas a quienes se mandan las herramientas a reparar. Tiene campos extra: RUT y datos de contacto, para tener toda la información de cada taller en un solo lugar.</li>
+        </ul>
         <img class="help-img" src="/static/img/help/14_tablas_maestras.png" alt="Administración de tablas maestras">
       </div>
     </div>
 
+    <!-- NOTIFICACIONES — solo Jefe -->
+    <div class="card help-section" x-show="matches('notificaciones alertas whatsapp email qr vincular canal vencidos stock bajo recordatorio') && viewRole === 'jefe'" id="help-section-notificaciones">
+      <button class="help-section-toggle" @click="toggle('notificaciones')">
+        <span>🔔 Notificaciones</span>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'notificaciones' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div x-show="open === 'notificaciones'">
+        <p class="help-p">Solo para el Jefe. Acá se configura el sistema de alertas automáticas: qué eventos disparan un aviso, por qué canal (email o WhatsApp) y quiénes lo reciben.</p>
+
+        <p class="help-p"><strong>📱 Conectar WhatsApp</strong></p>
+        <ul class="help-list">
+          <li>El sistema usa <strong>WhatsApp Web</strong> (escaneás un QR con tu celular, igual que al entrar a WhatsApp en el computador). No requiere cuenta de WhatsApp Business ni API de pago.</li>
+          <li>Pasos:
+            <ol style="margin-top:0.3rem;padding-left:1.3rem;line-height:1.7;">
+              <li>Entrá a <strong>Notificaciones</strong> en el menú lateral.</li>
+              <li>Verás un código QR — abrí WhatsApp en tu celular → <strong>Dispositivos vinculados → Vincular dispositivo</strong> → escaneá el QR.</li>
+              <li>Cuando aparezca el estado <span class="badge badge-success">Conectado</span>, ya podés recibir alertas por WhatsApp.</li>
+            </ol>
+          </li>
+          <li>El QR expira en ~60 segundos — si venció, presioná el botón <strong>Actualizar</strong> para obtener uno nuevo.</li>
+          <li>Si el estado aparece como "Conectado" pero los mensajes no llegan, usá el botón <strong>Forzar reconexión</strong> — elimina la sesión actual y pide un QR nuevo.</li>
+        </ul>
+
+        <p class="help-p"><strong>⚙️ Canales y tipos de alertas</strong></p>
+        <ul class="help-list">
+          <li><strong>Canal Email</strong>: habilitar para enviar alertas al email del responsable del préstamo.</li>
+          <li><strong>Canal WhatsApp</strong>: habilitar para enviar alertas por WhatsApp (requiere la conexión QR activa).</li>
+        </ul>
+        <p class="help-p">Tres tipos de alertas que podés activar o desactivar de forma independiente:</p>
+        <ul class="help-list">
+          <li><strong>Préstamos vencidos</strong>: notifica cuando la fecha de devolución de un préstamo ya pasó y la herramienta sigue sin devolverse.</li>
+          <li><strong>Recordatorio pre-vencimiento</strong>: avisa con anticipación (ej. un día antes) que un préstamo está por vencer.</li>
+          <li><strong>Stock mínimo bajo</strong>: alerta cuando la cantidad disponible de una herramienta cae por debajo del stock mínimo configurado en su ficha.</li>
+        </ul>
+
+        <p class="help-p"><strong>📧 Emails de administración</strong></p>
+        <ul class="help-list">
+          <li>Podés agregar una lista de emails que recibirán una copia de cada alerta automática (préstamos vencidos, stock mínimo), además del responsable del préstamo.</li>
+          <li>Es útil para que el Jefe u otro supervisor estén siempre al tanto sin tener que entrar al sistema.</li>
+          <li>Los emails se agregan uno por uno y se pueden quitar en cualquier momento con el botón ✕.</li>
+        </ul>
+
+        <p class="help-p"><strong>🧪 Botones de prueba</strong></p>
+        <ul class="help-list">
+          <li><strong>Enviar test por email</strong>: manda un email de prueba al email del Jefe logueado — útil para verificar que la configuración SMTP del servidor esté funcionando.</li>
+          <li><strong>Enviar test por WhatsApp</strong>: escribe un número de celular y manda un mensaje de prueba — útil para confirmar que la conexión WhatsApp está activa antes de activar las alertas reales.</li>
+        </ul>
+
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:0.65rem 0.85rem;font-size:0.82rem;color:#92400e;margin-top:0.5rem;">
+          <strong>⚠️ Requisito de configuración:</strong> para que el email funcione, el servidor debe tener configuradas las variables SMTP (host, usuario, contraseña). Si el ícono de Email aparece como "no configurado", contactá al administrador técnico del sistema.
+        </div>
+      </div>
+    </div>
+
     <!-- RESPALDO — solo Jefe -->
-    <div class="card help-section" x-show="matches('respaldo backup restaurar base de datos') && viewRole === 'jefe'">
+    <div class="card help-section" x-show="matches('respaldo backup restaurar base de datos verificar integridad') && viewRole === 'jefe'">
       <button class="help-section-toggle" @click="toggle('respaldo')">
         <span>💾 Respaldo</span>
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="open === 'respaldo' ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
       </button>
       <div x-show="open === 'respaldo'">
-        <p class="help-p">Solo para el Jefe. Genera una copia completa del sistema (base de datos + archivos subidos: fotos, documentos, logos).</p>
+        <p class="help-p">Solo para el Jefe. Genera una copia completa del sistema y permite restaurarla ante cualquier imprevisto.</p>
+        <p class="help-p"><strong>¿Qué incluye un respaldo?</strong></p>
         <ul class="help-list">
-          <li><strong>Generar respaldo</strong>: crea un archivo descargable con todo el estado actual.</li>
-          <li><strong>Restaurar</strong>: sube un respaldo anterior y lo aplica — pide confirmar con la contraseña antes de hacerlo, porque reemplaza los datos actuales.</li>
+          <li>Base de datos completa (herramientas, usuarios, préstamos, mantenimientos, configuración).</li>
+          <li>Todos los archivos subidos: fotos de herramientas, documentos de mantenimiento, logos de empresa.</li>
+          <li>Configuración de clientes (tenants.json).</li>
         </ul>
+        <ul class="help-list" style="margin-top:0.5rem;">
+          <li><strong>Generar respaldo</strong>: crea un archivo descargable con todo el estado actual. Guardalo en un lugar seguro fuera del servidor.</li>
+          <li><strong>Verificar integridad</strong>: antes de restaurar, podés subir el archivo de respaldo para verificar que esté íntegro y sin corrupción, sin aplicar ningún cambio todavía.</li>
+          <li><strong>Restaurar</strong>: sube un respaldo verificado y lo aplica — pide confirmar con tu contraseña antes de hacerlo, porque <strong>reemplaza todos los datos actuales</strong>. Esta acción es irreversible.</li>
+        </ul>
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:0.65rem 0.85rem;font-size:0.82rem;color:#991b1b;margin-top:0.5rem;">
+          <strong>🔴 Precaución:</strong> restaurar un respaldo reemplaza <em>todo</em> lo que hay en el sistema actualmente. Siempre generá un respaldo nuevo del estado actual antes de restaurar uno antiguo.
+        </div>
         <img class="help-img" src="/static/img/help/15_respaldo.png" alt="Pantalla de respaldo del sistema">
       </div>
     </div>
@@ -378,7 +509,9 @@
 {% block scripts %}
 <script>
 window.PANOL_TOUR_STEPS = [
-  { selector: '.help-search-box input', title: 'Buscador del manual', text: 'Escribí cualquier palabra (ej. "color mecánico" o "vale PDF") y el manual filtra solo las secciones relevantes.' },
+  { selector: '.help-search-box input', title: 'Buscador del manual', text: 'Escribí cualquier palabra (ej. "color mecánico", "vale PDF", "stock mínimo", "depreciación") y el manual filtra solo las secciones relevantes.' },
+  { selector: '.help-role-tabs', title: 'Filtro por rol', text: 'Como Jefe, podés ver el manual como si fueras otro rol — útil para capacitar a tu equipo o verificar qué puede ver cada uno.' },
+  { selector: '#help-section-notificaciones', title: 'Nueva: Notificaciones', text: 'Configurá alertas automáticas por email y WhatsApp para préstamos vencidos, recordatorios y stock bajo.' },
   { selector: '#help-section-usuarios', title: 'Secciones desplegables', text: 'Cada módulo del sistema tiene su propia sección acá — tocá el título para abrirla y ver el paso a paso con capturas reales.' },
 ];
 
