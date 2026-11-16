@@ -24,8 +24,8 @@
       </a>
     </div>
 
-    <!-- Filtro de rol -->
-    <div class="help-role-bar">
+    <!-- Filtro de rol: solo el Jefe puede cambiar la vista para previsualizar otros roles -->
+    <div class="help-role-bar" x-show="myRole === 'jefe'" id="help-role-switcher">
       <span class="help-role-label">Ver manual como:</span>
       <div class="help-role-tabs">
         <button class="help-role-tab" :class="viewRole === 'jefe' ? 'active' : ''" @click="setViewRole('jefe')">
@@ -42,6 +42,11 @@
         </button>
       </div>
       <span class="help-role-hint" x-show="viewRole !== myRole" x-text="'Vista de ' + roleLabel(viewRole) + ' — tu rol real es ' + roleLabel(myRole)"></span>
+    </div>
+    <!-- Encargado / Mecánico: indicador de rol sin posibilidad de cambio -->
+    <div class="help-role-bar" x-show="myRole !== 'jefe'" style="justify-content:flex-start;">
+      <span class="help-role-label">Contenido adaptado para:</span>
+      <span class="help-role-tab active" style="pointer-events:none;cursor:default;" x-text="roleLabel(myRole)"></span>
     </div>
 
     <div class="help-search-box">
@@ -509,18 +514,19 @@
 {% block scripts %}
 <script>
 window.PANOL_TOUR_STEPS = [
-  { selector: '.help-search-box input', title: 'Buscador del manual', text: 'Escribí cualquier palabra (ej. "color mecánico", "vale PDF", "stock mínimo", "depreciación") y el manual filtra solo las secciones relevantes.' },
-  { selector: '.help-role-tabs', title: 'Filtro por rol', text: 'Como Jefe, podés ver el manual como si fueras otro rol — útil para capacitar a tu equipo o verificar qué puede ver cada uno.' },
-  { selector: '#help-section-notificaciones', title: 'Nueva: Notificaciones', text: 'Configurá alertas automáticas por email y WhatsApp para préstamos vencidos, recordatorios y stock bajo.' },
-  { selector: '#help-section-usuarios', title: 'Secciones desplegables', text: 'Cada módulo del sistema tiene su propia sección acá — tocá el título para abrirla y ver el paso a paso con capturas reales.' },
+  { selector: '.help-search-box input', title: 'Buscador del manual', text: 'Escribí cualquier palabra y el manual filtra las secciones relevantes. Probá: "stock mínimo", "depreciación", "WhatsApp", "ZIP", "extraviado".' },
+  { selector: '#help-role-switcher', title: 'Vista por rol (solo Jefe)', text: 'Podés ver el manual como si fueras Encargado o Mecánico — útil para capacitar a tu equipo o verificar exactamente qué puede ver cada rol.' },
+  { selector: '#help-section-lookups', title: 'Tablas maestras', text: 'Acá se administran las listas de Marca, Categoría, Ubicación y Proveedor. Mantenerlas ordenadas mejora la consistencia de todo el inventario.' },
+  { selector: '#help-section-notificaciones', title: 'Notificaciones', text: 'Configurá alertas automáticas: conectá WhatsApp escaneando un QR, elegí los canales (email o WhatsApp) y los 3 tipos de alerta. Solo el Jefe tiene acceso.' },
+  { selector: '#help-section-usuarios', title: 'Secciones desplegables', text: 'Cada módulo del sistema tiene su propia sección — tocá el título para abrirla y ver el paso a paso. Las secciones que no aplican a tu rol no aparecen.' },
 ];
 
 function helpPage() {
   return {
     open: null,
     search: '',
-    viewRole: 'jefe',
-    myRole: 'jefe',
+    viewRole: 'mecanico', // default restrictivo: evita flash de contenido de Jefe mientras carga el rol real
+    myRole: 'mecanico',
 
     async init() {
       // Si venís desde un link "¿Cómo uso esto?" con ?abrir=usuarios, abrí esa sección de una.

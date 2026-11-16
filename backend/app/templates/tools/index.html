@@ -816,11 +816,11 @@ function toolsPage() {
 }
 
 window.PANOL_TOUR_STEPS = [
-  { selector: '#tools-search', title: 'Buscar herramientas', text: 'Filtrá por nombre, marca o número de serie.' },
-  { selector: '#tools-status-filter', title: 'Filtro por estado', text: 'Mostrá solo las disponibles, prestadas, en mantenimiento, etc.' },
-  { selector: '#tools-btn-nueva', title: 'Nueva herramienta', text: 'Da de alta una herramienta nueva: nombre, marca, número de serie, foto y, si querés, el comprobante de compra.' },
-  { selector: '#tools-btn-exportar', title: 'Exportar / Importar CSV', text: 'Bajá el inventario completo a una planilla, o subí una para cargar varias herramientas de una sola vez.' },
-  { selector: '#tools-table', title: 'Listado', text: 'Tocá cualquier fila para ver el detalle completo y editarla. El color junto al estado "En caja" es la marca física del mecánico responsable.' },
+  { selector: '#tools-search', title: 'Buscar herramientas', text: 'Filtrá por nombre, marca o número de serie. Podés combinar con el filtro de estado para acotar la búsqueda.' },
+  { selector: '#tools-status-filter', title: 'Filtro por estado', text: 'Mostrá solo las disponibles, prestadas, en mantenimiento, etc. El badge naranja "Stock bajo" indica herramientas por debajo de su stock mínimo.' },
+  { selector: '#tools-btn-nueva', title: 'Nueva herramienta', text: 'Da de alta una herramienta: nombre, marca, número de serie, foto y comprobante de compra. En la sección económica (solo Jefe) podés definir costo, valor de rescate, vida útil y método de depreciación.' },
+  { selector: '#tools-btn-exportar', title: 'Exportar / Importar CSV', text: 'Bajá el inventario completo a una planilla, o subí una para cargar varias herramientas de una sola vez. El CSV incluye el valor en libros calculado.' },
+  { selector: '#tools-table', title: 'Listado con alertas', text: 'Tocá cualquier fila para ver el detalle completo y editarla. El badge rojo "Stock bajo" aparece cuando la cantidad disponible cae por debajo del mínimo configurado en la ficha.' },
 ];
 </script>
 {% endblock %}

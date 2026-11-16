@@ -60,7 +60,7 @@
   </div>
 
   <!-- Sección WhatsApp — conexión QR + prueba -->
-  <div class="card" style="margin-bottom:1.5rem;" x-show="config.whatsapp_server_configured || true">
+  <div id="notif-wa-section" class="card" style="margin-bottom:1.5rem;" x-show="config.whatsapp_server_configured || true">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
       <div style="display:flex;align-items:center;gap:0.6rem;">
         <span style="font-size:1.3rem;">💬</span>
@@ -166,7 +166,7 @@
 
     <!-- ── Columna izquierda: Configuración ── -->
     <div>
-      <div class="card">
+      <div id="notif-config-section" class="card">
         <h2 style="font-size:0.95rem;font-weight:600;margin:0 0 1.25rem;color:#1e293b;">
           ⚙️ Configuración de canales
         </h2>
@@ -238,7 +238,7 @@
         </div>
 
         <!-- Emails de administración — lista múltiple -->
-        <div style="margin-bottom:1.5rem;">
+        <div id="notif-admin-emails" style="margin-bottom:1.5rem;">
           <p style="font-size:0.8rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 0.4rem;">
             Emails de administración
           </p>
@@ -392,12 +392,22 @@ window.PANOL_TOUR_STEPS = [
   {
     selector: null,
     title: "Centro de Notificaciones",
-    text: "Configura qué alertas automáticas envía Pañol 360 y por qué canales."
+    text: "Acá configurás las alertas automáticas del sistema. Podés usar email, WhatsApp o ambos. Solo el Jefe tiene acceso a esta pantalla."
   },
   {
-    selector: ".card",
-    title: "Estado del servidor",
-    text: "Indica si SMTP y WhatsApp están habilitados en el servidor. El administrador del sistema debe configurar las credenciales en el archivo .env."
+    selector: "#notif-wa-section",
+    title: "Conexión WhatsApp",
+    text: "Conectá WhatsApp escaneando el QR con tu celular (igual que WhatsApp Web). Cuando el estado sea 'Conectado', el sistema puede enviar mensajes automáticos. Si los mensajes dejan de llegar, usá 'Forzar reconexión'."
+  },
+  {
+    selector: "#notif-config-section",
+    title: "Canales y tipos de alertas",
+    text: "Activá Email y/o WhatsApp. Luego elegí qué alertas querés: préstamos vencidos, recordatorio pre-vencimiento (avisa antes que venza), y stock mínimo bajo. Podés activarlas de forma independiente."
+  },
+  {
+    selector: "#notif-admin-emails",
+    title: "Emails de administración",
+    text: "Emails que reciben una copia de cada alerta, además del responsable del préstamo. Podés agregar el tuyo, el del dueño, el de un supervisor, etc. Cada uno se puede quitar cuando quieras."
   }
 ];
 
