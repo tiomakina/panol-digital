@@ -73,10 +73,10 @@ Usar el archivo `abrir_admin_panel.bat` en el notebook para abrir el túnel auto
 
 ## Pendientes técnicos
 
-### Prioridad Media
-- [ ] **Redis con autenticación** — añadir `--requirepass` en `docker-compose.yml`
-- [ ] **Chequeo explícito de tenant en `get_current_user()`** — agregar validación `user.tenant_id == current_tenant` en `security.py`
-- [ ] **Limpiar fotos huérfanas** — borrar archivo anterior al guardar foto nueva en `tools.py` / `users.py`
+### Prioridad Media — COMPLETADOS 2026-11-16
+- [x] **Redis con autenticación** — `--requirepass` en `docker-compose.yml`, `REDIS_PASSWORD` en `.env` del servidor con contraseña aleatoria `openssl rand -hex 32`
+- [x] **Chequeo explícito de tenant en `get_current_user()`** — validación `user.tenant_id == current_tenant` en `security.py`
+- [x] **Limpiar fotos huérfanas** — `unlink(missing_ok=True)` antes de guardar nueva foto en `tools.py` y `users.py`
 
 ### Prioridad Baja
 - [ ] **SMTP FROM address** — cambiar a `info@valentinmorales.cl` (requiere alias Gmail primero)
