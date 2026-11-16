@@ -60,7 +60,7 @@
   <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:1rem;">
 
     <!-- Préstamos recientes -->
-    <div class="card">
+    <div class="card" id="dashboard-loans">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
         <h3 style="font-size:0.95rem;font-weight:600;">Préstamos activos</h3>
         <a href="/loans" class="btn-primary" style="font-size:0.8rem;padding:0.3rem 0.75rem;text-decoration:none;">Ver todos</a>
@@ -72,7 +72,7 @@
     </div>
 
     <!-- Distribución del inventario por categoría -->
-    <div class="card">
+    <div class="card" id="dashboard-category-card">
       <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:0.15rem;">Herramientas por categoría</h3>
       <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 1rem;">Cuántas herramientas activas tenés en cada categoría (no incluye las dadas de baja)</p>
       <canvas id="categoryChart" height="200" x-show="categoryData.length > 0"></canvas>
@@ -138,8 +138,26 @@ function dashboardData() {
 }
 
 window.PANOL_TOUR_STEPS = [
-  { selector: '#dashboard-kpis', title: 'Tarjetas KPI', text: 'Un resumen del estado del pañol de un vistazo. Son clickeables: tocá cualquiera y te lleva al listado filtrado correspondiente.' },
-  { selector: '#categoryChart', title: 'Uso por categoría', text: 'Qué categorías de herramientas se prestan más, para saber dónde conviene invertir en más stock.' },
+  {
+    selector: '#dashboard-kpis',
+    title: 'Tarjetas KPI — estado de un vistazo',
+    text: 'Cuatro indicadores clave: total de herramientas en inventario, cuántas están en préstamo ahora mismo, el valor total del inventario (solo visible para el Jefe), y cuántas están en mantenimiento. Cada tarjeta es un acceso directo — tocá cualquiera y te lleva al listado filtrado.',
+  },
+  {
+    selector: '#dashboard-loans',
+    title: 'Préstamos activos',
+    text: 'Los últimos préstamos en curso, con el nombre del trabajador, la herramienta y si hay alguno vencido. Si ves el aviso ⚠ en rojo en la tarjeta KPI, acá podés ver cuál se pasó de fecha. El botón "Ver todos" lleva al módulo completo de Préstamos.',
+  },
+  {
+    selector: '#dashboard-category-card',
+    title: 'Herramientas por categoría',
+    text: 'Gráfico de torta con la distribución del inventario por categoría. Muestra cuántas herramientas activas hay en cada una (excluye las dadas de baja). Útil para saber si alguna categoría está bajo stock o sobre-representada.',
+  },
+  {
+    selector: '#dashboard-kpis',
+    title: 'Consejo: todo siempre actualizado',
+    text: 'Los números del dashboard se cargan en tiempo real desde la base de datos cada vez que abrís la página. No hace falta recargar — si alguien devuelve una herramienta o registra un préstamo ahora mismo, al próximo ingreso al dashboard ya lo verás reflejado.',
+  },
 ];
 </script>
 {% endblock %}
