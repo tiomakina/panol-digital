@@ -48,7 +48,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_db
-      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida — generarla con: openssl rand -hex 32}@redis:6379/0
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida}@redis:6379/0"
       SECRET_KEY: ${SECRET_KEY:-cambiar_en_produccion}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-jwt_cambiar_en_produccion}
       DEBUG: ${DEBUG:-false}
@@ -185,7 +185,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_db
-      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida — generarla con: openssl rand -hex 32}@redis:6379/0
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida}@redis:6379/0"
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -212,7 +212,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://panol:${DB_PASSWORD:-panol123}@db:5432/panol_db
-      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida — generarla con: openssl rand -hex 32}@redis:6379/0
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD no definida}@redis:6379/0"
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
